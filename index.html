@@ -10,8 +10,6 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  <!-- jsPDF voor werkbladen -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -160,15 +158,6 @@
         <div class="stap-pijl">→</div>
       </button>
     </div>
-
-    <div class="werkblad-scheiding"></div>
-    <button class="werkblad-knop" onclick="startModus('werkblad')">
-      <span class="werkblad-knop-icoon">📄</span>
-      <span class="werkblad-knop-tekst">
-        <strong>Werkblad voor de juf</strong>
-        <small>Maak een afdrukblad om in de klas te gebruiken.</small>
-      </span>
-    </button>
   </main>
 </div>
 
@@ -377,63 +366,6 @@
   </main>
 </div>
 
-<!-- ============ SCHERM: WERKBLAD ============ -->
-<div id="scherm-werkblad" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="naarThema()">← Terug</button>
-    <h1>Werkblad maken</h1>
-  </header>
-  <main class="werkblad-main">
-    <div class="werkblad-opties">
-      <h2>Kies oefeningen</h2>
-      <p class="werkblad-uitleg">Elke oefening krijgt picto-instructies bovenaan, zodat het kind zelfstandig kan werken.</p>
-
-      <div class="werkblad-niveau-keuze" id="werkblad-niveau-keuze">
-        <div class="niveau-titel">Welke woorden?</div>
-        <div class="niveau-knoppen">
-          <button class="niveau-knop actief" data-niveau="basis" onclick="kiesWerkbladNiveau('basis')">🌱 Basis</button>
-          <button class="niveau-knop" data-niveau="uitbreiding" onclick="kiesWerkbladNiveau('uitbreiding')">🌿 Uitbreiding</button>
-          <button class="niveau-knop" data-niveau="verdieping" onclick="kiesWerkbladNiveau('verdieping')">🌳 Verdieping</button>
-          <button class="niveau-knop" data-niveau="alles" onclick="kiesWerkbladNiveau('alles')">📚 Alles door elkaar</button>
-        </div>
-      </div>
-
-      <label class="check-kaart">
-        <input type="checkbox" id="opt-koppel" checked>
-        <div>
-          <strong>👁️ → 🔗 Koppel beeld en woord</strong>
-          <span>Trek lijntjes tussen het juiste beeld en woord.</span>
-        </div>
-      </label>
-      <label class="check-kaart">
-        <input type="checkbox" id="opt-overschrijf" checked>
-        <div>
-          <strong>👁️ → ✏️ Schrijf na</strong>
-          <span>Schrijf de woorden na op de schrijflijnen.</span>
-        </div>
-      </label>
-      <label class="check-kaart">
-        <input type="checkbox" id="opt-letter">
-        <div>
-          <strong>👁️ → ✏️ Welke letter mist?</strong>
-          <span>Vul de ontbrekende letter in.</span>
-        </div>
-      </label>
-      <label class="check-kaart">
-        <input type="checkbox" id="opt-omcirkel">
-        <div>
-          <strong>👁️ → ⭕ Omcirkel het juiste woord</strong>
-          <span>Kies uit drie woorden bij het beeld.</span>
-        </div>
-      </label>
-
-      <button class="grote-knop" onclick="genereerWerkblad()">
-        📥 Maak werkblad (PDF)
-      </button>
-    </div>
-  </main>
-</div>
-
 <!-- Scripts: data eerst -->
 <script src="themas/survival-klas.js"></script>
 <script src="themas/survival-speelplaats.js"></script>
@@ -459,7 +391,6 @@
 <script src="audio.js"></script>
 <script src="voortgang.js"></script>
 <script src="auth.js"></script>
-<script src="pdf-engine.js"></script>
 <script src="app.js"></script>
 
 </body>
