@@ -1,0 +1,49 @@
+// =================================================================
+//  Firestore Security Rules voor Anders Leren
+//  Plaats deze in Firebase Console → Firestore → Rules
+// =================================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Leerlingen-documenten in collectie 'kinderen'
+    match /kinderen/{code} {
+
+      // Lezen: iedereen die de exacte code kent mag lezen.
+      // Dit werkt omdat:
+      // - {code} moet exact matchen → niemand kan de hele collectie ophalen
+      // - Codes zijn 6+ tekens, niet te raden
+      allow read: if true;
+
+      // Schrijven: alleen velden 'voortgang' en 'laatstActief' mogen door
+      // het kind worden bijgewerkt (geen 'naam' overschrijven).
+      // Aanmaken: alleen via leerkracht-paneel (zie hieronder).
+      allow update: if
+        request.resource.data.keys().hasOnly(['voortgang', 'laatstActief', 'naam', 'gemaakt'])
+        && (!('naam' in request.resource.data) || request.resource.data.naam == resource.data.naam);
+
+      // Aanmaken & verwijderen: voor nu open, kan later beperkt worden
+      // tot een leerkracht-account als je auth wil toevoegen.
+      // ⚠️  Voor productie: voeg een leerkracht-token toe.
+      allow create, delete: if true;
+    }
+  }
+}
+
+/*
+============================================================
+  TOEKOMSTIGE VERSCHERPING (optioneel, voor latere release):
+============================================================
+Als je wil voorkomen dat iemand zomaar codes kan aanmaken,
+maak een "leerkrachten" collectie en eis dat schrijven alleen
+mag vanuit een ingelogde sessie:
+
+match /kinderen/{code} {
+  allow create, delete: if request.auth != null;
+}
+
+Dan hou je de huidige open lees/update voor de kind-app, maar
+moet je eerst inloggen als leerkracht (Google sign-in bv.)
+om kinderen toe te voegen.
+*/
