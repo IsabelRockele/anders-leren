@@ -269,20 +269,25 @@ function toonSlimOefenen() {
   }
   const opties = [item, ...afl].sort(() => Math.random() - 0.5);
 
+  // Bovenkant: grote luister-knop (zonder beeld!)
   kaart.innerHTML = `
-    <div class="vraag-tekst">Klik het juiste woord:</div>
-    <div class="grote-beeld">${item.beeld}</div>
-    <div class="slim-hoor-rij">
-      <button class="slim-hoor-knop" onclick="slimHoorWoord()">🔊 Hoor opnieuw</button>
-    </div>
+    <div class="vraag-tekst">Welk beeld hoor je?</div>
+    <button class="slim-luister-grote-knop" onclick="slimHoorWoord()">
+      <span class="slim-luister-icoon">🔊</span>
+      <span class="slim-luister-tekst">Luister</span>
+    </button>
+    <button class="slim-hint-knop" onclick="slimToonHint(this)">💡 Hint (zien)</button>
+    <span class="slim-hint-tekst" id="slim-hint-tekst"></span>
   `;
 
-  acties.className = 'slim-acties';
+  // Onderkant: 4 beeld-knoppen (zonder tekst)
+  acties.className = 'slim-acties slim-acties-beelden';
   acties.innerHTML = '';
   opties.forEach(opt => {
     const k = document.createElement('button');
-    k.className = 'slim-knop-actie';
-    k.textContent = opt.tekst;
+    k.className = 'slim-beeld-knop';
+    k.dataset.itemId = opt.id;
+    k.innerHTML = `<span class="slim-beeld-emoji">${opt.beeld}</span>`;
     k.onclick = () => slimKiesAntwoord(k, opt);
     acties.appendChild(k);
   });
@@ -290,8 +295,16 @@ function toonSlimOefenen() {
   spreekVeilig(item.tekst, 400);
 }
 
+function slimToonHint(btn) {
+  if (!slimHuidig) return;
+  const tekstEl = document.getElementById('slim-hint-tekst');
+  if (tekstEl) tekstEl.textContent = slimHuidig.item.tekst;
+  if (btn) btn.disabled = true;
+}
+
 function slimKiesAntwoord(knop, gekozen) {
-  document.querySelectorAll('.slim-knop-actie').forEach(k => k.disabled = true);
+  // Schakel beide knop-types uit (oude en nieuwe modus)
+  document.querySelectorAll('.slim-knop-actie, .slim-beeld-knop').forEach(k => k.disabled = true);
   const { thema, item } = slimHuidig;
 
   if (gekozen.id === item.id) {
@@ -313,6 +326,10 @@ function slimKiesAntwoord(knop, gekozen) {
     }
   } else {
     knop.classList.add('fout');
+    // Toon het juiste antwoord — werkt voor beide modussen via dataset-id of textContent
+    document.querySelectorAll('.slim-beeld-knop').forEach(k => {
+      if (k.dataset.itemId === item.id) k.classList.add('juist');
+    });
     document.querySelectorAll('.slim-knop-actie').forEach(k => {
       if (k.textContent === item.tekst) k.classList.add('juist');
     });
@@ -551,6 +568,8 @@ function startModus(modus) {
   } else if (modus === 'slim') {
     // Slim leren — alleen woorden uit huidig thema
     startSlimLeren([huidigThema]);
+  } else if (modus === 'spelen') {
+    toonScherm('scherm-spelen');
   } else if (modus === 'toets') {
     startToets();
   } else if (modus === 'werkblad') {
@@ -831,15 +850,620 @@ function genereerWerkblad() {
     overschrijf: document.getElementById('opt-overschrijf').checked,
     letter: document.getElementById('opt-letter').checked,
     omcirkel: document.getElementById('opt-omcirkel').checked,
-    zoek: document.getElementById('opt-zoek').checked,
     niveau: werkbladNiveau,
   };
-  const minstens1 = ['koppel','overschrijf','letter','omcirkel','zoek'].some(k => opties[k]);
+  const minstens1 = ['koppel','overschrijf','letter','omcirkel'].some(k => opties[k]);
   if (!minstens1) {
     alert('Kies minstens één oefening.');
     return;
   }
   PDFEngine.maakWerkblad(huidigThema, opties);
+}
+
+// =================================================================
+//  SPELEN — gemeenschappelijke functies
+// =================================================================
+function startSpel(spel) {
+  if (!huidigThema) return;
+  if (spel === 'klikspel') startKlikspel();
+  else if (spel === 'memory') startMemory();
+  else if (spel === 'verbinden') startVerbinden();
+  else if (spel === 'snelheid') startSnelheid();
+}
+
+function stopSpel() {
+  if (Auth.ingelogd()) Voortgang.bewaar(Auth.getCode());
+  AudioEngine.stop();
+  // Stop snelheidstimer als die loopt
+  if (snelTimerInterval) {
+    clearInterval(snelTimerInterval);
+    snelTimerInterval = null;
+  }
+  toonScherm('scherm-spelen');
+}
+
+// Hulpfunctie: schud array (Fisher-Yates)
+function schudArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// =================================================================
+//  SPEL 1: KLIKSPEL — beeld zien, woord kiezen
+// =================================================================
+let klikItem = null;
+let klikStreak = 0;
+let klikGebruikt = []; // ids van items die deze sessie al voorgekomen zijn
+
+function startKlikspel() {
+  klikStreak = 0;
+  klikGebruikt = [];
+  document.getElementById('klik-streak').textContent = '0';
+  toonScherm('scherm-klikspel');
+  volgendeKlikVraag();
+}
+
+function volgendeKlikVraag() {
+  const items = huidigThema.items;
+  // Reset als alle items getoond zijn
+  if (klikGebruikt.length >= items.length) klikGebruikt = [];
+
+  const beschikbaar = items.filter(it => !klikGebruikt.includes(it.id));
+  klikItem = beschikbaar[Math.floor(Math.random() * beschikbaar.length)];
+  klikGebruikt.push(klikItem.id);
+
+  // 3 afleiders uit hetzelfde thema
+  const afleiders = schudArray(items.filter(it => it.id !== klikItem.id)).slice(0, 3);
+  const opties = schudArray([klikItem, ...afleiders]);
+
+  document.getElementById('klik-beeld').textContent = klikItem.beeld;
+  document.getElementById('klik-feedback').textContent = '';
+  document.getElementById('klik-feedback').className = 'klikspel-feedback';
+
+  const div = document.getElementById('klik-opties');
+  div.innerHTML = '';
+  opties.forEach(opt => {
+    const k = document.createElement('button');
+    k.className = 'klik-optie-knop';
+    k.textContent = opt.tekst;
+    k.onclick = () => kiesKlikAntwoord(k, opt);
+    div.appendChild(k);
+  });
+
+  spreekVeilig(klikItem.tekst, 400);
+}
+
+function klikHoorOpnieuw() {
+  if (klikItem) AudioEngine.spreek(klikItem.tekst);
+}
+
+function kiesKlikAntwoord(knop, gekozen) {
+  document.querySelectorAll('.klik-optie-knop').forEach(k => k.disabled = true);
+  const fb = document.getElementById('klik-feedback');
+
+  if (gekozen.id === klikItem.id) {
+    knop.classList.add('juist');
+    Voortgang.registreerJuist(huidigThema.id, klikItem.id);
+    klikStreak++;
+    document.getElementById('klik-streak').textContent = klikStreak;
+    fb.textContent = '✨ Goed zo!';
+    fb.className = 'klikspel-feedback juist';
+    AudioEngine.spreek(klikItem.tekst);
+    if (klikStreak % 3 === 0) Voortgang.bewaar(Auth.getCode());
+    const v = _schermVersie;
+    setTimeout(() => { if (_schermVersie === v) volgendeKlikVraag(); }, 1400);
+  } else {
+    knop.classList.add('fout');
+    document.querySelectorAll('.klik-optie-knop').forEach(k => {
+      if (k.textContent === klikItem.tekst) k.classList.add('juist');
+    });
+    Voortgang.registreerFout(huidigThema.id, klikItem.id);
+    klikStreak = 0;
+    document.getElementById('klik-streak').textContent = '0';
+    fb.textContent = `Het woord was: ${klikItem.tekst}`;
+    fb.className = 'klikspel-feedback fout';
+    AudioEngine.spreek(klikItem.tekst);
+    const v = _schermVersie;
+    setTimeout(() => { if (_schermVersie === v) volgendeKlikVraag(); }, 2400);
+  }
+}
+
+// =================================================================
+//  SPEL 2: MEMORY — paren zoeken (woord-kaart koppelt aan beeld-kaart)
+// =================================================================
+const MEMORY_PAREN_AANTAL = 6;
+let memoryKaarten = [];
+let memoryEersteKaart = null;
+let memoryBezig = false; // tijdens animatie kan kind niet klikken
+let memoryGevonden = 0;
+
+function startMemory() {
+  memoryEersteKaart = null;
+  memoryBezig = false;
+  memoryGevonden = 0;
+
+  // Kies N items uit het thema
+  const items = schudArray(huidigThema.items).slice(0, MEMORY_PAREN_AANTAL);
+
+  // Voor elk item maken we 2 kaarten: een woord-kaart en een beeld-kaart
+  memoryKaarten = [];
+  items.forEach(item => {
+    memoryKaarten.push({ id: 'b-' + item.id, itemId: item.id, type: 'beeld', inhoud: item.beeld, item });
+    memoryKaarten.push({ id: 'w-' + item.id, itemId: item.id, type: 'woord', inhoud: item.tekst, item });
+  });
+  memoryKaarten = schudArray(memoryKaarten);
+
+  document.getElementById('memory-paren').textContent = '0';
+  document.getElementById('memory-totaal').textContent = items.length;
+  document.getElementById('memory-feedback').textContent = '';
+
+  rendererMemory();
+  toonScherm('scherm-memory');
+}
+
+function rendererMemory() {
+  const grid = document.getElementById('memory-grid');
+  grid.innerHTML = '';
+  memoryKaarten.forEach(kaart => {
+    const k = document.createElement('button');
+    k.className = 'memory-kaart';
+    k.dataset.id = kaart.id;
+    k.dataset.itemId = kaart.itemId;
+    k.dataset.type = kaart.type;
+    // Bij woord-kaarten: kleine luidspreker zodat kind opnieuw kan horen
+    const luidspreker = kaart.type === 'woord'
+      ? `<span class="memory-luidspreker" data-spreek="${kaart.item.tekst.replace(/"/g,'&quot;')}">🔊</span>`
+      : '';
+    k.innerHTML = `
+      <span class="memory-kaart-achter">?</span>
+      <span class="memory-kaart-voor">
+        <span class="memory-kaart-inhoud">${kaart.inhoud}</span>
+        ${luidspreker}
+      </span>
+    `;
+    k.onclick = (e) => {
+      // Klik op luidspreker = alleen uitspreken, kaart niet kiezen als hij al open is
+      if (e.target.classList.contains('memory-luidspreker')) {
+        e.stopPropagation();
+        AudioEngine.spreek(kaart.item.tekst);
+        return;
+      }
+      kiesMemoryKaart(k, kaart);
+    };
+    grid.appendChild(k);
+  });
+}
+
+function kiesMemoryKaart(knop, kaart) {
+  if (memoryBezig) return;
+  if (knop.classList.contains('open') || knop.classList.contains('gevonden')) return;
+
+  knop.classList.add('open');
+
+  // Eerste kaart van een paar
+  if (!memoryEersteKaart) {
+    memoryEersteKaart = { knop, kaart };
+    return;
+  }
+
+  // Tweede kaart — vergelijken
+  memoryBezig = true;
+  const eerste = memoryEersteKaart;
+  memoryEersteKaart = null;
+
+  const isPaar = (eerste.kaart.itemId === kaart.itemId) && (eerste.kaart.type !== kaart.type);
+
+  if (isPaar) {
+    // Markeer beide als gevonden (woord wordt al uitgesproken hierboven)
+    Voortgang.registreerJuist(huidigThema.id, kaart.itemId);
+    memoryGevonden++;
+    document.getElementById('memory-paren').textContent = memoryGevonden;
+
+    setTimeout(() => {
+      eerste.knop.classList.add('gevonden');
+      knop.classList.add('gevonden');
+      memoryBezig = false;
+
+      if (memoryGevonden >= MEMORY_PAREN_AANTAL) {
+        // Alle paren gevonden!
+        document.getElementById('memory-feedback').innerHTML = '🏆 Alle paren gevonden! <button class="grote-knop" onclick="startMemory()">Opnieuw</button>';
+        Voortgang.bewaar(Auth.getCode());
+      }
+    }, 800);
+  } else {
+    // Geen paar — dicht na korte tijd
+    Voortgang.registreerFout(huidigThema.id, kaart.itemId);
+    setTimeout(() => {
+      eerste.knop.classList.remove('open');
+      knop.classList.remove('open');
+      memoryBezig = false;
+    }, 1100);
+  }
+}
+
+// =================================================================
+//  SPEL 3: VERBINDEN — drag-and-drop lijntjes trekken
+// =================================================================
+const VERBIND_AANTAL = 5;
+let verbindItems = [];
+let verbindGoed = 0;
+let verbindActief = null; // huidig bezig met slepen vanaf
+let verbindGekoppeld = []; // {linksId, rechtsId, juist}
+
+function startVerbinden() {
+  verbindGoed = 0;
+  verbindGekoppeld = [];
+  verbindActief = null;
+  verbindNieuweRonde();
+  toonScherm('scherm-verbinden');
+}
+
+function verbindNieuweRonde() {
+  // Kies N items
+  verbindItems = schudArray(huidigThema.items).slice(0, VERBIND_AANTAL);
+  verbindGoed = 0;
+  verbindGekoppeld = [];
+  verbindActief = null;
+
+  document.getElementById('verbind-goed').textContent = '0';
+  document.getElementById('verbind-totaal').textContent = verbindItems.length;
+  document.getElementById('verbind-volgende-knop').style.display = 'none';
+
+  // Links: beelden in originele volgorde
+  const links = document.getElementById('verbind-links');
+  links.innerHTML = '';
+  verbindItems.forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'verbind-item verbind-item-beeld';
+    el.dataset.itemId = item.id;
+    el.dataset.zijde = 'links';
+    el.innerHTML = `<span class="verbind-emoji">${item.beeld}</span>`;
+    voegVerbindEventsToe(el);
+    links.appendChild(el);
+  });
+
+  // Rechts: woorden in geschudde volgorde
+  const rechts = document.getElementById('verbind-rechts');
+  rechts.innerHTML = '';
+  schudArray(verbindItems).forEach(item => {
+    const el = document.createElement('div');
+    el.className = 'verbind-item verbind-item-woord';
+    el.dataset.itemId = item.id;
+    el.dataset.zijde = 'rechts';
+    el.textContent = item.tekst;
+    voegVerbindEventsToe(el);
+    rechts.appendChild(el);
+  });
+
+  // Maak de SVG schoon
+  document.getElementById('verbind-svg').innerHTML = '';
+}
+
+// State voor slepen
+let _verbindSleepBezig = false;
+let _verbindSleepStart = null;
+let _verbindSleepLijn = null;
+let _verbindSleepStartPos = null;
+
+function voegVerbindEventsToe(el) {
+  // Pointer events werken voor zowel muis als touch
+  el.addEventListener('pointerdown', verbindPointerDown);
+  el.addEventListener('click', verbindKlik);
+}
+
+function verbindPointerDown(e) {
+  const el = e.currentTarget;
+  if (el.classList.contains('verbind-juist')) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return; // alleen linker muisknop
+
+  _verbindSleepStart = el;
+  _verbindSleepBezig = false; // wordt true zodra gebruiker beweegt
+  _verbindSleepStartPos = { x: e.clientX, y: e.clientY };
+
+  // Spreek woord uit bij beeld
+  if (el.dataset.zijde === 'links') {
+    const item = huidigThema.items.find(it => it.id === el.dataset.itemId);
+    if (item) AudioEngine.spreek(item.tekst);
+  }
+
+  // Luister verder op het hele document zodat sleep doorgaat ook buiten de element
+  document.addEventListener('pointermove', verbindPointerMove);
+  document.addEventListener('pointerup', verbindPointerUp);
+  document.addEventListener('pointercancel', verbindPointerUp);
+
+  // Voorkom standaard touch-scroll tijdens slepen
+  e.preventDefault();
+}
+
+function verbindPointerMove(e) {
+  if (!_verbindSleepStart) return;
+
+  // Bepaal of we voldoende bewogen zijn om "slepen" te herkennen
+  const dx = e.clientX - _verbindSleepStartPos.x;
+  const dy = e.clientY - _verbindSleepStartPos.y;
+  if (!_verbindSleepBezig && Math.abs(dx) + Math.abs(dy) < 8) return; // nog geen sleep
+
+  _verbindSleepBezig = true;
+
+  // Markeer startelement als actief
+  _verbindSleepStart.classList.add('actief');
+
+  // Teken/update lijn vanaf startelement naar cursor
+  const veld = document.getElementById('verbind-veld');
+  const svg = document.getElementById('verbind-svg');
+  const veldRect = veld.getBoundingClientRect();
+  const startRect = _verbindSleepStart.getBoundingClientRect();
+
+  // Startpunt: midden van rechterkant (links) of linkerkant (rechts)
+  const isLinks = _verbindSleepStart.dataset.zijde === 'links';
+  const x1 = (isLinks ? startRect.right : startRect.left) - veldRect.left;
+  const y1 = startRect.top + startRect.height / 2 - veldRect.top;
+  const x2 = e.clientX - veldRect.left;
+  const y2 = e.clientY - veldRect.top;
+
+  if (!_verbindSleepLijn) {
+    _verbindSleepLijn = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    _verbindSleepLijn.setAttribute('stroke-width', '4');
+    _verbindSleepLijn.setAttribute('stroke-linecap', 'round');
+    _verbindSleepLijn.setAttribute('stroke', '#3A86FF');
+    _verbindSleepLijn.setAttribute('stroke-dasharray', '6,4');
+    svg.appendChild(_verbindSleepLijn);
+  }
+  _verbindSleepLijn.setAttribute('x1', x1);
+  _verbindSleepLijn.setAttribute('y1', y1);
+  _verbindSleepLijn.setAttribute('x2', x2);
+  _verbindSleepLijn.setAttribute('y2', y2);
+
+  // Highlight het element waar de cursor over zit (als geldige drop-target)
+  document.querySelectorAll('.verbind-item.over').forEach(x => x.classList.remove('over'));
+  const onder = document.elementFromPoint(e.clientX, e.clientY);
+  const dropTarget = onder ? onder.closest('.verbind-item') : null;
+  if (dropTarget && dropTarget.dataset.zijde !== _verbindSleepStart.dataset.zijde
+      && !dropTarget.classList.contains('verbind-juist')) {
+    dropTarget.classList.add('over');
+  }
+}
+
+function verbindPointerUp(e) {
+  document.removeEventListener('pointermove', verbindPointerMove);
+  document.removeEventListener('pointerup', verbindPointerUp);
+  document.removeEventListener('pointercancel', verbindPointerUp);
+
+  if (!_verbindSleepStart) return;
+  const startEl = _verbindSleepStart;
+
+  // Verwijder tijdelijke sleep-lijn
+  if (_verbindSleepLijn) {
+    _verbindSleepLijn.parentNode.removeChild(_verbindSleepLijn);
+    _verbindSleepLijn = null;
+  }
+  document.querySelectorAll('.verbind-item.over').forEach(x => x.classList.remove('over'));
+
+  if (!_verbindSleepBezig) {
+    // Was geen sleep, maar een klik — laat klik-handler het overnemen
+    _verbindSleepStart = null;
+    return;
+  }
+
+  // Echte sleep: zoek waar pointer eindigde
+  const eindEl = document.elementFromPoint(e.clientX, e.clientY);
+  const doelItem = eindEl ? eindEl.closest('.verbind-item') : null;
+
+  if (doelItem
+      && doelItem !== startEl
+      && doelItem.dataset.zijde !== startEl.dataset.zijde
+      && !doelItem.classList.contains('verbind-juist')) {
+    // Geldige drop — verbind ze
+    verbindKoppel(startEl, doelItem);
+  } else {
+    // Ongeldige drop — reset actief
+    startEl.classList.remove('actief');
+  }
+
+  _verbindSleepStart = null;
+  _verbindSleepBezig = false;
+}
+
+function verbindKlik(e) {
+  // Klikgedrag werkt ALLEEN als er net niet gesleept is
+  if (_verbindSleepBezig) return;
+  const el = e.currentTarget;
+  if (el.classList.contains('verbind-juist')) return;
+
+  if (!verbindActief) {
+    verbindActief = el;
+    document.querySelectorAll('.verbind-item.actief').forEach(x => x.classList.remove('actief'));
+    el.classList.add('actief');
+    if (el.dataset.zijde === 'links') {
+      const item = huidigThema.items.find(it => it.id === el.dataset.itemId);
+      if (item) AudioEngine.spreek(item.tekst);
+    }
+    return;
+  }
+
+  if (verbindActief.dataset.zijde === el.dataset.zijde) {
+    verbindActief.classList.remove('actief');
+    verbindActief = el;
+    el.classList.add('actief');
+    if (el.dataset.zijde === 'links') {
+      const item = huidigThema.items.find(it => it.id === el.dataset.itemId);
+      if (item) AudioEngine.spreek(item.tekst);
+    }
+    return;
+  }
+
+  verbindKoppel(verbindActief, el);
+  verbindActief = null;
+}
+
+function verbindKoppel(elA, elB) {
+  // Bepaal welke links en welke rechts
+  const linksEl = elA.dataset.zijde === 'links' ? elA : elB;
+  const rechtsEl = elA.dataset.zijde === 'rechts' ? elA : elB;
+  const juist = linksEl.dataset.itemId === rechtsEl.dataset.itemId;
+
+  // Teken een definitieve lijn ertussen
+  const veld = document.getElementById('verbind-veld');
+  const svg = document.getElementById('verbind-svg');
+  const veldRect = veld.getBoundingClientRect();
+  const lEl = linksEl.getBoundingClientRect();
+  const rEl = rechtsEl.getBoundingClientRect();
+
+  const x1 = lEl.right - veldRect.left;
+  const y1 = lEl.top + lEl.height / 2 - veldRect.top;
+  const x2 = rEl.left - veldRect.left;
+  const y2 = rEl.top + rEl.height / 2 - veldRect.top;
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', x1);
+  line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2);
+  line.setAttribute('y2', y2);
+  line.setAttribute('stroke-width', '4');
+  line.setAttribute('stroke-linecap', 'round');
+  line.setAttribute('stroke', juist ? '#06A77D' : '#E63946');
+  svg.appendChild(line);
+
+  if (juist) {
+    linksEl.classList.add('verbind-juist');
+    rechtsEl.classList.add('verbind-juist');
+    linksEl.classList.remove('actief');
+    rechtsEl.classList.remove('actief');
+    Voortgang.registreerJuist(huidigThema.id, linksEl.dataset.itemId);
+    verbindGoed++;
+    document.getElementById('verbind-goed').textContent = verbindGoed;
+
+    if (verbindGoed >= verbindItems.length) {
+      document.getElementById('verbind-volgende-knop').style.display = 'block';
+      Voortgang.bewaar(Auth.getCode());
+    }
+  } else {
+    Voortgang.registreerFout(huidigThema.id, linksEl.dataset.itemId);
+    linksEl.classList.add('verbind-fout');
+    rechtsEl.classList.add('verbind-fout');
+    setTimeout(() => {
+      linksEl.classList.remove('verbind-fout', 'actief');
+      rechtsEl.classList.remove('verbind-fout', 'actief');
+      if (svg.contains(line)) svg.removeChild(line);
+    }, 900);
+  }
+}
+
+function verbindVolgendeRonde() {
+  verbindNieuweRonde();
+}
+
+// =================================================================
+//  SPEL 4: SNELHEID — klikspel met timer (30 sec)
+// =================================================================
+const SNELHEID_SECONDEN = 30;
+let snelItem = null;
+let snelScore = 0;
+let snelTimerStart = 0;
+let snelTimerInterval = null;
+let snelGebruikt = [];
+
+function startSnelheid() {
+  snelScore = 0;
+  snelGebruikt = [];
+  document.getElementById('snel-score').textContent = '0';
+  document.getElementById('snel-eind').style.display = 'none';
+  document.getElementById('snel-vraag-doos').style.display = '';
+  document.getElementById('snel-opties').style.display = '';
+  toonScherm('scherm-snelheid');
+
+  // Start timer
+  snelTimerStart = Date.now();
+  updateSnelTimer();
+  if (snelTimerInterval) clearInterval(snelTimerInterval);
+  snelTimerInterval = setInterval(updateSnelTimer, 100);
+
+  volgendeSnelVraag();
+}
+
+function updateSnelTimer() {
+  const verstreken = (Date.now() - snelTimerStart) / 1000;
+  const over = Math.max(0, SNELHEID_SECONDEN - verstreken);
+  const procent = (over / SNELHEID_SECONDEN) * 100;
+
+  document.getElementById('snel-timer-tekst').textContent = Math.ceil(over);
+  document.getElementById('snel-timer-vul').style.width = procent + '%';
+
+  // Kleur veranderen op het einde
+  const balk = document.getElementById('snel-timer-vul');
+  if (over < 5) balk.style.background = 'var(--kleur-fout)';
+  else if (over < 10) balk.style.background = '#FFB627';
+  else balk.style.background = 'var(--kleur-juist)';
+
+  if (over <= 0) eindigSnelheid();
+}
+
+function volgendeSnelVraag() {
+  const items = huidigThema.items;
+  if (snelGebruikt.length >= items.length) snelGebruikt = [];
+
+  const beschikbaar = items.filter(it => !snelGebruikt.includes(it.id));
+  snelItem = beschikbaar[Math.floor(Math.random() * beschikbaar.length)];
+  snelGebruikt.push(snelItem.id);
+
+  const afleiders = schudArray(items.filter(it => it.id !== snelItem.id)).slice(0, 3);
+  const opties = schudArray([snelItem, ...afleiders]);
+
+  document.getElementById('snel-beeld').textContent = snelItem.beeld;
+
+  const div = document.getElementById('snel-opties');
+  div.innerHTML = '';
+  opties.forEach(opt => {
+    const k = document.createElement('button');
+    k.className = 'klik-optie-knop';
+    k.textContent = opt.tekst;
+    k.onclick = () => kiesSnelAntwoord(k, opt);
+    div.appendChild(k);
+  });
+}
+
+function kiesSnelAntwoord(knop, gekozen) {
+  if (gekozen.id === snelItem.id) {
+    knop.classList.add('juist');
+    Voortgang.registreerJuist(huidigThema.id, snelItem.id);
+    snelScore++;
+    document.getElementById('snel-score').textContent = snelScore;
+    // Direct door naar volgende, geen wachttijd — snelheid is van belang
+    const v = _schermVersie;
+    setTimeout(() => { if (_schermVersie === v) volgendeSnelVraag(); }, 250);
+  } else {
+    knop.classList.add('fout');
+    Voortgang.registreerFout(huidigThema.id, snelItem.id);
+    // Korte penalty van 600ms voor je verder mag
+    document.querySelectorAll('#snel-opties .klik-optie-knop').forEach(k => k.disabled = true);
+    const v = _schermVersie;
+    setTimeout(() => { if (_schermVersie === v) volgendeSnelVraag(); }, 600);
+  }
+}
+
+function eindigSnelheid() {
+  if (snelTimerInterval) {
+    clearInterval(snelTimerInterval);
+    snelTimerInterval = null;
+  }
+  // Verberg vraag, toon eindscherm
+  document.getElementById('snel-vraag-doos').style.display = 'none';
+  document.getElementById('snel-opties').style.display = 'none';
+  document.getElementById('snel-eind').style.display = 'block';
+  document.getElementById('snel-eind-score').textContent = snelScore;
+
+  // Aangepaste titel obv score
+  const titelEl = document.getElementById('snel-eind-titel');
+  if (snelScore >= 15) titelEl.textContent = '🏆 Geweldig!';
+  else if (snelScore >= 10) titelEl.textContent = '⭐ Top!';
+  else if (snelScore >= 5) titelEl.textContent = '✨ Goed bezig!';
+  else titelEl.textContent = '⏰ Tijd om!';
+
+  Voortgang.bewaar(Auth.getCode());
 }
 
 // =================================================================
