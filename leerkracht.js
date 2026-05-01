@@ -2,21 +2,36 @@
 //  leerkracht.js — Logica voor het leerkracht-paneel
 // =================================================================
 
-const ALLE_THEMAS_LK = [
-  window.THEMA_WOORDEN_KLAS,
-  window.THEMA_WOORDEN_LICHAAM,
-  window.THEMA_WOORDEN_ETEN,
-  window.THEMA_WOORDEN_FAMILIE,
-  window.THEMA_WOORDEN_DIEREN,
-  window.THEMA_WOORDEN_CIJFERS,
-  window.THEMA_WOORDEN_DOEN,
-  window.THEMA_WOORDEN_THUIS,
-  window.THEMA_ZINNEN_SCHOOL,
-  window.THEMA_ZINNEN_BELEEFD,
-  window.THEMA_ZINNEN_GEVOEL,
-  window.THEMA_ZINNEN_HULP,
-  window.THEMA_ZINNEN_TIJD,
+// Lijst van alle verwachte thema-globals
+const VERWACHTE_THEMAS_LK = [
+  ['THEMA_SURVIVAL_KLAS', 'survival-klas.js'],
+  ['THEMA_SURVIVAL_SPEELPLAATS', 'survival-speelplaats.js'],
+  ['THEMA_SURVIVAL_HEENTERUG', 'survival-heenterug.js'],
+  ['THEMA_WOORDEN_KLAS', 'woorden-klas.js'],
+  ['THEMA_WOORDEN_LICHAAM', 'woorden-lichaam.js'],
+  ['THEMA_WOORDEN_ETEN', 'woorden-eten.js'],
+  ['THEMA_WOORDEN_FAMILIE', 'woorden-familie.js'],
+  ['THEMA_WOORDEN_DIEREN', 'woorden-dieren.js'],
+  ['THEMA_WOORDEN_CIJFERS', 'woorden-cijfers.js'],
+  ['THEMA_WOORDEN_KLEUREN', 'woorden-kleuren.js'],
+  ['THEMA_WOORDEN_VORMEN', 'woorden-vormen.js'],
+  ['THEMA_WOORDEN_DOEN', 'woorden-doen.js'],
+  ['THEMA_WOORDEN_THUIS', 'woorden-thuis.js'],
+  ['THEMA_ZINNEN_SCHOOL', 'zinnen-school.js'],
+  ['THEMA_ZINNEN_BELEEFD', 'zinnen-beleefd.js'],
+  ['THEMA_ZINNEN_GEVOEL', 'zinnen-gevoel.js'],
+  ['THEMA_ZINNEN_HULP', 'zinnen-hulp.js'],
+  ['THEMA_ZINNEN_TIJD', 'zinnen-tijd.js'],
 ];
+
+// Filter ontbrekende thema's eruit, log waarschuwing
+const ALLE_THEMAS_LK = VERWACHTE_THEMAS_LK
+  .map(([naam, bestand]) => {
+    const t = window[naam];
+    if (!t) console.warn(`[leerkracht] Thema niet geladen: ${naam} — bestand themas/${bestand} ontbreekt of heeft een fout.`);
+    return t;
+  })
+  .filter(t => t && t.id); // alleen geldige thema's behouden
 
 let lkKinderen = []; // cache van kinderen
 let lkHuidigQRCode = null;
