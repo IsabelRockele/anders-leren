@@ -2,27 +2,47 @@
 //  app.js — Hoofdlogica Anders Leren (kind-app)
 // =================================================================
 
-// Alle thema's
-const THEMAS_WOORDEN = [
-  window.THEMA_WOORDEN_KLAS,
-  window.THEMA_WOORDEN_LICHAAM,
-  window.THEMA_WOORDEN_ETEN,
-  window.THEMA_WOORDEN_FAMILIE,
-  window.THEMA_WOORDEN_DIEREN,
-  window.THEMA_WOORDEN_CIJFERS,
-  window.THEMA_WOORDEN_DOEN,
-  window.THEMA_WOORDEN_THUIS,
-];
+// Helper: filter ontbrekende thema's en waarschuw
+function _veiligThemas(verwacht) {
+  return verwacht
+    .map(([naam, bestand]) => {
+      const t = window[naam];
+      if (!t) console.warn(`[app] Thema niet geladen: ${naam} — bestand themas/${bestand} ontbreekt of heeft een fout.`);
+      return t;
+    })
+    .filter(t => t && t.id);
+}
 
-const THEMAS_ZINNEN = [
-  window.THEMA_ZINNEN_SCHOOL,
-  window.THEMA_ZINNEN_BELEEFD,
-  window.THEMA_ZINNEN_GEVOEL,
-  window.THEMA_ZINNEN_HULP,
-  window.THEMA_ZINNEN_TIJD,
-];
+// Survival-thema's — altijd open, hoogste prioriteit voor nieuwkomers
+const THEMAS_SURVIVAL = _veiligThemas([
+  ['THEMA_SURVIVAL_KLAS', 'survival-klas.js'],
+  ['THEMA_SURVIVAL_SPEELPLAATS', 'survival-speelplaats.js'],
+  ['THEMA_SURVIVAL_HEENTERUG', 'survival-heenterug.js'],
+]);
 
-const ALLE_THEMAS = [...THEMAS_WOORDEN, ...THEMAS_ZINNEN];
+// Leerlijn-thema's — in volgorde van eenvoud
+const THEMAS_WOORDEN = _veiligThemas([
+  ['THEMA_WOORDEN_KLAS', 'woorden-klas.js'],
+  ['THEMA_WOORDEN_LICHAAM', 'woorden-lichaam.js'],
+  ['THEMA_WOORDEN_ETEN', 'woorden-eten.js'],
+  ['THEMA_WOORDEN_FAMILIE', 'woorden-familie.js'],
+  ['THEMA_WOORDEN_DIEREN', 'woorden-dieren.js'],
+  ['THEMA_WOORDEN_CIJFERS', 'woorden-cijfers.js'],
+  ['THEMA_WOORDEN_KLEUREN', 'woorden-kleuren.js'],
+  ['THEMA_WOORDEN_VORMEN', 'woorden-vormen.js'],
+  ['THEMA_WOORDEN_DOEN', 'woorden-doen.js'],
+  ['THEMA_WOORDEN_THUIS', 'woorden-thuis.js'],
+]);
+
+const THEMAS_ZINNEN = _veiligThemas([
+  ['THEMA_ZINNEN_SCHOOL', 'zinnen-school.js'],
+  ['THEMA_ZINNEN_BELEEFD', 'zinnen-beleefd.js'],
+  ['THEMA_ZINNEN_GEVOEL', 'zinnen-gevoel.js'],
+  ['THEMA_ZINNEN_HULP', 'zinnen-hulp.js'],
+  ['THEMA_ZINNEN_TIJD', 'zinnen-tijd.js'],
+]);
+
+const ALLE_THEMAS = [...THEMAS_SURVIVAL, ...THEMAS_WOORDEN, ...THEMAS_ZINNEN];
 
 // State
 let huidigThema = null;
@@ -117,7 +137,11 @@ let slimStreak = 0;          // hoeveel juiste antwoorden op rij in deze sessie
 let slimFase = 'kennismaken';// 'kennismaken' (zien+horen) of 'oefenen' (kiezen)
 const SLIM_THEMA_FILTERS = []; // optioneel filteren — voor later
 
-function startSlimLeren() {
+// Welke thema's gebruikt slim leren in deze sessie? (default: alle woorden)
+let slimThemas = null;
+
+function startSlimLeren(themas) {
+  slimThemas = themas || THEMAS_WOORDEN;
   slimStreak = 0;
   document.getElementById('slim-streak').textContent = '0';
   toonScherm('scherm-slim');
@@ -127,11 +151,16 @@ function startSlimLeren() {
 function stopSlimLeren() {
   if (Auth.ingelogd()) Voortgang.bewaar(Auth.getCode());
   AudioEngine.stop();
-  naarStart();
+  // Terug naar thema-detail als slim leren vanuit thema gestart, anders naar start
+  if (slimThemas && slimThemas.length === 1 && huidigThema) {
+    naarThema();
+  } else {
+    naarStart();
+  }
 }
 
 function volgendeSlimItem() {
-  const gekozen = Voortgang.kiesVolgendItem(ALLE_THEMAS);
+  const gekozen = Voortgang.kiesVolgendItem(slimThemas || THEMAS_WOORDEN);
 
   if (!gekozen) {
     // Alles klaar! Kind heeft alles geleerd
@@ -187,15 +216,10 @@ function toonSlimKennismaken() {
   kaart.innerHTML = `
     <div class="grote-beeld">${item.beeld}</div>
     <div class="grote-tekst">${item.tekst}</div>
-    <div class="zin-tekst">${item.zin}</div>
   `;
 
   acties.className = 'slim-acties';
   acties.innerHTML = `
-    <div class="slim-hoor-rij" style="grid-column: 1 / -1">
-      <button class="slim-hoor-knop" onclick="slimHoorWoord()">🔊 Woord</button>
-      <button class="slim-hoor-knop" onclick="slimHoorZin()">💬 Zin</button>
-    </div>
     <button class="slim-knop-actie" onclick="slimNogEens()">🔁 Nog eens</button>
     <button class="slim-knop-actie primair" onclick="slimSnap()">✓ Ik snap het!</button>
   `;
@@ -203,15 +227,11 @@ function toonSlimKennismaken() {
   Voortgang.registreerGezien(thema.id, item.id);
 
   // Spreek automatisch uit
-  setTimeout(() => AudioEngine.spreek(item.tekst), 400);
+  spreekVeilig(item.tekst, 400);
 }
 
 function slimHoorWoord() {
   if (slimHuidig) AudioEngine.spreek(slimHuidig.item.tekst);
-}
-
-function slimHoorZin() {
-  if (slimHuidig) AudioEngine.spreek(slimHuidig.item.zin);
 }
 
 function slimNogEens() {
@@ -267,7 +287,7 @@ function toonSlimOefenen() {
     acties.appendChild(k);
   });
 
-  setTimeout(() => AudioEngine.spreek(item.tekst), 400);
+  spreekVeilig(item.tekst, 400);
 }
 
 function slimKiesAntwoord(knop, gekozen) {
@@ -284,11 +304,12 @@ function slimKiesAntwoord(knop, gekozen) {
     // Bewaar elke 3 juiste antwoorden
     if (slimStreak % 3 === 0) Voortgang.bewaar(Auth.getCode());
 
-    // Vier elke 5 op rij met een feestje
+    // Vier elke 5 op rij met een feestje (alleen als nog op slim-scherm)
+    const versie = _schermVersie;
     if (slimStreak > 0 && slimStreak % 5 === 0) {
-      setTimeout(() => toonSlimVierMoment(), 1300);
+      setTimeout(() => { if (_schermVersie === versie) toonSlimVierMoment(); }, 1300);
     } else {
-      setTimeout(() => volgendeSlimItem(), 1500);
+      setTimeout(() => { if (_schermVersie === versie) volgendeSlimItem(); }, 1500);
     }
   } else {
     knop.classList.add('fout');
@@ -299,7 +320,8 @@ function slimKiesAntwoord(knop, gekozen) {
     slimStreak = 0;
     document.getElementById('slim-streak').textContent = '0';
     AudioEngine.spreek(item.tekst);
-    setTimeout(() => volgendeSlimItem(), 2400);
+    const versie = _schermVersie;
+    setTimeout(() => { if (_schermVersie === versie) volgendeSlimItem(); }, 2400);
   }
 }
 
@@ -343,41 +365,31 @@ function toonSlimAlleskKlaar() {
 //  STARTSCHERM (na login)
 // =================================================================
 function rendererStart() {
+  rendererSurvivalGrid();
   rendererThemaGrid('woorden-grid', THEMAS_WOORDEN);
   rendererThemaGrid('zinnen-grid', THEMAS_ZINNEN);
   rendererVoortgang();
-  rendererSlimLerenDoos();
 }
 
-function rendererSlimLerenDoos() {
-  // Bepaal of er al voortgang is
-  let totaalGezien = 0;
-  let totaalGekend = 0;
-  let totaalItems = 0;
-  ALLE_THEMAS.forEach(thema => {
-    const s = Voortgang.statsThema(thema);
-    totaalGezien += s.gezien;
-    totaalGekend += s.gekend;
-    totaalItems += s.totaal;
+function rendererSurvivalGrid() {
+  const grid = document.getElementById('survival-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  THEMAS_SURVIVAL.forEach(thema => {
+    const stats = Voortgang.statsThema(thema);
+    const knop = document.createElement('button');
+    knop.className = 'survival-kaart';
+    knop.innerHTML = `
+      <span class="survival-kaart-emoji">${thema.emoji}</span>
+      <span class="survival-kaart-naam">${thema.naam}</span>
+      <span class="survival-kaart-stats">${stats.gekend}/${stats.totaal} gekend</span>
+      <div class="survival-kaart-balk">
+        <div class="survival-kaart-balk-vul" style="width: ${stats.procent}%"></div>
+      </div>
+    `;
+    knop.onclick = () => kiesThema(thema);
+    grid.appendChild(knop);
   });
-
-  const titelEl = document.getElementById('slim-leren-titel');
-  const onderEl = document.getElementById('slim-leren-onder');
-  const knopTekstEl = document.querySelector('.slim-leren-tekst');
-
-  if (totaalGezien === 0) {
-    titelEl.textContent = 'Klaar om te leren?';
-    onderEl.textContent = 'Klik op de knop en we beginnen samen.';
-    if (knopTekstEl) knopTekstEl.textContent = 'Begin!';
-  } else if (totaalGekend === totaalItems) {
-    titelEl.textContent = 'Alles gekend! 🏆';
-    onderEl.textContent = 'Top! Klik om alles eens te herhalen.';
-    if (knopTekstEl) knopTekstEl.textContent = 'Herhalen';
-  } else {
-    titelEl.textContent = 'Verder leren!';
-    onderEl.textContent = `Je kent al ${totaalGekend} van ${totaalItems} woorden. Doe je verder?`;
-    if (knopTekstEl) knopTekstEl.textContent = 'Verder';
-  }
 }
 
 function rendererThemaGrid(gridId, themas) {
@@ -452,11 +464,25 @@ function rendererVoortgang() {
 // =================================================================
 //  SCHERM SWITCHEN
 // =================================================================
+let _schermVersie = 0; // gaat omhoog bij elke schermwissel — gebruikt om verouderde timeouts te herkennen
+
 function toonScherm(id) {
+  _schermVersie++;
   document.querySelectorAll('.scherm').forEach(s => s.classList.remove('actief'));
   document.getElementById(id).classList.add('actief');
   window.scrollTo(0, 0);
   AudioEngine.stop();
+}
+
+// Spreek een tekst uit na een vertraging, maar alleen als we nog op hetzelfde scherm zitten.
+// Voorkomt dat audio nog afspeelt nadat de gebruiker al weggeklikt heeft.
+function spreekVeilig(tekst, vertraging) {
+  const versieBijStart = _schermVersie;
+  setTimeout(() => {
+    if (_schermVersie === versieBijStart) {
+      AudioEngine.spreek(tekst);
+    }
+  }, vertraging || 0);
 }
 
 function kiesThema(thema) {
@@ -476,6 +502,19 @@ function kiesThema(thema) {
       <div class="statbalk-balk-vul" style="width: ${s.procent}%"></div>
     </div>
   `;
+
+  // Bepaal welke stap "Begin hier" krijgt
+  // Reset alle stappen
+  ['stap-1','stap-2','stap-3','stap-4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('begin-hier');
+  });
+  // Stap 1 als nog niets is gezien; stap 3 als wel iets gezien maar nog niet stevig
+  let aanwijzerStap = 'stap-1';
+  if (s.gezien > 0 && s.gekend < s.totaal) aanwijzerStap = 'stap-3';
+  if (s.gekend >= s.totaal && s.totaal > 0) aanwijzerStap = 'stap-4';
+  const aanw = document.getElementById(aanwijzerStap);
+  if (aanw && !aanw.disabled) aanw.classList.add('begin-hier');
 
   toonScherm('scherm-thema');
 }
@@ -509,6 +548,9 @@ function startModus(modus) {
     document.getElementById('score').textContent = '0';
     volgendeOefenVraag();
     toonScherm('scherm-oefenen');
+  } else if (modus === 'slim') {
+    // Slim leren — alleen woorden uit huidig thema
+    startSlimLeren([huidigThema]);
   } else if (modus === 'toets') {
     startToets();
   } else if (modus === 'werkblad') {
@@ -534,7 +576,7 @@ function rendererKijken() {
   // Registreer gezien
   Voortgang.registreerGezien(huidigThema.id, item.id);
 
-  setTimeout(() => AudioEngine.spreek(item.tekst), 300);
+  spreekVeilig(item.tekst, 300);
 }
 
 function hoorWoord() {
@@ -625,7 +667,7 @@ function volgendeOefenVraag() {
     div.appendChild(k);
   });
 
-  setTimeout(() => AudioEngine.spreek(oefenItem.tekst), 400);
+  spreekVeilig(oefenItem.tekst, 400);
 }
 
 function herhaalOefen() {
@@ -644,7 +686,8 @@ function kiesOefenAntwoord(knop, gekozen) {
     document.getElementById('score').textContent = score;
     Voortgang.registreerJuist(huidigThema.id, oefenItem.id);
     AudioEngine.spreek(oefenItem.tekst);
-    setTimeout(() => { volgendeOefenVraag(); Voortgang.bewaar(Auth.getCode()); }, 1400);
+    const v1 = _schermVersie;
+    setTimeout(() => { if (_schermVersie === v1) { volgendeOefenVraag(); Voortgang.bewaar(Auth.getCode()); } }, 1400);
   } else {
     knop.classList.add('fout');
     document.querySelectorAll('.optie-knop').forEach(k => {
@@ -654,7 +697,8 @@ function kiesOefenAntwoord(knop, gekozen) {
     fb.className = 'oefen-feedback fout';
     Voortgang.registreerFout(huidigThema.id, oefenItem.id);
     AudioEngine.spreek(oefenItem.tekst);
-    setTimeout(() => { volgendeOefenVraag(); Voortgang.bewaar(Auth.getCode()); }, 2400);
+    const v2 = _schermVersie;
+    setTimeout(() => { if (_schermVersie === v2) { volgendeOefenVraag(); Voortgang.bewaar(Auth.getCode()); } }, 2400);
   }
 }
 
@@ -700,7 +744,7 @@ function toonToetsVraag() {
     div.appendChild(k);
   });
 
-  setTimeout(() => AudioEngine.spreek(toetsItem.tekst), 400);
+  spreekVeilig(toetsItem.tekst, 400);
 }
 
 function herhaalToets() {
@@ -724,7 +768,9 @@ function kiesToetsAntwoord(knop, gekozen) {
     AudioEngine.spreek(toetsItem.tekst);
   }
 
+  const vt = _schermVersie;
   setTimeout(() => {
+    if (_schermVersie !== vt) return;
     toetsHuidig++;
     if (toetsHuidig >= toetsVragen.length) eindigToets();
     else toonToetsVraag();
