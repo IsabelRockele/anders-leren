@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Anders Leren — Nederlands voor nieuwkomers | Juf Zisa</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <!-- jsPDF voor werkbladen -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ============ SCHERM: LOGIN ============ -->
+<div id="scherm-login" class="scherm actief">
+  <div class="login-doos">
+    <div class="login-zebra">🦓</div>
+    <h1>Anders Leren</h1>
+    <p class="login-onder">Hallo! Tik je code in.</p>
+
+    <div class="login-form">
+      <input type="text" id="login-code" placeholder="ZEBRA-1234"
+             autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="grote-knop" onclick="probeerLogin()">Begin →</button>
+      <div id="login-fout" class="login-fout"></div>
+    </div>
+
+    <p class="login-hulp">Geen code? Vraag het aan je juf.</p>
+  </div>
+</div>
+
+<!-- ============ SCHERM: START (na login) ============ -->
+<div id="scherm-start" class="scherm">
+  <header class="hero">
+    <div class="hero-balk">
+      <button class="uitlog-knop" onclick="uitloggen()" title="Uitloggen">⏻</button>
+      <span class="welkom-tekst">Hallo <span id="welkom-naam">!</span></span>
+    </div>
+    <div class="hero-inhoud">
+      <div class="hero-zebra">🦓</div>
+      <h1>Anders Leren</h1>
+    </div>
+  </header>
+
+  <main class="thema-keuze">
+    <!-- ===== SLIM LEREN — grote autonome knop ===== -->
+    <div class="slim-leren-doos" id="slim-leren-doos">
+      <div class="slim-leren-zebra">🦓</div>
+      <div class="slim-leren-info">
+        <h2 id="slim-leren-titel">Klaar om te leren?</h2>
+        <p id="slim-leren-onder">Klik op de knop en ik kies wat goed voor jou is.</p>
+      </div>
+      <button class="slim-leren-knop" onclick="startSlimLeren()">
+        <span class="slim-leren-icoon">▶️</span>
+        <span class="slim-leren-tekst">Begin!</span>
+      </button>
+    </div>
+
+    <div class="thema-tabs">
+      <button class="tab-knop actief" data-tab="woorden" onclick="kiesTab('woorden')">📚 Woorden</button>
+      <button class="tab-knop" data-tab="zinnen" onclick="kiesTab('zinnen')">💬 Zinnen</button>
+      <button class="tab-knop" data-tab="voortgang" onclick="kiesTab('voortgang')">⭐ Mijn voortgang</button>
+    </div>
+
+    <div id="tab-woorden" class="tab-inhoud actief">
+      <div id="woorden-grid" class="themas-grid"></div>
+    </div>
+    <div id="tab-zinnen" class="tab-inhoud">
+      <div id="zinnen-grid" class="themas-grid"></div>
+    </div>
+    <div id="tab-voortgang" class="tab-inhoud">
+      <div id="voortgang-overzicht"></div>
+    </div>
+  </main>
+
+  <footer class="voet"><p>Een tool van <strong>Juf Zisa</strong> · jufzisa.be</p></footer>
+</div>
+
+<!-- ============ SCHERM: SLIM LEREN ============ -->
+<div id="scherm-slim" class="scherm">
+  <header class="modus-header">
+    <button class="terug-knop" onclick="stopSlimLeren()">← Stop</button>
+    <h1>🦓 Slim leren</h1>
+    <span class="teller">⭐ <span id="slim-streak">0</span></span>
+  </header>
+  <main class="slim-main">
+    <div class="slim-status" id="slim-status">
+      <span class="slim-status-emoji" id="slim-status-emoji">🌱</span>
+      <span class="slim-status-tekst" id="slim-status-tekst">Nieuw woord</span>
+    </div>
+
+    <div class="slim-kaart" id="slim-kaart">
+      <!-- Wordt dynamisch gevuld -->
+    </div>
+
+    <div class="slim-acties" id="slim-acties">
+      <!-- Wordt dynamisch gevuld -->
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: THEMA-MENU ============ -->
+<div id="scherm-thema" class="scherm">
+  <header class="thema-header">
+    <button class="terug-knop" onclick="naarStart()">← Terug</button>
+    <div class="thema-titel">
+      <span id="thema-emoji-groot"></span>
+      <h1 id="thema-naam"></h1>
+    </div>
+  </header>
+
+  <main class="modi-keuze">
+    <div class="thema-statbalk" id="thema-statbalk"></div>
+
+    <h2>Wat wil je doen?</h2>
+    <div class="modi-grid">
+      <button class="modus-kaart" onclick="startModus('kijken')">
+        <div class="modus-icoon">👀</div>
+        <h3>Kijk & luister</h3>
+        <p>Zie en hoor de woorden.</p>
+      </button>
+      <button class="modus-kaart" onclick="startModus('lezen')">
+        <div class="modus-icoon">📖</div>
+        <h3>Lees</h3>
+        <p>Lees alle woorden.</p>
+      </button>
+      <button class="modus-kaart" onclick="startModus('oefenen')">
+        <div class="modus-icoon">🎯</div>
+        <h3>Oefen</h3>
+        <p>Klik het juiste woord.</p>
+      </button>
+      <button class="modus-kaart toets" onclick="startModus('toets')">
+        <div class="modus-icoon">⭐</div>
+        <h3>Toets</h3>
+        <p>Toon wat je kan!</p>
+      </button>
+      <button class="modus-kaart" onclick="startModus('werkblad')">
+        <div class="modus-icoon">📝</div>
+        <h3>Werkblad</h3>
+        <p>Maak een blad om af te drukken.</p>
+      </button>
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: KIJKEN ============ -->
+<div id="scherm-kijken" class="scherm">
+  <header class="modus-header">
+    <button class="terug-knop" onclick="naarThema()">← Terug</button>
+    <h1>Kijk & luister</h1>
+    <span class="teller"><span id="kijken-huidig">1</span>/<span id="kijken-totaal">12</span></span>
+  </header>
+  <main class="kijken-main">
+    <div class="kaart-groot">
+      <div class="kaart-beeld" id="kijken-beeld">🎒</div>
+      <div class="kaart-woord" id="kijken-woord">de boekentas</div>
+      <div class="kaart-zin" id="kijken-zin">Ik draag mijn boekentas.</div>
+    </div>
+    <div class="audio-knoppen">
+      <button class="audio-knop hoor" onclick="hoorWoord()">
+        <span class="audio-icoon">🔊</span><span>Hoor het woord</span>
+      </button>
+      <button class="audio-knop zin" onclick="hoorZin()">
+        <span class="audio-icoon">💬</span><span>Hoor de zin</span>
+      </button>
+    </div>
+    <div class="navigatie-knoppen">
+      <button class="nav-knop" onclick="kijkenVorige()">← Vorige</button>
+      <button class="nav-knop primair" onclick="kijkenVolgende()">Volgende →</button>
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: LEZEN ============ -->
+<div id="scherm-lezen" class="scherm">
+  <header class="modus-header">
+    <button class="terug-knop" onclick="naarThema()">← Terug</button>
+    <h1>Lees de woorden</h1>
+  </header>
+  <main class="lezen-main">
+    <p class="lezen-uitleg">👆 Klik op een kaart om het woord te horen.</p>
+    <div id="lezen-grid" class="lezen-grid"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: OEFENEN ============ -->
+<div id="scherm-oefenen" class="scherm">
+  <header class="modus-header">
+    <button class="terug-knop" onclick="naarThema()">← Terug</button>
+    <h1>Oefen</h1>
+    <span class="teller">Score: <span id="score">0</span></span>
+  </header>
+  <main class="oefenen-main">
+    <div class="oefen-vraag">
+      <p class="vraag-tekst">Klik het juiste woord:</p>
+      <div class="oefen-beeld" id="oefen-beeld">🎒</div>
+      <button class="hoor-mini" onclick="herhaalOefen()">🔊 Hoor opnieuw</button>
+    </div>
+    <div class="oefen-opties" id="oefen-opties"></div>
+    <div class="oefen-feedback" id="oefen-feedback"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: TOETS ============ -->
+<div id="scherm-toets" class="scherm">
+  <header class="modus-header">
+    <button class="terug-knop" onclick="bevestigVerlatenToets()">← Terug</button>
+    <h1>Toets</h1>
+    <span class="teller">Vraag <span id="toets-huidig">1</span>/<span id="toets-totaal">10</span></span>
+  </header>
+  <main class="oefenen-main">
+    <div class="oefen-vraag">
+      <p class="vraag-tekst">Klik het juiste woord:</p>
+      <div class="oefen-beeld" id="toets-beeld">🎒</div>
+      <button class="hoor-mini" onclick="herhaalToets()">🔊 Hoor opnieuw</button>
+    </div>
+    <div class="oefen-opties" id="toets-opties"></div>
+    <div class="toets-balk">
+      <div class="toets-balk-vulling" id="toets-balk-vulling"></div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: TOETS RESULTAAT ============ -->
+<div id="scherm-toets-eind" class="scherm">
+  <main class="resultaat-main">
+    <div class="resultaat-doos">
+      <div class="resultaat-emoji" id="resultaat-emoji">🎉</div>
+      <h2 id="resultaat-titel">Goed gedaan!</h2>
+      <div class="resultaat-score">
+        <span id="resultaat-juist">8</span>/<span id="resultaat-totaal">10</span>
+      </div>
+      <p id="resultaat-tekst">Je hebt 8 van de 10 vragen juist!</p>
+      <div class="resultaat-knoppen">
+        <button class="nav-knop primair" onclick="naarThema()">Terug naar thema</button>
+        <button class="nav-knop" onclick="startModus('toets')">Nog eens proberen</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: WERKBLAD ============ -->
+<div id="scherm-werkblad" class="scherm">
+  <header class="modus-header">
+    <button class="terug-knop" onclick="naarThema()">← Terug</button>
+    <h1>Werkblad maken</h1>
+  </header>
+  <main class="werkblad-main">
+    <div class="werkblad-opties">
+      <h2>Kies oefeningen</h2>
+      <p class="werkblad-uitleg">Elke oefening krijgt picto-instructies bovenaan, zodat het kind zelfstandig kan werken.</p>
+
+      <div class="werkblad-niveau-keuze" id="werkblad-niveau-keuze">
+        <div class="niveau-titel">Welke woorden?</div>
+        <div class="niveau-knoppen">
+          <button class="niveau-knop actief" data-niveau="basis" onclick="kiesWerkbladNiveau('basis')">🌱 Basis</button>
+          <button class="niveau-knop" data-niveau="uitbreiding" onclick="kiesWerkbladNiveau('uitbreiding')">🌿 Uitbreiding</button>
+          <button class="niveau-knop" data-niveau="verdieping" onclick="kiesWerkbladNiveau('verdieping')">🌳 Verdieping</button>
+          <button class="niveau-knop" data-niveau="alles" onclick="kiesWerkbladNiveau('alles')">📚 Alles door elkaar</button>
+        </div>
+      </div>
+
+      <label class="check-kaart">
+        <input type="checkbox" id="opt-koppel" checked>
+        <div>
+          <strong>👁️ → 🔗 Koppel beeld en woord</strong>
+          <span>Trek lijntjes tussen het juiste beeld en woord.</span>
+        </div>
+      </label>
+      <label class="check-kaart">
+        <input type="checkbox" id="opt-overschrijf" checked>
+        <div>
+          <strong>👁️ → ✏️ Schrijf na</strong>
+          <span>Schrijf de woorden na op de schrijflijnen.</span>
+        </div>
+      </label>
+      <label class="check-kaart">
+        <input type="checkbox" id="opt-letter">
+        <div>
+          <strong>👁️ → ✏️ Welke letter mist?</strong>
+          <span>Vul de ontbrekende letter in.</span>
+        </div>
+      </label>
+      <label class="check-kaart">
+        <input type="checkbox" id="opt-omcirkel">
+        <div>
+          <strong>👁️ → ⭕ Omcirkel het juiste woord</strong>
+          <span>Kies uit drie woorden bij het beeld.</span>
+        </div>
+      </label>
+      <label class="check-kaart">
+        <input type="checkbox" id="opt-zoek">
+        <div>
+          <strong>👁️ → 🎨 Kleur volgens code</strong>
+          <span>Beelden kleuren volgens een woord-kleur-code.</span>
+        </div>
+      </label>
+
+      <button class="grote-knop" onclick="genereerWerkblad()">
+        📥 Maak werkblad (PDF)
+      </button>
+    </div>
+  </main>
+</div>
+
+<!-- Scripts: data eerst -->
+<script src="themas/woorden-klas.js"></script>
+<script src="themas/woorden-lichaam.js"></script>
+<script src="themas/woorden-eten.js"></script>
+<script src="themas/woorden-familie.js"></script>
+<script src="themas/woorden-dieren.js"></script>
+<script src="themas/woorden-cijfers.js"></script>
+<script src="themas/woorden-doen.js"></script>
+<script src="themas/woorden-thuis.js"></script>
+<script src="themas/zinnen-school.js"></script>
+<script src="themas/zinnen-beleefd.js"></script>
+<script src="themas/zinnen-gevoel.js"></script>
+<script src="themas/zinnen-hulp.js"></script>
+<script src="themas/zinnen-tijd.js"></script>
+
+<!-- Engines -->
+<script src="firebase-config.js"></script>
+<script src="audio.js"></script>
+<script src="voortgang.js"></script>
+<script src="auth.js"></script>
+<script src="pdf-engine.js"></script>
+<script src="app.js"></script>
+
+</body>
+</html>
