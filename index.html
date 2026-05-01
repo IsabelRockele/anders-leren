@@ -35,29 +35,31 @@
 
 <!-- ============ SCHERM: START (na login) ============ -->
 <div id="scherm-start" class="scherm">
-  <header class="hero">
-    <div class="hero-balk">
-      <button class="uitlog-knop" onclick="uitloggen()" title="Uitloggen">⏻</button>
-      <span class="welkom-tekst">Hallo <span id="welkom-naam">!</span></span>
-    </div>
-    <div class="hero-inhoud">
-      <div class="hero-zebra">🦓</div>
-      <h1>Anders Leren</h1>
-    </div>
-  </header>
+  <button class="uitlog-knop-zwevend" onclick="uitloggen()" title="Uitloggen">⏻</button>
 
   <main class="thema-keuze">
-    <!-- ===== SLIM LEREN — grote autonome knop ===== -->
-    <div class="slim-leren-doos" id="slim-leren-doos">
-      <div class="slim-leren-zebra">🦓</div>
-      <div class="slim-leren-info">
-        <h2 id="slim-leren-titel">Klaar om te leren?</h2>
-        <p id="slim-leren-onder">Klik op de knop en ik kies wat goed voor jou is.</p>
+    <!-- ===== Welkom ===== -->
+    <div class="welkom-balk">
+      <span class="welkom-tekst">Hallo <span id="welkom-naam">!</span></span>
+      <span class="welkom-zebra">🦓</span>
+    </div>
+
+    <!-- ===== SURVIVAL-ZONE — Begin hier ===== -->
+    <div class="survival-zone">
+      <div class="survival-kop">
+        <span class="survival-pijl">👇</span>
+        <span class="survival-titel">Begin hier</span>
+        <span class="survival-pijl">👇</span>
       </div>
-      <button class="slim-leren-knop" onclick="startSlimLeren()">
-        <span class="slim-leren-icoon">▶️</span>
-        <span class="slim-leren-tekst">Begin!</span>
-      </button>
+      <p class="survival-onder">Wat ik elke dag op school hoor en zeg</p>
+      <div id="survival-grid" class="survival-grid"></div>
+    </div>
+
+    <!-- ===== ANDERE THEMA'S ===== -->
+    <div class="andere-scheiding">
+      <span class="andere-lijn"></span>
+      <span class="andere-label">📚 Andere thema's om te oefenen</span>
+      <span class="andere-lijn"></span>
     </div>
 
     <div class="thema-tabs">
@@ -116,34 +118,57 @@
   <main class="modi-keuze">
     <div class="thema-statbalk" id="thema-statbalk"></div>
 
-    <h2>Wat wil je doen?</h2>
-    <div class="modi-grid">
-      <button class="modus-kaart" onclick="startModus('kijken')">
-        <div class="modus-icoon">👀</div>
-        <h3>Kijk & luister</h3>
-        <p>Zie en hoor de woorden.</p>
+    <h2 class="stappen-kop">Stap voor stap</h2>
+    <div class="stappen-lijst">
+      <button class="stap-kaart" id="stap-1" onclick="startModus('kijken')">
+        <div class="stap-nummer">1</div>
+        <div class="stap-icoon">👀</div>
+        <div class="stap-tekst">
+          <h3>Leer de woorden</h3>
+          <p>Zie en hoor elk woord rustig.</p>
+        </div>
+        <div class="stap-pijl">→</div>
       </button>
-      <button class="modus-kaart" onclick="startModus('lezen')">
-        <div class="modus-icoon">📖</div>
-        <h3>Lees</h3>
-        <p>Lees alle woorden.</p>
+
+      <button class="stap-kaart" id="stap-2" disabled>
+        <div class="stap-nummer">2</div>
+        <div class="stap-icoon">🎮</div>
+        <div class="stap-tekst">
+          <h3>Speel met de woorden</h3>
+          <p>Memory, klikspel, sleepspel.</p>
+        </div>
+        <div class="stap-binnenkort">🚧 binnenkort</div>
       </button>
-      <button class="modus-kaart" onclick="startModus('oefenen')">
-        <div class="modus-icoon">🎯</div>
-        <h3>Oefen</h3>
-        <p>Klik het juiste woord.</p>
+
+      <button class="stap-kaart" id="stap-3" onclick="startModus('slim')">
+        <div class="stap-nummer">3</div>
+        <div class="stap-icoon">🦓</div>
+        <div class="stap-tekst">
+          <h3>Slim leren</h3>
+          <p>Hoor het woord, klik het juiste beeld.</p>
+        </div>
+        <div class="stap-pijl">→</div>
       </button>
-      <button class="modus-kaart toets" onclick="startModus('toets')">
-        <div class="modus-icoon">⭐</div>
-        <h3>Toets</h3>
-        <p>Toon wat je kan!</p>
-      </button>
-      <button class="modus-kaart" onclick="startModus('werkblad')">
-        <div class="modus-icoon">📝</div>
-        <h3>Werkblad</h3>
-        <p>Maak een blad om af te drukken.</p>
+
+      <button class="stap-kaart toets" id="stap-4" onclick="startModus('toets')">
+        <div class="stap-nummer">4</div>
+        <div class="stap-icoon">⭐</div>
+        <div class="stap-tekst">
+          <h3>Toon wat je kan</h3>
+          <p>Toets met 10 vragen.</p>
+        </div>
+        <div class="stap-pijl">→</div>
       </button>
     </div>
+
+    <div class="werkblad-scheiding"></div>
+    <button class="werkblad-knop" onclick="startModus('werkblad')">
+      <span class="werkblad-knop-icoon">📄</span>
+      <span class="werkblad-knop-tekst">
+        <strong>Werkblad voor de juf</strong>
+        <small>Maak een afdrukblad om in de klas te gebruiken.</small>
+      </span>
+    </button>
   </main>
 </div>
 
@@ -308,12 +333,17 @@
 </div>
 
 <!-- Scripts: data eerst -->
+<script src="themas/survival-klas.js"></script>
+<script src="themas/survival-speelplaats.js"></script>
+<script src="themas/survival-heenterug.js"></script>
 <script src="themas/woorden-klas.js"></script>
 <script src="themas/woorden-lichaam.js"></script>
 <script src="themas/woorden-eten.js"></script>
 <script src="themas/woorden-familie.js"></script>
 <script src="themas/woorden-dieren.js"></script>
 <script src="themas/woorden-cijfers.js"></script>
+<script src="themas/woorden-kleuren.js"></script>
+<script src="themas/woorden-vormen.js"></script>
 <script src="themas/woorden-doen.js"></script>
 <script src="themas/woorden-thuis.js"></script>
 <script src="themas/zinnen-school.js"></script>
