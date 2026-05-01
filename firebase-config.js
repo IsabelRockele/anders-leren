@@ -1,19 +1,16 @@
 // =================================================================
-//  Firebase configuratie — Anders Leren (Juf Zisa)
-//  Project: anders-leren-jufzisa
+//  firebase-config.js — Anders Leren (Juf Zisa)
+//  De Firebase SDK wordt geladen via <script>-tags in index.html en leerkracht.html.
+//  Dit bestand wordt pas uitgevoerd nadat firebase-app en firebase-firestore klaar zijn.
 // =================================================================
 
-// Firebase SDK laden via CDN
-const firebaseScript = document.createElement('script');
-firebaseScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js';
-document.head.appendChild(firebaseScript);
+(function() {
+  if (typeof firebase === 'undefined') {
+    console.warn('[firebase-config] Firebase SDK niet geladen — voortgang werkt alleen lokaal.');
+    window.FIREBASE_INGESTELD = false;
+    return;
+  }
 
-const firestoreScript = document.createElement('script');
-firestoreScript.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
-document.head.appendChild(firestoreScript);
-
-// Wacht tot beide scripts geladen zijn voor we initialiseren
-firestoreScript.onload = () => {
   const firebaseConfig = {
     apiKey: "AIzaSyASi5qfJtQjQSn5u4ZZXhp3mJOoYEdfeeM",
     authDomain: "anders-leren-jufzisa.firebaseapp.com",
@@ -23,10 +20,13 @@ firestoreScript.onload = () => {
     appId: "1:701643982201:web:f8aaabe4dbdb3a2bae5ba8"
   };
 
-  firebase.initializeApp(firebaseConfig);
-  window.db = firebase.firestore();
-  window.FIREBASE_INGESTELD = true;
-
-  // Trigger event zodat andere scripts weten dat Firebase klaar is
-  document.dispatchEvent(new Event('firebase-ready'));
-};
+  try {
+    firebase.initializeApp(firebaseConfig);
+    window.db = firebase.firestore();
+    window.FIREBASE_INGESTELD = true;
+    console.log('[firebase-config] Firebase ingesteld ✓');
+  } catch (e) {
+    console.error('[firebase-config] Initialisatie mislukt:', e);
+    window.FIREBASE_INGESTELD = false;
+  }
+})();
