@@ -572,12 +572,6 @@ function startModus(modus) {
     toonScherm('scherm-spelen');
   } else if (modus === 'toets') {
     startToets();
-  } else if (modus === 'werkblad') {
-    werkbladNiveau = 'basis';
-    document.querySelectorAll('.niveau-knop').forEach(k => {
-      k.classList.toggle('actief', k.dataset.niveau === 'basis');
-    });
-    toonScherm('scherm-werkblad');
   }
 }
 
@@ -830,34 +824,6 @@ async function eindigToets() {
   document.getElementById('resultaat-tekst').textContent = tekst;
 
   toonScherm('scherm-toets-eind');
-}
-
-// =================================================================
-//  MODUS: WERKBLAD
-// =================================================================
-let werkbladNiveau = 'basis'; // default
-
-function kiesWerkbladNiveau(niveau) {
-  werkbladNiveau = niveau;
-  document.querySelectorAll('.niveau-knop').forEach(k => {
-    k.classList.toggle('actief', k.dataset.niveau === niveau);
-  });
-}
-
-function genereerWerkblad() {
-  const opties = {
-    koppel: document.getElementById('opt-koppel').checked,
-    overschrijf: document.getElementById('opt-overschrijf').checked,
-    letter: document.getElementById('opt-letter').checked,
-    omcirkel: document.getElementById('opt-omcirkel').checked,
-    niveau: werkbladNiveau,
-  };
-  const minstens1 = ['koppel','overschrijf','letter','omcirkel'].some(k => opties[k]);
-  if (!minstens1) {
-    alert('Kies minstens één oefening.');
-    return;
-  }
-  PDFEngine.maakWerkblad(huidigThema, opties);
 }
 
 // =================================================================
