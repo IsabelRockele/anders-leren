@@ -816,19 +816,21 @@ window.PDFEngine = (function() {
         const woordIdx = woorden.findIndex(w => w.id === beeldItem.id);
         const paarNr = i + 1;
 
+        // Cijfer links VAN het beeld op middenhoogte
         doc.setFillColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
-        doc.circle(M + 22, yR + 4, 3, 'F');
+        doc.circle(M - 4, yR + 11, 3.5, 'F');
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(9);
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(String(paarNr), M + 22, yR + 5.5, { align: 'center' });
+        doc.text(String(paarNr), M - 4, yR + 12.5, { align: 'center' });
 
         if (woordIdx !== -1) {
           const yWoord = y + woordIdx * rH;
+          // Cijfer rechts NAAST het woordvak op middenhoogte
           doc.setFillColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
-          doc.circle(xR + kolomBreedte - 4, yWoord + 4, 3, 'F');
+          doc.circle(xR + kolomBreedte + 4, yWoord + 11, 3.5, 'F');
           doc.setTextColor(255, 255, 255);
-          doc.text(String(paarNr), xR + kolomBreedte - 4, yWoord + 5.5, { align: 'center' });
+          doc.text(String(paarNr), xR + kolomBreedte + 4, yWoord + 12.5, { align: 'center' });
         }
         doc.setFont('helvetica', 'normal');
       }
