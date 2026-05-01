@@ -63,6 +63,7 @@ function lkKiesTab(tab) {
   document.getElementById('lk-tab-' + tab).classList.add('actief');
 
   if (tab === 'overzicht') lkRendererOverzicht();
+  if (tab === 'werkbladen') initWerkbladTab();
 }
 
 // =================================================================
@@ -503,6 +504,229 @@ function lkPrintAlleQR() {
 }
 
 
+
+// =================================================================
+//  WERKBLADEN
+// =================================================================
+
+// Niveau bepaalt welke OEFENVORMEN aan staan, niet welke woorden
+const WB_NIVEAU_BUNDELS = {
+  basis: {
+    naam: 'Basis',
+    hint: 'Eenvoudige oefeningen om woorden te herkennen.',
+    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'kaartjes']
+  },
+  uitbreiding: {
+    naam: 'Uitbreiding',
+    hint: 'Schrijven met hulp: voorbeeld of woordkeuze.',
+    oefeningen: ['overschrijf', 'kiesschrijf', 'letter']
+  },
+  verdieping: {
+    naam: 'Verdieping',
+    hint: 'Zelfstandig produceren zonder steun.',
+    oefeningen: ['zelfschrijven', 'woordzoeker']
+  },
+  vrij: {
+    naam: 'Zelf kiezen',
+    hint: 'Kies hieronder zelf de gewenste oefeningen.',
+    oefeningen: []
+  }
+};
+
+const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
+
+const WB_OEFENING_LABELS = {
+  koppel: '👁️ → 🔗 Koppel beeld en woord',
+  overschrijf: '👁️ → ✏️ Schrijf na',
+  letter: '👁️ → 🔤 → ✏️ Maak het woord',
+  omcirkel: '👁️ → ⭕ Omcirkel het juiste woord',
+  zelfschrijven: '👁️ → ✏️ Schrijf zelf het woord',
+  kiesschrijf: '👁️ → ⭕ → ✏️ Kies en schrijf',
+  knip: '✂️ → 📋 Knip en plak',
+  kleurkoppel: '👁️ → 🎨 Kleur dezelfde paren',
+  woordzoeker: '👁️ → 🔍 Woordzoeker',
+  kaartjes: '🃏 Woordkaartjes'
+};
+
+let werkbladPerThema = new Map();
+let werkbladThemaIds = [];
+let werkbladTabAlGetoond = false;
+
+function nieuwThemaConfig() {
+  return {
+    niveau: 'basis',
+    oefeningen: new Set(WB_NIVEAU_BUNDELS.basis.oefeningen)
+  };
+}
+
+function initWerkbladTab() {
+  if (werkbladTabAlGetoond) return; // niet opnieuw renderen als gebruiker terugkomt
+  werkbladTabAlGetoond = true;
+  rendererWerkbladThemas();
+}
+
+function kiesThemaNiveau(themaId, niveau) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  cfg.niveau = niveau;
+  if (niveau !== 'vrij') {
+    cfg.oefeningen = new Set(WB_NIVEAU_BUNDELS[niveau].oefeningen);
+  }
+  rendererThemaPaneel(themaId);
+}
+
+function toggleThemaOefening(themaId, oefKey) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  if (cfg.oefeningen.has(oefKey)) cfg.oefeningen.delete(oefKey);
+  else cfg.oefeningen.add(oefKey);
+  cfg.niveau = 'vrij';
+  rendererThemaPaneel(themaId);
+}
+
+function rendererWerkbladThemas() {
+  const lijst = document.getElementById('werkblad-themas-lijst');
+  if (!lijst) return;
+  lijst.innerHTML = '';
+
+  ALLE_THEMAS_LK.forEach(thema => {
+    const id = 'wt-' + thema.id;
+    const aan = werkbladThemaIds.includes(thema.id);
+    const chip = document.createElement('label');
+    chip.className = 'thema-chip' + (aan ? ' aan' : '');
+    chip.innerHTML = `
+      <input type="checkbox" id="${id}" ${aan ? 'checked' : ''}>
+      <span class="chip-emoji">${thema.emoji}</span>
+      <span class="chip-naam">${thema.naam}</span>
+    `;
+    chip.querySelector('input').onchange = (e) => {
+      if (e.target.checked) {
+        if (!werkbladThemaIds.includes(thema.id)) {
+          werkbladThemaIds.push(thema.id);
+          werkbladPerThema.set(thema.id, nieuwThemaConfig());
+        }
+        chip.classList.add('aan');
+      } else {
+        werkbladThemaIds = werkbladThemaIds.filter(x => x !== thema.id);
+        werkbladPerThema.delete(thema.id);
+        chip.classList.remove('aan');
+      }
+      rendererThemaPanelen();
+    };
+    lijst.appendChild(chip);
+  });
+
+  rendererThemaPanelen();
+}
+
+function rendererThemaPanelen() {
+  const container = document.getElementById('werkblad-thema-panelen');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (werkbladThemaIds.length === 0) {
+    container.innerHTML = '<p class="sectie-hint">Kies eerst minstens één thema hierboven.</p>';
+    return;
+  }
+
+  werkbladThemaIds.forEach(themaId => {
+    const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+    if (!thema) return;
+    const paneel = document.createElement('div');
+    paneel.className = 'thema-paneel';
+    paneel.id = 'paneel-' + themaId;
+    container.appendChild(paneel);
+    rendererThemaPaneel(themaId);
+  });
+}
+
+function rendererThemaPaneel(themaId) {
+  const paneel = document.getElementById('paneel-' + themaId);
+  if (!paneel) return;
+  const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+  const cfg = werkbladPerThema.get(themaId);
+  if (!thema || !cfg) return;
+
+  // Bepaal of dit thema "alleen zinnen" bevat — dan zijn letter-puzzel en woordzoeker uitgeschakeld
+  const isZinnenThema = thema.type === 'zinnen';
+
+  // Oefeningen die niet werken voor zinnen-thema's
+  const nietVoorZinnen = ['letter', 'woordzoeker'];
+
+  let html = `
+    <div class="thema-paneel-kop">
+      <span class="paneel-emoji">${thema.emoji}</span>
+      <span class="paneel-naam">${thema.naam}</span>
+      ${isZinnenThema ? '<span class="paneel-badge">zinnen-thema</span>' : ''}
+    </div>
+    <div class="paneel-niveau-rij">
+  `;
+  ['basis', 'uitbreiding', 'verdieping', 'vrij'].forEach(niveau => {
+    const isActief = cfg.niveau === niveau;
+    const labels = { basis: '🌱 Basis', uitbreiding: '🌿 Uitbreiding', verdieping: '🌳 Verdieping', vrij: '⚙️ Zelf' };
+    html += `<button class="mini-niveau-knop ${isActief ? 'actief' : ''}" onclick="kiesThemaNiveau('${themaId}', '${niveau}')">${labels[niveau]}</button>`;
+  });
+  html += `</div>`;
+
+  let tonen = cfg.niveau === 'vrij' ? WB_OEFENING_KEYS : WB_NIVEAU_BUNDELS[cfg.niveau].oefeningen;
+  // Filter ongeschikte oefeningen voor zinnen-thema's
+  if (isZinnenThema) {
+    tonen = tonen.filter(k => !nietVoorZinnen.includes(k));
+    // Zorg ook dat ze niet in de actieve set zitten (anders crashen ze in de PDF)
+    nietVoorZinnen.forEach(k => cfg.oefeningen.delete(k));
+  }
+
+  html += `<div class="paneel-oefeningen">`;
+  if (tonen.length === 0) {
+    html += '<p class="sectie-hint">Geen oefeningen op dit niveau die werken voor een zinnen-thema. Kies een ander niveau.</p>';
+  } else {
+    tonen.forEach(oefKey => {
+      const aan = cfg.oefeningen.has(oefKey);
+      html += `
+        <label class="mini-check ${aan ? 'aan' : ''}">
+          <input type="checkbox" ${aan ? 'checked' : ''} onchange="toggleThemaOefening('${themaId}', '${oefKey}')">
+          <span>${WB_OEFENING_LABELS[oefKey]}</span>
+        </label>
+      `;
+    });
+  }
+  html += `</div>`;
+
+  paneel.innerHTML = html;
+}
+
+function genereerWerkblad() {
+  if (werkbladThemaIds.length === 0) {
+    alert('Kies minstens één thema.');
+    return;
+  }
+
+  const themaConfigs = werkbladThemaIds.map(id => {
+    const thema = ALLE_THEMAS_LK.find(t => t.id === id);
+    const cfg = werkbladPerThema.get(id);
+    return { thema, oefeningen: Array.from(cfg.oefeningen), niveau: cfg.niveau };
+  });
+
+  const totaalOef = themaConfigs.reduce((acc, tc) => acc + tc.oefeningen.length, 0);
+  if (totaalOef === 0) {
+    alert('Vink minstens één oefening aan in een van de thema-panelen.');
+    return;
+  }
+
+  PDFEngine.maakWerkblad(themaConfigs, { verdeling: 'per-thema' });
+}
+
+function genereerOplossingssleutel() {
+  if (werkbladThemaIds.length === 0) {
+    alert('Kies minstens één thema voor de oplossingssleutel.');
+    return;
+  }
+  const themaConfigs = werkbladThemaIds.map(id => {
+    const thema = ALLE_THEMAS_LK.find(t => t.id === id);
+    return { thema };
+  });
+  PDFEngine.maakOplossingssleutel(themaConfigs);
+}
 
 // =================================================================
 //  Init
