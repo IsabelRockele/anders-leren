@@ -1483,6 +1483,156 @@ h1, h2, h3 {
 }
 
 /* ===========================================================
+   WERKBLAD — secties, hints, thema-chips
+   =========================================================== */
+.werkblad-sectie {
+  background: #FFF8E7;
+  border: 2px solid var(--kleur-zisa);
+  border-radius: 16px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.sectie-titel {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 12px;
+  color: var(--kleur-zwart);
+}
+
+.sectie-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--kleur-grijs);
+  font-style: italic;
+}
+
+.themas-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.thema-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  border: 2px solid var(--kleur-rand);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--kleur-zwart);
+  user-select: none;
+}
+
+.thema-chip input { display: none; }
+
+.thema-chip:hover { border-color: var(--kleur-zisa); }
+
+.thema-chip.aan {
+  background: var(--kleur-zisa);
+  border-color: var(--kleur-zisa-donker);
+  font-weight: 600;
+}
+
+.chip-emoji { font-size: 18px; line-height: 1; }
+.chip-naam { font-size: 13px; }
+
+/* Per-thema panelen */
+.thema-paneel {
+  background: white;
+  border: 2px solid var(--kleur-rand);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.thema-paneel-kop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.paneel-emoji { font-size: 22px; line-height: 1; }
+.paneel-naam {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.paneel-badge {
+  display: inline-block;
+  background: #E5F0FF;
+  color: var(--kleur-info);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 4px;
+}
+
+.paneel-niveau-rij {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.mini-niveau-knop {
+  background: white;
+  border: 1.5px solid var(--kleur-rand);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 500;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--kleur-zwart);
+  transition: all 0.15s;
+}
+
+.mini-niveau-knop:hover { border-color: var(--kleur-zisa); }
+
+.mini-niveau-knop.actief {
+  background: var(--kleur-zisa);
+  border-color: var(--kleur-zisa-donker);
+  font-weight: 600;
+}
+
+.paneel-oefeningen {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mini-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+}
+
+.mini-check:hover { background: #FFF8E7; }
+
+.mini-check.aan { background: #FFF4D6; }
+
+.mini-check input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ===========================================================
    SLIM LEREN — Grote autonome knop op startscherm
    =========================================================== */
 /* ===========================================================
