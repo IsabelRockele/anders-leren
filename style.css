@@ -1895,6 +1895,547 @@ h1, h2, h3 {
 .slim-feedback.juist { color: var(--kleur-juist); }
 .slim-feedback.fout { color: var(--kleur-fout); }
 
+/* ===========================================================
+   SLIM LEREN — Luister-en-herken modus (v2)
+   =========================================================== */
+.slim-luister-grote-knop {
+  background: linear-gradient(135deg, #FFB627 0%, #FF8C42 100%);
+  color: var(--kleur-zwart);
+  border: none;
+  padding: 28px 40px;
+  border-radius: 24px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 14px auto;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.2), 0 8px 24px rgba(255, 140, 66, 0.3);
+  transition: all 0.15s;
+  min-width: 240px;
+}
+
+.slim-luister-grote-knop:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 0 rgba(0,0,0,0.2), 0 12px 28px rgba(255, 140, 66, 0.4);
+}
+
+.slim-luister-grote-knop:active {
+  transform: translateY(2px);
+  box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+}
+
+.slim-luister-icoon { font-size: 36px; }
+
+.slim-hint-knop {
+  background: transparent;
+  color: var(--kleur-grijs);
+  border: 1px dashed var(--kleur-rand);
+  padding: 8px 14px;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: all 0.15s;
+}
+
+.slim-hint-knop:hover:not(:disabled) {
+  border-color: var(--kleur-zisa);
+  color: var(--kleur-zwart);
+}
+
+.slim-hint-knop:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.slim-hint-tekst {
+  display: block;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--kleur-zwart);
+  margin-top: 8px;
+  min-height: 28px;
+}
+
+.slim-acties-beelden {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.slim-beeld-knop {
+  background: var(--kleur-wit);
+  border: 3px solid var(--kleur-rand);
+  padding: 24px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  font-family: inherit;
+}
+
+.slim-beeld-knop:hover:not(:disabled) {
+  border-color: var(--kleur-zisa);
+  transform: translateY(-3px);
+  box-shadow: var(--schaduw-hover);
+}
+
+.slim-beeld-knop:disabled { cursor: not-allowed; }
+
+.slim-beeld-knop.juist {
+  background: var(--kleur-juist);
+  border-color: var(--kleur-juist);
+  animation: bounce 0.5s ease;
+}
+
+.slim-beeld-knop.fout {
+  background: var(--kleur-fout);
+  border-color: var(--kleur-fout);
+  animation: schud 0.4s ease;
+}
+
+.slim-beeld-emoji {
+  font-size: 88px;
+  line-height: 1;
+}
+
+@media (max-width: 600px) {
+  .slim-luister-grote-knop { font-size: 22px; padding: 22px 28px; min-width: 200px; }
+  .slim-luister-icoon { font-size: 28px; }
+  .slim-beeld-emoji { font-size: 64px; }
+  .slim-beeld-knop { min-height: 110px; padding: 16px; }
+}
+
+/* ===========================================================
+   SPELEN — Keuze tussenscherm
+   =========================================================== */
+.spelen-keuze-main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 30px 20px;
+}
+
+.spelen-uitleg {
+  text-align: center;
+  font-size: 16px;
+  margin-bottom: 22px;
+  opacity: 0.75;
+}
+
+.spelen-tegels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.speltegel {
+  background: var(--kleur-wit);
+  border: 3px solid var(--kleur-rand);
+  border-radius: 20px;
+  padding: 28px 22px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+  color: var(--kleur-zwart);
+}
+
+.speltegel:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--schaduw-hover);
+  border-color: var(--kleur-zisa);
+}
+
+.speltegel-emoji {
+  font-size: 60px;
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.speltegel h3 {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 19px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.speltegel p {
+  font-size: 13px;
+  opacity: 0.7;
+  line-height: 1.4;
+}
+
+/* ===========================================================
+   SPELEN — Klikspel (beeld zien, woord kiezen)
+   =========================================================== */
+.klikspel-main {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.klikspel-vraag {
+  background: var(--kleur-wit);
+  border: 3px solid var(--kleur-rand);
+  border-radius: 22px;
+  padding: 28px 24px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.klikspel-beeld {
+  font-size: 110px;
+  line-height: 1;
+  margin: 12px 0;
+}
+
+.klikspel-opties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.klik-optie-knop {
+  background: var(--kleur-wit);
+  border: 3px solid var(--kleur-rand);
+  padding: 20px 16px;
+  border-radius: 18px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 19px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--kleur-zwart);
+  transition: all 0.15s;
+}
+
+.klik-optie-knop:hover:not(:disabled) {
+  border-color: var(--kleur-zisa);
+  transform: translateY(-2px);
+}
+
+.klik-optie-knop.juist {
+  background: var(--kleur-juist);
+  border-color: var(--kleur-juist);
+  color: white;
+  animation: bounce 0.5s ease;
+}
+
+.klik-optie-knop.fout {
+  background: var(--kleur-fout);
+  border-color: var(--kleur-fout);
+  color: white;
+  animation: schud 0.4s ease;
+}
+
+.klikspel-feedback {
+  text-align: center;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  min-height: 32px;
+}
+
+.klikspel-feedback.juist { color: var(--kleur-juist); }
+.klikspel-feedback.fout { color: var(--kleur-fout); }
+
+/* ===========================================================
+   SPELEN — Snelheidsoefening
+   =========================================================== */
+.snelheid-timer-balk {
+  position: relative;
+  height: 36px;
+  background: var(--kleur-zachtgrijs);
+  border-radius: 18px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 2px solid var(--kleur-rand);
+}
+
+.snelheid-timer-vul {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--kleur-juist);
+  transition: width 0.1s linear, background 0.3s;
+  border-radius: 16px;
+}
+
+.snelheid-timer-tekst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Fredoka', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--kleur-zwart);
+  z-index: 2;
+}
+
+.snelheid-eind {
+  background: var(--kleur-wit);
+  border: 3px solid var(--kleur-zisa);
+  border-radius: 22px;
+  padding: 36px 28px;
+  text-align: center;
+  margin-top: 16px;
+}
+
+.snelheid-eind h2 {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 32px;
+  margin-bottom: 14px;
+}
+
+.snelheid-eind p {
+  font-size: 22px;
+  margin-bottom: 22px;
+}
+
+.snelheid-eind p strong {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 36px;
+  color: var(--kleur-juist);
+}
+
+.snelheid-eind .grote-knop { margin: 6px; }
+.snelheid-eind .grote-knop.sec {
+  background: var(--kleur-zachtgrijs);
+  color: var(--kleur-zwart);
+}
+
+/* ===========================================================
+   SPELEN — Memory
+   =========================================================== */
+.memory-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.memory-uitleg {
+  text-align: center;
+  font-size: 15px;
+  opacity: 0.7;
+  margin-bottom: 18px;
+}
+
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.memory-kaart {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, #FFB627 0%, #FF8C42 100%);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  position: relative;
+  font-family: inherit;
+  perspective: 1000px;
+  transition: transform 0.2s;
+  padding: 0;
+}
+
+.memory-kaart:hover:not(.gevonden) { transform: translateY(-3px); }
+
+.memory-kaart-achter,
+.memory-kaart-voor {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.memory-kaart-achter {
+  background: linear-gradient(135deg, #FFB627 0%, #FF8C42 100%);
+  color: rgba(0,0,0,0.4);
+  font-size: 38px;
+  opacity: 1;
+}
+
+.memory-kaart-voor {
+  background: var(--kleur-wit);
+  border: 2px solid var(--kleur-zisa);
+  font-size: 32px;
+  opacity: 0;
+  text-align: center;
+  padding: 8px;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.memory-kaart-inhoud {
+  display: block;
+  width: 100%;
+}
+
+.memory-luidspreker {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 18px;
+  background: var(--kleur-info);
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 3;
+  transition: transform 0.15s;
+}
+
+.memory-luidspreker:hover { transform: scale(1.15); }
+
+.memory-kaart.open .memory-kaart-achter { opacity: 0; }
+.memory-kaart.open .memory-kaart-voor { opacity: 1; }
+
+.memory-kaart.gevonden { cursor: default; }
+.memory-kaart.gevonden .memory-kaart-achter { opacity: 0; }
+.memory-kaart.gevonden .memory-kaart-voor {
+  opacity: 1;
+  background: #E8F8F2;
+  border-color: var(--kleur-juist);
+}
+
+.memory-feedback {
+  text-align: center;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 22px;
+}
+
+.memory-feedback .grote-knop { margin-top: 14px; }
+
+/* ===========================================================
+   SPELEN — Verbinden (lijntjes trekken)
+   =========================================================== */
+.verbinden-main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.verbinden-uitleg {
+  text-align: center;
+  font-size: 15px;
+  opacity: 0.7;
+  margin-bottom: 18px;
+}
+
+.verbinden-veld {
+  background: var(--kleur-wit);
+  border: 2px solid var(--kleur-rand);
+  border-radius: 18px;
+  padding: 20px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  min-height: 400px;
+}
+
+.verbinden-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.verbinden-kolom {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 2;
+}
+
+.verbind-item {
+  background: var(--kleur-wit);
+  border: 3px solid var(--kleur-rand);
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--kleur-zwart);
+  transition: all 0.15s;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.verbind-item:hover:not(.verbind-juist):not(.verbind-fout) {
+  border-color: var(--kleur-zisa);
+}
+
+.verbind-item.actief {
+  border-color: var(--kleur-info);
+  background: #E5F0FF;
+  transform: scale(1.04);
+}
+
+.verbind-item.over {
+  border-color: var(--kleur-juist);
+  background: #E8F8F2;
+  transform: scale(1.06);
+}
+
+.verbind-item-beeld { padding: 6px; }
+.verbind-emoji { font-size: 44px; line-height: 1; }
+
+.verbind-item.verbind-juist {
+  background: #E8F8F2;
+  border-color: var(--kleur-juist);
+  color: var(--kleur-juist);
+  cursor: default;
+}
+
+.verbind-item.verbind-fout {
+  background: #FBEAEA;
+  border-color: var(--kleur-fout);
+  animation: schud 0.4s ease;
+}
+
+@media (max-width: 600px) {
+  .klikspel-opties { grid-template-columns: 1fr; }
+  .klikspel-beeld { font-size: 80px; }
+  .memory-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .memory-kaart-achter { font-size: 28px; }
+  .memory-kaart-voor { font-size: 22px; }
+  .verbinden-veld { gap: 50px; padding: 12px; }
+  .verbind-emoji { font-size: 32px; }
+  .verbind-item { font-size: 14px; padding: 10px 8px; min-height: 50px; }
+}
+
 
 @media (max-width: 600px) {
   .hero h1 { font-size: 36px; }
