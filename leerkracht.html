@@ -11,6 +11,9 @@
 
   <!-- QRCode library voor QR-code generatie -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- jsPDF voor werkbladen -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body class="lk-body">
 
@@ -25,6 +28,7 @@
   <div class="lk-tabs">
     <button class="lk-tab actief" data-tab="kinderen" onclick="lkKiesTab('kinderen')">👥 Mijn klas</button>
     <button class="lk-tab" data-tab="overzicht" onclick="lkKiesTab('overzicht')">📊 Wie kan wat?</button>
+    <button class="lk-tab" data-tab="werkbladen" onclick="lkKiesTab('werkbladen')">📄 Werkbladen</button>
     <button class="lk-tab" data-tab="info" onclick="lkKiesTab('info')">ℹ️ Hulp</button>
   </div>
 
@@ -92,6 +96,39 @@
         </button>
       </div>
       <div id="lk-detail-inhoud"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: WERKBLADEN ============ -->
+  <div id="lk-tab-werkbladen" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>📄 Werkblad maken</h2>
+      <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
+        Stel een werkblad samen voor één of meerdere thema's. Je kan per thema kiezen welk niveau en welke oefeningen je wil. Het werkblad wordt als PDF gedownload.
+      </p>
+
+      <div class="werkblad-sectie">
+        <div class="sectie-titel">1️⃣ Welke thema's?</div>
+        <div id="werkblad-themas-lijst" class="themas-checklist">
+          <!-- gevuld door JS -->
+        </div>
+      </div>
+
+      <div class="werkblad-sectie">
+        <div class="sectie-titel">2️⃣ Niveau en oefeningen per thema</div>
+        <div id="werkblad-thema-panelen">
+          <!-- gevuld door JS -->
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+        <button class="grote-knop" onclick="genereerWerkblad()">
+          📥 Maak werkblad (PDF)
+        </button>
+        <button class="grote-knop" style="background: var(--kleur-info); color: white" onclick="genereerOplossingssleutel()">
+          🔑 Oplossingssleutel
+        </button>
+      </div>
     </div>
   </div>
 
@@ -163,6 +200,7 @@
 
 <script src="firebase-config.js"></script>
 <script src="voortgang.js"></script>
+<script src="pdf-engine.js"></script>
 <script src="leerkracht.js"></script>
 
 </body>
