@@ -23,6 +23,56 @@ window.PDFEngine = (function() {
     return a;
   }
 
+  // ---------------------------------------------------------------
+  //  EMOJI → CANVAS → IMAGE DATA URL
+  //  jsPDF kan emoji's niet renderen; we tekenen ze op een canvas
+  //  en plaatsen ze als image in de PDF.
+  // ---------------------------------------------------------------
+  const _emojiCache = {};
+
+  function emojiNaarImage(emoji, pixels) {
+    pixels = pixels || 96;
+    const cacheKey = emoji + '@' + pixels;
+    if (_emojiCache[cacheKey]) return _emojiCache[cacheKey];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = pixels;
+    canvas.height = pixels;
+    const ctx = canvas.getContext('2d');
+
+    // Hoge resolutie — schaalt mooier in PDF op A4
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Stack van emoji-fonts; browser gebruikt eerste beschikbare
+    ctx.font = (pixels * 0.85) + 'px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
+    ctx.fillStyle = '#000';
+    ctx.fillText(emoji, pixels / 2, pixels / 2);
+
+    const dataUrl = canvas.toDataURL('image/png');
+    _emojiCache[cacheKey] = dataUrl;
+    return dataUrl;
+  }
+
+  // Plaatst een emoji op de PDF op (x, y) met grootte in mm.
+  // x, y is het MIDDEN van de emoji.
+  function plaatsEmoji(doc, emoji, xMm, yMm, grootteMm) {
+    if (!emoji) return;
+    grootteMm = grootteMm || 12;
+    try {
+      const dataUrl = emojiNaarImage(emoji, 128);
+      doc.addImage(
+        dataUrl,
+        'PNG',
+        xMm - grootteMm / 2,
+        yMm - grootteMm / 2,
+        grootteMm,
+        grootteMm
+      );
+    } catch (e) {
+      console.warn('Kon emoji niet renderen:', emoji, e);
+    }
+  }
+
   function tekenKop(doc, thema, oefenTitel) {
     // Brand-strook bovenaan
     doc.setFillColor(255, 248, 238);
@@ -33,9 +83,14 @@ window.PDFEngine = (function() {
     doc.setTextColor(232, 159, 15);
     doc.text('JUF ZISA · ANDERS LEREN', M, 10);
 
+    // Thema-emoji als image, gevolgd door naam als tekst
     doc.setFontSize(17);
     doc.setTextColor(45, 42, 50);
-    doc.text(`${thema.emoji}  ${thema.naam}`, M, 20);
+    plaatsEmoji(doc, thema.emoji, M + 6, 18, 10);
+    // Bij multi-thema kan naam lang zijn — kort af indien nodig
+    let weergaveNaam = thema.naam;
+    if (weergaveNaam.length > 35) weergaveNaam = weergaveNaam.substring(0, 32) + '...';
+    doc.text(weergaveNaam, M + 14, 20);
 
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
@@ -47,15 +102,16 @@ window.PDFEngine = (function() {
     doc.setLineWidth(0.3);
     doc.line(M, 28, PB - M, 28);
 
-    doc.setFontSize(9);
-    doc.setTextColor(160, 160, 160);
-    doc.text('Naam:', M, 33);
+    doc.setFontSize(14);
+    doc.setTextColor(80, 80, 80);
+    doc.text('Naam:', M, 40);
     doc.setDrawColor(180, 180, 180);
-    doc.line(M + 14, 33, M + 70, 33);
-    doc.text('Datum:', M + 80, 33);
-    doc.line(M + 95, 33, PB - M, 33);
+    doc.setLineWidth(0.4);
+    doc.line(M + 22, 40, M + 90, 40);
+    doc.text('Datum:', M + 100, 40);
+    doc.line(M + 124, 40, PB - M, 40);
 
-    return 40;
+    return 50;
   }
 
   /**
@@ -79,22 +135,19 @@ window.PDFEngine = (function() {
     doc.setTextColor(232, 159, 15);
     doc.text('WAT DOE JE?', startX + 4, y + 6);
 
-    // Picto's met pijltjes
-    const pictoY = y + 11;
-    let pictoX = startX + 30;
-    const pictoSpacing = 18;
+    // Picto's met pijltjes (als images!)
+    const pictoY = y + hoogte / 2;
+    let pictoX = startX + 32;
+    const pictoSpacing = 16;
 
-    doc.setFontSize(13);
-    doc.setTextColor(45, 42, 50);
     pictos.forEach((p, i) => {
-      doc.text(p, pictoX, pictoY);
+      plaatsEmoji(doc, p, pictoX, pictoY, 9);
       if (i < pictos.length - 1) {
-        // Pijltje na deze picto
+        // Pijltje na deze picto (gewone tekst, geen emoji)
         doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
         doc.setTextColor(200, 180, 140);
-        doc.text('→', pictoX + 8, pictoY - 1);
-        doc.setFontSize(13);
-        doc.setTextColor(45, 42, 50);
+        doc.text('>', pictoX + 7, pictoY + 1);
       }
       pictoX += pictoSpacing;
     });
@@ -120,7 +173,7 @@ window.PDFEngine = (function() {
     const links = schud(items);
     const rechts = schud(items);
 
-    const kB = IB / 2 - 10;
+    const kB = IB * 0.38; // smallere vakken — was IB/2 - 10 = ~83mm; nu ~68mm
     const xL = M;
     const xR = M + IB - kB;
     const rH = 28;
@@ -133,18 +186,19 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.5);
       doc.roundedRect(xL, yR, kB, 22, 3, 3, 'FD');
-      doc.setFontSize(20);
-      doc.setTextColor(45, 42, 50);
-      doc.text(links[i].beeld, xL + kB / 2, yR + 14, { align: 'center' });
+      plaatsEmoji(doc, links[i].beeld, xL + kB / 2, yR + 11, 16);
 
       // Verbindingspunten
       doc.setFillColor(45, 42, 50);
       doc.circle(xL + kB + 2, yR + 11, 1, 'F');
 
-      // Woord rechts
+      // Woord rechts — eerst fillColor terug op wit zetten!
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 210, 190);
       doc.roundedRect(xR, yR, kB, 22, 3, 3, 'FD');
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
       doc.text(rechts[i].tekst, xR + kB / 2, yR + 14, { align: 'center' });
       doc.setFont('helvetica', 'normal');
 
@@ -178,9 +232,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(x, yR, 18, 18, 2, 2, 'FD');
-      doc.setFontSize(14);
-      doc.setTextColor(45, 42, 50);
-      doc.text(w.beeld, x + 9, yR + 12, { align: 'center' });
+      plaatsEmoji(doc, w.beeld, x + 9, yR + 9, 13);
 
       // Voorbeeldwoord lichtgrijs
       doc.setFontSize(13);
@@ -204,61 +256,126 @@ window.PDFEngine = (function() {
 
   // ---------------------------------------------------------------
   //  OEFENING 3: Welke letter mist?
-  //  Picto: 👁️ → ✏️ (kijk en schrijf)
+  //  Picto: 👁️ → 🔤 → ✏️ (kijk, schik letters, schrijf)
+  // Helper: alleen items die geschikt zijn voor letter-puzzel (één woord, geen zin)
+  function alleenWoordItems(items) {
+    return items.filter(it => {
+      // Survival-thema items hebben 'soort' attribuut
+      if (it.soort && it.soort !== 'woord') return false;
+      // Pak de korte vorm
+      const tekst = (it.kort || it.tekst).replace(/^(de |het |een )/i, '').trim();
+      // Geen spaties = één woord
+      if (tekst.includes(' ')) return false;
+      // Niet te lang
+      if (tekst.length > 12) return false;
+      return true;
+    });
+  }
+
   // ---------------------------------------------------------------
   function tekenLetterMist(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: vul aan');
-    y = tekenPictoInstructie(doc, y, ['👁️', '✏️']);
+    let y = tekenKop(doc, thema, 'Oefening: maak het woord');
+    y = tekenPictoInstructie(doc, y, ['👁️', '🔤', '✏️']);
 
-    // Bij zinnen: enkel "kort" gebruiken (geen volledige zin)
-    const items = schud(thema.items).slice(0, 6);
-    const kB = IB / 2 - 5;
-    const rH = 36;
+    const geschikt = alleenWoordItems(thema.items);
+    if (geschikt.length < 2) {
+      // Geen geschikte items in dit thema
+      doc.setFontSize(11);
+      doc.setTextColor(150, 150, 150);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Deze oefening werkt alleen met losse woorden (niet met zinnen).', M, y + 10);
+      tekenVoet(doc);
+      return;
+    }
+    const items = schud(geschikt).slice(0, 5);
+    const rH = 38;
 
     items.forEach((w, i) => {
-      const kol = i % 2;
-      const rij = Math.floor(i / 2);
-      const x = M + kol * (kB + 10);
-      const yR = y + rij * rH;
-
+      const yR = y + i * rH;
       const wK = w.kort || w.tekst;
-      let geldig = [];
-      for (let k = 1; k < wK.length - 1; k++) {
-        if (wK[k] !== ' ' && /[a-zA-Zàáâäèéêëìíîïòóôöùúûü]/.test(wK[k])) {
-          geldig.push(k);
-        }
-      }
-      if (geldig.length === 0) geldig = [Math.floor(wK.length / 2)];
-      const idx = geldig[Math.floor(Math.random() * geldig.length)];
-      const ml = wK[idx];
-      const wM = wK.substring(0, idx) + '_' + wK.substring(idx + 1);
 
+      // Strip lidwoord uit het te puzzelen woord
+      const zuiver = wK.replace(/^(de |het |een )/i, '')
+                       .replace(/[^a-zA-Zàáâäèéêëìíîïòóôöùúûü]/g, ''); // alleen letters
+      const lidwoord = (wK.match(/^(de |het |een )/i) || [''])[0].trim();
+
+      // Beeld-vakje links
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
-      doc.roundedRect(x, yR, kB, 28, 3, 3, 'FD');
+      doc.roundedRect(M, yR, 22, 22, 3, 3, 'FD');
+      plaatsEmoji(doc, w.beeld, M + 11, yR + 11, 16);
 
-      doc.setFontSize(20);
-      doc.setTextColor(45, 42, 50);
-      doc.text(w.beeld, x + 12, yR + 18, { align: 'center' });
+      // Letters door elkaar — markeer ÉÉN specifieke positie als startletter
+      // (niet alle letters die gelijk zijn aan de eerste — dat veroorzaakte dubbele markeringen bij "eten")
+      const letters = zuiver.split('');
+      // Geef elke letter een uniek id zodat we de eerste-letter-positie kunnen volgen
+      const lettersMetId = letters.map((l, idx) => ({ letter: l, isStart: idx === 0, id: idx }));
+      const allesGeschud = schud(lettersMetId);
 
-      doc.setFontSize(15);
+      // Teken de letterhokjes
+      const letterStartX = M + 28;
+      const letterB = 8;
+      const letterGap = 1;
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text(wM, x + 26, yR + 17);
+      allesGeschud.forEach((item, idx) => {
+        const lx = letterStartX + idx * (letterB + letterGap);
+        const isEerste = item.isStart;
+
+        if (isEerste) {
+          doc.setFillColor(255, 220, 160);
+          doc.setDrawColor(232, 159, 15);
+        } else {
+          doc.setFillColor(248, 245, 240);
+          doc.setDrawColor(200, 190, 175);
+        }
+        doc.setLineWidth(0.3);
+        doc.roundedRect(lx, yR + 2, letterB, letterB + 2, 1.5, 1.5, 'FD');
+        doc.setTextColor(45, 42, 50);
+        doc.text(item.letter, lx + letterB / 2, yR + 9, { align: 'center' });
+      });
       doc.setFont('helvetica', 'normal');
 
-      doc.setFontSize(8);
-      doc.setTextColor(180, 180, 180);
-      doc.text(`(${ml})`, x + kB - 2, yR + 25, { align: 'right' });
+      // Schrijflijn ONDER de letters — voldoende ruimte tussen
+      // Letters eindigen op yR + 14 (= 2 + 8 + 2 + 2 marge). Schrijflijnen op yR + 22 en yR + 27.
+      const lijnStartX = letterStartX;
+      const lijnEindX = M + IB - 5;
+      const hulpY = yR + 22;
+      const basisY = yR + 27;
+
+      // Lidwoord lichtgrijs aan begin van de schrijflijn
+      let schrijfStartX = lijnStartX;
+      if (lidwoord) {
+        doc.setFontSize(11);
+        doc.setTextColor(160, 160, 160);
+        doc.text(lidwoord, schrijfStartX, basisY - 1);
+        schrijfStartX += lidwoord.length * 2.5 + 4;
+      }
+
+      // Dubbele schrijflijn — beide dun
+      doc.setDrawColor(210, 210, 210);
+      doc.setLineWidth(0.2);
+      doc.line(schrijfStartX, hulpY, lijnEindX, hulpY);
+      doc.setDrawColor(100, 100, 100);
+      doc.setLineWidth(0.3);
+      doc.line(schrijfStartX, basisY, lijnEindX, basisY);
+
+      // Scheidingslijn tussen rijen
+      if (i < items.length - 1) {
+        doc.setDrawColor(240, 232, 215);
+        doc.setLineWidth(0.2);
+        doc.line(M, yR + 31, PB - M, yR + 31);
+      }
     });
 
     // Tip onderaan voor leerkracht
-    const yEind = y + Math.ceil(items.length / 2) * rH + 5;
+    const yEind = y + items.length * rH + 5;
     if (yEind < PH - 25) {
       doc.setFontSize(8);
       doc.setTextColor(150, 150, 150);
       doc.setFont('helvetica', 'italic');
-      doc.text('💡 De ontbrekende letter staat klein rechts naast het woord (oplossingshintje).',
+      doc.text('Tip: De startletter is oranje gemarkeerd om het kind op weg te helpen.',
                M, yEind);
     }
 
@@ -284,9 +401,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(M, yR, 22, 22, 3, 3, 'FD');
-      doc.setFontSize(20);
-      doc.setTextColor(45, 42, 50);
-      doc.text(w.beeld, M + 11, yR + 15, { align: 'center' });
+      plaatsEmoji(doc, w.beeld, M + 11, yR + 11, 17);
 
       // 3 woorden naast elkaar
       const afl = thema.items.filter(x => x.id !== w.id);
@@ -349,9 +464,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(180, 180, 180);
       doc.setLineWidth(0.6);
       doc.roundedRect(x, yR, 26, 26, 3, 3, 'FD');
-      doc.setFontSize(18);
-      doc.setTextColor(180, 180, 180); // licht zodat kind kan inkleuren
-      doc.text(w.beeld, x + 13, yR + 17, { align: 'center' });
+      plaatsEmoji(doc, w.beeld, x + 13, yR + 13, 18);
 
       // Woord ernaast
       doc.setFontSize(12);
@@ -373,36 +486,611 @@ window.PDFEngine = (function() {
   }
 
   // ---------------------------------------------------------------
-  //  HOOFDFUNCTIE
+  //  OEFENING 6: Beeld + zelf schrijven (geen woord zichtbaar)
+  //  Picto: 👁️ → ✏️ — kind ziet beeld, schrijft woord vrij op lijn
   // ---------------------------------------------------------------
-  function maakWerkblad(thema, opties) {
+  function tekenZelfSchrijven(doc, thema) {
+    let y = tekenKop(doc, thema, 'Oefening: schrijf zelf');
+    y = tekenPictoInstructie(doc, y, ['👁️', '✏️']);
+
+    const items = schud(thema.items).slice(0, 8);
+    const kB = IB / 2 - 5;
+    const rH = 30;
+
+    items.forEach((w, i) => {
+      const kol = i % 2;
+      const rij = Math.floor(i / 2);
+      const x = M + kol * (kB + 10);
+      const yR = y + rij * rH;
+
+      // Beeld
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 210, 190);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(x, yR, 20, 20, 2, 2, 'FD');
+      plaatsEmoji(doc, w.beeld, x + 10, yR + 10, 15);
+
+      // Lege schrijflijn — geen voorbeeldwoord!
+      const lY = yR + 18;
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(x + 24, lY - 5, x + kB, lY - 5);
+      doc.setDrawColor(45, 42, 50);
+      doc.setLineWidth(0.5);
+      doc.line(x + 24, lY, x + kB, lY);
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  OEFENING 7: Beeld + woord-keuze + overschrijven
+  //  Picto: 👁️ → ⭕ → ✏️ — kies juist + schrijf
+  // ---------------------------------------------------------------
+  function tekenKiesEnSchrijf(doc, thema) {
+    let y = tekenKop(doc, thema, 'Oefening: kies en schrijf');
+    y = tekenPictoInstructie(doc, y, ['👁️', '⭕', '✏️']);
+
+    // Met zinnen erbij wordt elk item groter — minder per blad
+    const items = schud(thema.items).slice(0, 4);
+    const rH = 50; // ruimer per item
+
+    items.forEach((w, i) => {
+      const yR = y + i * rH;
+
+      // Beeld links
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 210, 190);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(M, yR, 24, 24, 3, 3, 'FD');
+      plaatsEmoji(doc, w.beeld, M + 12, yR + 12, 18);
+
+      // 3 keuzes ONDER ELKAAR — met bullet-cirkels
+      const afl = thema.items.filter(x => x.id !== w.id);
+      const opt = schud([w, ...schud(afl).slice(0, 2)]);
+
+      const keuzeStartX = M + 30;
+      const bulletR = 1.8;
+      doc.setFontSize(11);
+      doc.setTextColor(45, 42, 50);
+      opt.forEach((o, idx) => {
+        const cy = yR + 4 + idx * 5;
+        // Open bullet-cirkel om te omcirkelen
+        doc.setDrawColor(120, 120, 120);
+        doc.setLineWidth(0.5);
+        doc.circle(keuzeStartX, cy, bulletR);
+        // Tekst ernaast
+        doc.setFont('helvetica', 'normal');
+        doc.text(o.tekst, keuzeStartX + 5, cy + 1.5);
+      });
+
+      // Schrijflijnen ONDERAAN over volledige breedte (dubbele lijn)
+      const lijnY = yR + 25;
+      const hulpY = lijnY - 5;
+      doc.setDrawColor(210, 210, 210);
+      doc.setLineWidth(0.2);
+      doc.line(M, hulpY, M + IB, hulpY);
+      doc.setDrawColor(100, 100, 100);
+      doc.setLineWidth(0.3);
+      doc.line(M, lijnY, M + IB, lijnY);
+
+      // Tweede schrijflijn onder voor lange zinnen
+      const lijn2Y = yR + 38;
+      const hulp2Y = lijn2Y - 5;
+      doc.setDrawColor(210, 210, 210);
+      doc.setLineWidth(0.2);
+      doc.line(M, hulp2Y, M + IB, hulp2Y);
+      doc.setDrawColor(100, 100, 100);
+      doc.setLineWidth(0.3);
+      doc.line(M, lijn2Y, M + IB, lijn2Y);
+
+      // Scheidingslijn tussen rijen
+      if (i < items.length - 1) {
+        doc.setDrawColor(240, 232, 215);
+        doc.setLineWidth(0.2);
+        doc.line(M, yR + 45, PB - M, yR + 45);
+      }
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  OEFENING 8: Knipoefening
+  //  Boven: rij beelden om uit te knippen
+  //  Onder: dozen met woorden om beelden in te plakken
+  //  Picto: ✂️ → ⭕ → 📋 (knip → zoek → plak)
+  // ---------------------------------------------------------------
+  function tekenKnipoefening(doc, thema) {
+    let y = tekenKop(doc, thema, 'Oefening: knip en plak');
+    y = tekenPictoInstructie(doc, y, ['✂️', '🔗', '📋']);
+
+    const items = schud(thema.items).slice(0, 6);
+    const beeldenGeschud = schud(items);
+
+    // Sectie 1: Beelden om uit te knippen (bovenste deel)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(232, 159, 15);
+    doc.text('1. KNIP DE BEELDEN UIT', M, y);
+    y += 5;
+
+    const beeldGrootte = 22;
+    const beeldGap = 6;
+    const beeldenPerRij = 6;
+    const totaleBreedte = beeldenPerRij * beeldGrootte + (beeldenPerRij - 1) * beeldGap;
+    const beeldenStartX = (PB - totaleBreedte) / 2;
+
+    beeldenGeschud.forEach((w, i) => {
+      const x = beeldenStartX + i * (beeldGrootte + beeldGap);
+      // Knipkader (stippellijn)
+      doc.setDrawColor(160, 160, 160);
+      doc.setLineWidth(0.3);
+      doc.setLineDashPattern([1.5, 1], 0);
+      doc.rect(x, y, beeldGrootte, beeldGrootte);
+      doc.setLineDashPattern([], 0);
+
+      plaatsEmoji(doc, w.beeld, x + beeldGrootte / 2, y + beeldGrootte / 2, beeldGrootte - 4);
+    });
+
+    y += beeldGrootte + 12;
+
+    // Schaartje-symbool met scheidingslijn
+    doc.setDrawColor(180, 180, 180);
+    doc.setLineWidth(0.4);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(M, y, PB - M, y);
+    doc.setLineDashPattern([], 0);
+
+    y += 8;
+
+    // Sectie 2: Plakdozen met woorden onderaan
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(232, 159, 15);
+    doc.text('2. PLAK BIJ HET JUISTE WOORD', M, y);
+    y += 5;
+
+    const dozenPerRij = 2;
+    const doosBreed = (IB - 10) / dozenPerRij;
+    const doosHoog = 30;
+
+    items.forEach((w, i) => {
+      const kol = i % dozenPerRij;
+      const rij = Math.floor(i / dozenPerRij);
+      const x = M + kol * (doosBreed + 10);
+      const yR = y + rij * (doosHoog + 5);
+
+      // Plakvak (lege rechthoek waar beeld in komt)
+      doc.setFillColor(255, 250, 240);
+      doc.setDrawColor(220, 180, 100);
+      doc.setLineWidth(0.4);
+      doc.setLineDashPattern([1.5, 1], 0);
+      doc.roundedRect(x, yR, 26, doosHoog - 4, 2, 2, 'FD');
+      doc.setLineDashPattern([], 0);
+
+      // Klein "plak hier"-teken in vak
+      doc.setFontSize(7);
+      doc.setTextColor(220, 180, 100);
+      doc.text('plak hier', x + 13, yR + (doosHoog - 4) / 2 + 1, { align: 'center' });
+
+      // Woord ernaast
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      doc.text(w.tekst, x + 30, yR + doosHoog / 2);
+      doc.setFont('helvetica', 'normal');
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  OEFENING 9: Kleur-koppel
+  //  Woord en bijhorend beeld krijgen dezelfde kleur
+  //  Picto: 👁️ → 🎨 (kijk en kleur)
+  // ---------------------------------------------------------------
+  function tekenKleurKoppel(doc, thema) {
+    let y = tekenKop(doc, thema, 'Oefening: kleur dezelfde paren');
+    y = tekenPictoInstructie(doc, y, ['👁️', '🎨']);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(120, 120, 120);
+    doc.text('Kleur het beeld en het juiste woord in dezelfde kleur.', M, y);
+    doc.setFont('helvetica', 'normal');
+    y += 6;
+
+    const items = schud(thema.items).slice(0, 6);
+    const beelden = items;
+    const woorden = schud(items);
+
+    const kolomBreedte = IB / 2 - 5;
+    const rH = 28;
+
+    items.forEach((_, i) => {
+      const yR = y + i * rH;
+
+      // Beeld links (in lichte cirkel om te kleuren)
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.6);
+      doc.circle(M + 12, yR + 11, 11, 'FD');
+      plaatsEmoji(doc, beelden[i].beeld, M + 12, yR + 11, 14);
+
+      // Woord rechts (in lichte cirkel om te kleuren)
+      const xR = M + IB - kolomBreedte;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(180, 180, 180);
+      doc.setLineWidth(0.6);
+      doc.roundedRect(xR, yR, kolomBreedte, 22, 11, 11, 'FD');
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      doc.text(woorden[i].tekst, xR + kolomBreedte / 2, yR + 14, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  OEFENING 10: Woordzoeker
+  //  Letterraster met woorden verstopt + beelden onderaan als hint
+  //  Picto: 👁️ → 🔍 (kijk en zoek)
+  // ---------------------------------------------------------------
+  function tekenWoordzoeker(doc, thema) {
+    let y = tekenKop(doc, thema, 'Oefening: woordzoeker');
+    y = tekenPictoInstructie(doc, y, ['👁️', '🔍']);
+
+    // Filter: alleen losse woorden, niet te kort/lang, geen zinnen
+    const kandidaten = alleenWoordItems(thema.items).filter(it => {
+      const w = (it.kort || it.tekst).replace(/^(de |het |een )/i, '').replace(/[^a-zA-Zàáâäèéêëìíîïòóôöùúûü]/g, '');
+      return w.length >= 3 && w.length <= 9;
+    });
+
+    if (kandidaten.length < 4) {
+      doc.setFontSize(11);
+      doc.setTextColor(150, 150, 150);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Deze oefening werkt alleen met thema\'s die genoeg losse woorden bevatten (3-9 letters).', M, y + 10);
+      tekenVoet(doc);
+      return;
+    }
+
+    const aantalWoorden = Math.min(8, kandidaten.length);
+    const items = schud(kandidaten).slice(0, aantalWoorden);
+
+    // Bouw raster
+    const rasterGrootte = 12;
+    const raster = Array.from({length: rasterGrootte}, () =>
+      Array.from({length: rasterGrootte}, () => '')
+    );
+
+    // Probeer woorden te plaatsen (alleen horizontaal en verticaal voor eenvoud)
+    const geplaatst = [];
+    items.forEach(item => {
+      const woord = (item.kort || item.tekst).replace(/^(de |het |een )/i, '').toUpperCase().replace(/[^A-Z]/g, '');
+      let pogingen = 50;
+      while (pogingen-- > 0) {
+        const horizontaal = Math.random() < 0.5;
+        const r = Math.floor(Math.random() * rasterGrootte);
+        const k = Math.floor(Math.random() * rasterGrootte);
+
+        if (horizontaal) {
+          if (k + woord.length > rasterGrootte) continue;
+          let kanPlaatsen = true;
+          for (let i = 0; i < woord.length; i++) {
+            const cel = raster[r][k + i];
+            if (cel !== '' && cel !== woord[i]) { kanPlaatsen = false; break; }
+          }
+          if (kanPlaatsen) {
+            for (let i = 0; i < woord.length; i++) raster[r][k + i] = woord[i];
+            geplaatst.push({ item, woord });
+            break;
+          }
+        } else {
+          if (r + woord.length > rasterGrootte) continue;
+          let kanPlaatsen = true;
+          for (let i = 0; i < woord.length; i++) {
+            const cel = raster[r + i][k];
+            if (cel !== '' && cel !== woord[i]) { kanPlaatsen = false; break; }
+          }
+          if (kanPlaatsen) {
+            for (let i = 0; i < woord.length; i++) raster[r + i][k] = woord[i];
+            geplaatst.push({ item, woord });
+            break;
+          }
+        }
+      }
+    });
+
+    // Vul lege cellen met willekeurige letters
+    for (let r = 0; r < rasterGrootte; r++) {
+      for (let k = 0; k < rasterGrootte; k++) {
+        if (raster[r][k] === '') {
+          raster[r][k] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+        }
+      }
+    }
+
+    // Teken raster
+    const celGrootte = 9;
+    const rasterBreedte = rasterGrootte * celGrootte;
+    const rasterStartX = (PB - rasterBreedte) / 2;
+    const rasterStartY = y;
+
+    doc.setDrawColor(220, 210, 190);
+    doc.setLineWidth(0.3);
+    doc.setFillColor(255, 252, 245);
+    doc.rect(rasterStartX, rasterStartY, rasterBreedte, rasterGrootte * celGrootte, 'FD');
+
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(45, 42, 50);
+    for (let r = 0; r < rasterGrootte; r++) {
+      for (let k = 0; k < rasterGrootte; k++) {
+        const cx = rasterStartX + k * celGrootte + celGrootte / 2;
+        const cy = rasterStartY + r * celGrootte + celGrootte / 2 + 1.5;
+        doc.text(raster[r][k], cx, cy, { align: 'center' });
+        // Lichte celdoorlijning
+        doc.setDrawColor(240, 232, 215);
+        doc.setLineWidth(0.1);
+        doc.rect(rasterStartX + k * celGrootte, rasterStartY + r * celGrootte, celGrootte, celGrootte);
+      }
+    }
+    doc.setFont('helvetica', 'normal');
+
+    // Beelden onder als hint van wat er te zoeken is
+    const ySonderRaster = rasterStartY + rasterBreedte + 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(232, 159, 15);
+    doc.text('ZOEK DEZE WOORDEN:', M, ySonderRaster);
+
+    const beeldenY = ySonderRaster + 4;
+    const beeldGr = 14;
+    const beeldGap = 5;
+    const totalB = geplaatst.length * (beeldGr + beeldGap) - beeldGap;
+    const beeldStartX = (PB - totalB) / 2;
+
+    geplaatst.forEach((g, i) => {
+      const x = beeldStartX + i * (beeldGr + beeldGap);
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 210, 190);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(x, beeldenY, beeldGr, beeldGr, 2, 2, 'FD');
+      plaatsEmoji(doc, g.item.beeld, x + beeldGr / 2, beeldenY + beeldGr / 2, beeldGr - 2);
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  OEFENING 11: Woordkaartjes (flashcards)
+  //  Voorkant: beeld. Achterkant: woord. Voor dubbelzijdig printen.
+  //  Picto: 🃏
+  // ---------------------------------------------------------------
+  function tekenWoordkaartjes(doc, thema) {
+    const items = thema.items.slice(0, 8);
+
+    // -- Voorkant pagina --
+    let y = tekenKop(doc, thema, 'Woordkaartjes — voorkant (beelden)');
+    y = tekenPictoInstructie(doc, y, ['✂️', '🃏']);
+
+    const kaartBreed = (IB - 10) / 2;
+    const kaartHoog = 50;
+    const ry = 5;
+
+    items.forEach((w, i) => {
+      const kol = i % 2;
+      const rij = Math.floor(i / 2);
+      const x = M + kol * (kaartBreed + 10);
+      const yR = y + rij * (kaartHoog + ry);
+
+      // Knipkader (stippellijn)
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(160, 160, 160);
+      doc.setLineWidth(0.3);
+      doc.setLineDashPattern([2, 1.5], 0);
+      doc.roundedRect(x, yR, kaartBreed, kaartHoog, 4, 4, 'FD');
+      doc.setLineDashPattern([], 0);
+
+      // Beeld groot in midden
+      plaatsEmoji(doc, w.beeld, x + kaartBreed / 2, yR + kaartHoog / 2, 30);
+    });
+
+    tekenVoet(doc);
+
+    // -- Achterkant pagina --
+    doc.addPage();
+    y = tekenKop(doc, thema, 'Woordkaartjes — achterkant (woorden)');
+    y = tekenPictoInstructie(doc, y, ['📖']);
+
+    items.forEach((w, i) => {
+      // Spiegel kolom-volgorde voor dubbelzijdig printen
+      // (kol 0 voorkant = kol 1 achterkant)
+      const origKol = i % 2;
+      const kol = 1 - origKol; // omdraaien
+      const rij = Math.floor(i / 2);
+      const x = M + kol * (kaartBreed + 10);
+      const yR = y + rij * (kaartHoog + ry);
+
+      doc.setFillColor(255, 252, 245);
+      doc.setDrawColor(160, 160, 160);
+      doc.setLineWidth(0.3);
+      doc.setLineDashPattern([2, 1.5], 0);
+      doc.roundedRect(x, yR, kaartBreed, kaartHoog, 4, 4, 'FD');
+      doc.setLineDashPattern([], 0);
+
+      // Woord groot in midden
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      doc.text(w.tekst, x + kaartBreed / 2, yR + kaartHoog / 2 + 4, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  OPLOSSINGSSLEUTEL — overzicht van alle woorden + beelden per thema
+  //  Voor de leerkracht om naast werkbladen te leggen tijdens correctie
+  // ---------------------------------------------------------------
+  function tekenOplossingssleutel(doc, thema) {
+    let y = tekenKop(doc, thema, 'Oplossingssleutel');
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(120, 120, 120);
+    doc.text('Voor de leerkracht — alle woorden van dit thema met beeld en geschreven vorm.', M, y);
+    doc.setFont('helvetica', 'normal');
+    y += 8;
+
+    const items = thema.items;
+    const kolommen = 2;
+    const itemH = 14;
+    const kolBreed = (IB - 8) / kolommen;
+
+    items.forEach((w, i) => {
+      const kol = i % kolommen;
+      const rij = Math.floor(i / kolommen);
+      const x = M + kol * (kolBreed + 8);
+      const yR = y + rij * itemH;
+
+      // Pagina-eind check
+      if (yR + itemH > PH - 15) {
+        doc.addPage();
+        tekenKop(doc, thema, 'Oplossingssleutel (vervolg)');
+        // herstart op vaste y na header
+        // (eenvoudige aanpak — kan in zeldzame gevallen leiden tot dubbele rij, maar voor nu OK)
+      }
+
+      // Beeld-vakje
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 210, 190);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(x, yR, 12, 12, 2, 2, 'FD');
+      plaatsEmoji(doc, w.beeld, x + 6, yR + 6, 9);
+
+      // Tekst ernaast
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      doc.text(w.tekst, x + 16, yR + 8);
+
+      // Niveau-label klein lichtgrijs
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(160, 160, 160);
+      const nivLabel = { basis: 'B', uitbreiding: 'U', verdieping: 'V' }[w.niveau] || '';
+      if (nivLabel) doc.text(nivLabel, x + kolBreed - 3, yR + 8, { align: 'right' });
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  HOOFDFUNCTIE
+  //  themaConfigs: array van { thema, oefeningen[], niveau }
+  //  opties.verdeling: 'mengen' (alle items door elkaar — alleen zinvol als alle thema's dezelfde oefeningen hebben)
+  //                    of 'per-thema' (default — elk thema apart)
+  // ---------------------------------------------------------------
+  const OEFENING_FUNCTIES = {
+    koppel: tekenKoppel,
+    overschrijf: tekenOverschrijf,
+    letter: tekenLetterMist,
+    omcirkel: tekenOmcirkel,
+    zelfschrijven: tekenZelfSchrijven,
+    kiesschrijf: tekenKiesEnSchrijf,
+    knip: tekenKnipoefening,
+    kleurkoppel: tekenKleurKoppel,
+    woordzoeker: tekenWoordzoeker,
+    kaartjes: tekenWoordkaartjes
+  };
+
+  function maakWerkblad(themaConfigs, opties) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
-    // Filter items op niveau (indien gespecificeerd en niet 'alles')
-    let gefilterdeItems = thema.items;
-    if (opties.niveau && opties.niveau !== 'alles') {
-      gefilterdeItems = thema.items.filter(it => it.niveau === opties.niveau);
-      // Fallback: als er te weinig items zijn op dat niveau, neem alles
-      if (gefilterdeItems.length < 6) gefilterdeItems = thema.items;
+    // Backwards-compat: als oude API gebruikt wordt (één thema-object met opties.koppel etc.)
+    if (!Array.isArray(themaConfigs)) {
+      // Oud formaat, converteer
+      const oudThema = themaConfigs;
+      const oudOpties = opties || {};
+      const oefAangevinkt = [];
+      Object.keys(OEFENING_FUNCTIES).forEach(k => {
+        if (oudOpties[k]) oefAangevinkt.push(k);
+      });
+      themaConfigs = [{ thema: oudThema, oefeningen: oefAangevinkt, niveau: oudOpties.niveau || 'vrij' }];
+      opties = { verdeling: 'per-thema' };
     }
 
-    // Maak een tijdelijk thema-object met de gefilterde items
-    const themaGefilterd = { ...thema, items: gefilterdeItems };
+    if (themaConfigs.length === 0) return;
 
     let eerste = true;
     const add = () => { if (!eerste) doc.addPage(); eerste = false; };
 
-    if (opties.koppel)      { add(); tekenKoppel(doc, themaGefilterd); }
-    if (opties.overschrijf) { add(); tekenOverschrijf(doc, themaGefilterd); }
-    if (opties.letter)      { add(); tekenLetterMist(doc, themaGefilterd); }
-    if (opties.omcirkel)    { add(); tekenOmcirkel(doc, themaGefilterd); }
-    if (opties.zoek)        { add(); tekenKleurCode(doc, themaGefilterd); }
+    // Bij multi-thema met "Mengen" — alleen zinvol als oefeningen overlappen
+    if ((opties.verdeling === 'mengen') && themaConfigs.length > 1) {
+      // Verzamel alle items in één thema
+      const allItems = [];
+      themaConfigs.forEach(tc => {
+        tc.thema.items.forEach(it => allItems.push(it));
+      });
+      const themaNaam = themaConfigs.map(tc => tc.thema.naam).join(' + ');
+      const themaEmoji = themaConfigs[0].thema.emoji;
+      const gemengd = {
+        id: 'gemengd',
+        naam: themaNaam,
+        emoji: themaEmoji,
+        items: allItems
+      };
+      // Pak oefeningen die in ALLE thema's voorkomen (intersectie)
+      let gemeenschappelijk = new Set(themaConfigs[0].oefeningen);
+      themaConfigs.slice(1).forEach(tc => {
+        gemeenschappelijk = new Set([...gemeenschappelijk].filter(x => tc.oefeningen.includes(x)));
+      });
+      // Volgorde: vaste volgorde
+      const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
+      vol.filter(k => gemeenschappelijk.has(k)).forEach(k => {
+        add();
+        OEFENING_FUNCTIES[k](doc, gemengd);
+      });
+    } else {
+      // Per thema — elk thema krijgt zijn eigen oefeningen
+      themaConfigs.forEach(tc => {
+        const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
+        vol.filter(k => tc.oefeningen.includes(k)).forEach(k => {
+          add();
+          OEFENING_FUNCTIES[k](doc, tc.thema);
+        });
+      });
+    }
 
-    const niveauSuffix = opties.niveau && opties.niveau !== 'alles' ? `-${opties.niveau}` : '';
-    const bestandsnaam = `werkblad-${thema.id}${niveauSuffix}-jufzisa.pdf`;
+    // Bestandsnaam
+    const themaIds = themaConfigs.map(tc => tc.thema.id).join('-');
+    const bestandsnaam = `werkblad-${themaIds}-jufzisa.pdf`;
     doc.save(bestandsnaam);
   }
 
-  return { maakWerkblad };
+  function maakOplossingssleutel(themaConfigs) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+
+    if (!Array.isArray(themaConfigs) || themaConfigs.length === 0) return;
+
+    let eerste = true;
+    themaConfigs.forEach(tc => {
+      if (!eerste) doc.addPage();
+      eerste = false;
+      tekenOplossingssleutel(doc, tc.thema);
+    });
+
+    const themaIds = themaConfigs.map(tc => tc.thema.id).join('-');
+    doc.save(`oplossingssleutel-${themaIds}-jufzisa.pdf`);
+  }
+
+  return { maakWerkblad, maakOplossingssleutel };
 })();
