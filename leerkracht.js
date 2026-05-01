@@ -539,9 +539,9 @@ const WB_OEFENING_LABELS = {
   koppel: '👁️ → 🔗 Koppel beeld en woord',
   overschrijf: '👁️ → ✏️ Schrijf na',
   letter: '👁️ → 🔤 → ✏️ Maak het woord',
-  omcirkel: '👁️ → ⭕ Omcirkel het juiste woord',
+  omcirkel: '👁️ → ✗ Kruis het juiste woord aan',
   zelfschrijven: '👁️ → ✏️ Schrijf zelf het woord',
-  kiesschrijf: '👁️ → ⭕ → ✏️ Kies en schrijf',
+  kiesschrijf: '👁️ → ✗ → ✏️ Kies en schrijf',
   knip: '✂️ → 📋 Knip en plak',
   kleurkoppel: '👁️ → 🎨 Kleur dezelfde paren',
   woordzoeker: '👁️ → 🔍 Woordzoeker',
@@ -723,9 +723,15 @@ function genereerOplossingssleutel() {
   }
   const themaConfigs = werkbladThemaIds.map(id => {
     const thema = ALLE_THEMAS_LK.find(t => t.id === id);
-    return { thema };
+    const cfg = werkbladPerThema.get(id);
+    return { thema, oefeningen: Array.from(cfg.oefeningen), niveau: cfg.niveau };
   });
-  PDFEngine.maakOplossingssleutel(themaConfigs);
+  const totaalOef = themaConfigs.reduce((acc, tc) => acc + tc.oefeningen.length, 0);
+  if (totaalOef === 0) {
+    alert('Vink minstens één oefening aan in een van de thema-panelen.');
+    return;
+  }
+  PDFEngine.maakOplossingssleutel(themaConfigs, { verdeling: 'per-thema' });
 }
 
 // =================================================================
