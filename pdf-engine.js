@@ -17,11 +17,27 @@ window.PDFEngine = (function() {
   function schud(arr) {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(_rng() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
     }
     return a;
   }
+
+  // Seeded random — zorgt dat werkblad en oplossing identiek zijn
+  let _rngState = 0;
+  function _rng() {
+    // Eenvoudige LCG (Linear Congruential Generator)
+    _rngState = (_rngState * 1664525 + 1013904223) % 4294967296;
+    return _rngState / 4294967296;
+  }
+  function _resetRng(seed) {
+    _rngState = seed >>> 0;
+  }
+
+  // Groene kleur voor oplossingen
+  const KLEUR_OPL_R = 6;
+  const KLEUR_OPL_G = 167;
+  const KLEUR_OPL_B = 125;
 
   // ---------------------------------------------------------------
   //  EMOJI → CANVAS → IMAGE DATA URL
@@ -165,15 +181,15 @@ window.PDFEngine = (function() {
   //  OEFENING 1: Koppel beeld en woord
   //  Picto: 👁️ → 🔗 (kijk en verbind)
   // ---------------------------------------------------------------
-  function tekenKoppel(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: koppel');
+  function tekenKoppel(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: koppel' : 'Oefening: koppel');
     y = tekenPictoInstructie(doc, y, ['👁️', '🔗']);
 
     const items = schud(thema.items).slice(0, 6);
     const links = schud(items);
     const rechts = schud(items);
 
-    const kB = IB * 0.38; // smallere vakken — was IB/2 - 10 = ~83mm; nu ~68mm
+    const kB = IB * 0.38;
     const xL = M;
     const xR = M + IB - kB;
     const rH = 28;
@@ -192,7 +208,7 @@ window.PDFEngine = (function() {
       doc.setFillColor(45, 42, 50);
       doc.circle(xL + kB + 2, yR + 11, 1, 'F');
 
-      // Woord rechts — eerst fillColor terug op wit zetten!
+      // Woord rechts
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(220, 210, 190);
       doc.roundedRect(xR, yR, kB, 22, 3, 3, 'FD');
@@ -206,6 +222,22 @@ window.PDFEngine = (function() {
       doc.circle(xR - 2, yR + 11, 1, 'F');
     });
 
+    // OPLOSSING: trek groene lijnen tussen juiste paren
+    if (opgelost) {
+      doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+      doc.setLineWidth(0.7);
+      items.forEach((_, i) => {
+        const yLinks = y + i * rH + 11;
+        // Vind de positie van het juiste woord rechts
+        const linksItem = links[i];
+        const rechtsIdx = rechts.findIndex(r => r.id === linksItem.id);
+        if (rechtsIdx !== -1) {
+          const yRechts = y + rechtsIdx * rH + 11;
+          doc.line(xL + kB + 2, yLinks, xR - 2, yRechts);
+        }
+      });
+    }
+
     tekenVoet(doc);
   }
 
@@ -213,8 +245,8 @@ window.PDFEngine = (function() {
   //  OEFENING 2: Schrijf na
   //  Picto: 👁️ → ✏️ (kijk en schrijf)
   // ---------------------------------------------------------------
-  function tekenOverschrijf(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: schrijf na');
+  function tekenOverschrijf(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: schrijf na' : 'Oefening: schrijf na');
     y = tekenPictoInstructie(doc, y, ['👁️', '✏️']);
 
     const items = schud(thema.items).slice(0, 8);
@@ -249,6 +281,15 @@ window.PDFEngine = (function() {
       doc.setDrawColor(45, 42, 50);
       doc.setLineWidth(0.5);
       doc.line(x + 22, lY, x + kB, lY);
+
+      // OPLOSSING: woord groen op de schrijflijn
+      if (opgelost) {
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+        doc.text(w.tekst, x + 22, lY - 1);
+        doc.setFont('helvetica', 'normal');
+      }
     });
 
     tekenVoet(doc);
@@ -273,8 +314,8 @@ window.PDFEngine = (function() {
   }
 
   // ---------------------------------------------------------------
-  function tekenLetterMist(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: maak het woord');
+  function tekenLetterMist(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: maak het woord' : 'Oefening: maak het woord');
     y = tekenPictoInstructie(doc, y, ['👁️', '🔤', '✏️']);
 
     const geschikt = alleenWoordItems(thema.items);
@@ -361,6 +402,15 @@ window.PDFEngine = (function() {
       doc.setLineWidth(0.3);
       doc.line(schrijfStartX, basisY, lijnEindX, basisY);
 
+      // OPLOSSING: woord groen op de schrijflijn
+      if (opgelost) {
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+        doc.text(zuiver, schrijfStartX, basisY - 1);
+        doc.setFont('helvetica', 'normal');
+      }
+
       // Scheidingslijn tussen rijen
       if (i < items.length - 1) {
         doc.setDrawColor(240, 232, 215);
@@ -386,9 +436,9 @@ window.PDFEngine = (function() {
   //  OEFENING 4: Omcirkel het juiste woord
   //  Picto: 👁️ → ⭕ (kijk en omcirkel)
   // ---------------------------------------------------------------
-  function tekenOmcirkel(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: omcirkel');
-    y = tekenPictoInstructie(doc, y, ['👁️', '⭕']);
+  function tekenOmcirkel(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: kruis aan' : 'Oefening: kruis aan');
+    y = tekenPictoInstructie(doc, y, ['👁️', '✗']);
 
     const items = schud(thema.items).slice(0, 6);
     const rH = 30;
@@ -416,6 +466,15 @@ window.PDFEngine = (function() {
       opt.forEach((o, idx) => {
         doc.setTextColor(45, 42, 50);
         doc.text(o.tekst, startX + idx * oB + oB / 2, yR + 14, { align: 'center' });
+
+        // OPLOSSING: groene cirkel rond het juiste woord
+        if (opgelost && o.id === w.id) {
+          doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+          doc.setLineWidth(0.8);
+          // Schat de woord-breedte ongeveer
+          const woordBreed = Math.min(o.tekst.length * 2.5 + 4, oB - 4);
+          doc.roundedRect(startX + idx * oB + oB / 2 - woordBreed / 2, yR + 9, woordBreed, 8, 4, 4);
+        }
       });
       doc.setFont('helvetica', 'normal');
 
@@ -489,8 +548,8 @@ window.PDFEngine = (function() {
   //  OEFENING 6: Beeld + zelf schrijven (geen woord zichtbaar)
   //  Picto: 👁️ → ✏️ — kind ziet beeld, schrijft woord vrij op lijn
   // ---------------------------------------------------------------
-  function tekenZelfSchrijven(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: schrijf zelf');
+  function tekenZelfSchrijven(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: schrijf zelf' : 'Oefening: schrijf zelf');
     y = tekenPictoInstructie(doc, y, ['👁️', '✏️']);
 
     const items = schud(thema.items).slice(0, 8);
@@ -518,6 +577,15 @@ window.PDFEngine = (function() {
       doc.setDrawColor(45, 42, 50);
       doc.setLineWidth(0.5);
       doc.line(x + 24, lY, x + kB, lY);
+
+      // OPLOSSING: woord groen op de schrijflijn
+      if (opgelost) {
+        doc.setFontSize(13);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+        doc.text(w.tekst, x + 24, lY - 1);
+        doc.setFont('helvetica', 'normal');
+      }
     });
 
     tekenVoet(doc);
@@ -527,13 +595,12 @@ window.PDFEngine = (function() {
   //  OEFENING 7: Beeld + woord-keuze + overschrijven
   //  Picto: 👁️ → ⭕ → ✏️ — kies juist + schrijf
   // ---------------------------------------------------------------
-  function tekenKiesEnSchrijf(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: kies en schrijf');
-    y = tekenPictoInstructie(doc, y, ['👁️', '⭕', '✏️']);
+  function tekenKiesEnSchrijf(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: kies en schrijf' : 'Oefening: kies en schrijf');
+    y = tekenPictoInstructie(doc, y, ['👁️', '✗', '✏️']);
 
-    // Met zinnen erbij wordt elk item groter — minder per blad
     const items = schud(thema.items).slice(0, 4);
-    const rH = 50; // ruimer per item
+    const rH = 50;
 
     items.forEach((w, i) => {
       const yR = y + i * rH;
@@ -545,27 +612,34 @@ window.PDFEngine = (function() {
       doc.roundedRect(M, yR, 24, 24, 3, 3, 'FD');
       plaatsEmoji(doc, w.beeld, M + 12, yR + 12, 18);
 
-      // 3 keuzes ONDER ELKAAR — met bullet-cirkels
+      // 3 keuzes ONDER ELKAAR — met aankruis-vakjes
       const afl = thema.items.filter(x => x.id !== w.id);
       const opt = schud([w, ...schud(afl).slice(0, 2)]);
 
       const keuzeStartX = M + 30;
-      const bulletR = 1.8;
       doc.setFontSize(11);
       doc.setTextColor(45, 42, 50);
       opt.forEach((o, idx) => {
         const cy = yR + 4 + idx * 5;
-        // Open bullet-cirkel om te omcirkelen
         doc.setDrawColor(120, 120, 120);
         doc.setLineWidth(0.5);
-        doc.circle(keuzeStartX, cy, bulletR);
-        // Tekst ernaast
+        doc.rect(keuzeStartX - 1.8, cy - 1.8, 3.6, 3.6);
+
+        // OPLOSSING: groen kruisje in juiste vakje
+        if (opgelost && o.id === w.id) {
+          doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+          doc.setLineWidth(0.8);
+          doc.line(keuzeStartX - 1.8, cy - 1.8, keuzeStartX + 1.8, cy + 1.8);
+          doc.line(keuzeStartX + 1.8, cy - 1.8, keuzeStartX - 1.8, cy + 1.8);
+        }
+
         doc.setFont('helvetica', 'normal');
+        doc.setTextColor(45, 42, 50);
         doc.text(o.tekst, keuzeStartX + 5, cy + 1.5);
       });
 
-      // Schrijflijnen ONDERAAN over volledige breedte (dubbele lijn)
-      const lijnY = yR + 25;
+      // Eén schrijflijn onder de afbeelding/keuzes
+      const lijnY = yR + 38;
       const hulpY = lijnY - 5;
       doc.setDrawColor(210, 210, 210);
       doc.setLineWidth(0.2);
@@ -574,17 +648,16 @@ window.PDFEngine = (function() {
       doc.setLineWidth(0.3);
       doc.line(M, lijnY, M + IB, lijnY);
 
-      // Tweede schrijflijn onder voor lange zinnen
-      const lijn2Y = yR + 38;
-      const hulp2Y = lijn2Y - 5;
-      doc.setDrawColor(210, 210, 210);
-      doc.setLineWidth(0.2);
-      doc.line(M, hulp2Y, M + IB, hulp2Y);
-      doc.setDrawColor(100, 100, 100);
-      doc.setLineWidth(0.3);
-      doc.line(M, lijn2Y, M + IB, lijn2Y);
+      // OPLOSSING: woord groen op de schrijflijn
+      if (opgelost) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+        doc.text(w.tekst, M, lijnY - 1);
+        doc.setFont('helvetica', 'normal');
+      }
 
-      // Scheidingslijn tussen rijen
+      // Scheidingslijn
       if (i < items.length - 1) {
         doc.setDrawColor(240, 232, 215);
         doc.setLineWidth(0.2);
@@ -601,8 +674,8 @@ window.PDFEngine = (function() {
   //  Onder: dozen met woorden om beelden in te plakken
   //  Picto: ✂️ → ⭕ → 📋 (knip → zoek → plak)
   // ---------------------------------------------------------------
-  function tekenKnipoefening(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: knip en plak');
+  function tekenKnipoefening(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: knip en plak' : 'Oefening: knip en plak');
     y = tekenPictoInstructie(doc, y, ['✂️', '🔗', '📋']);
 
     const items = schud(thema.items).slice(0, 6);
@@ -623,7 +696,6 @@ window.PDFEngine = (function() {
 
     beeldenGeschud.forEach((w, i) => {
       const x = beeldenStartX + i * (beeldGrootte + beeldGap);
-      // Knipkader (stippellijn)
       doc.setDrawColor(160, 160, 160);
       doc.setLineWidth(0.3);
       doc.setLineDashPattern([1.5, 1], 0);
@@ -635,7 +707,6 @@ window.PDFEngine = (function() {
 
     y += beeldGrootte + 12;
 
-    // Schaartje-symbool met scheidingslijn
     doc.setDrawColor(180, 180, 180);
     doc.setLineWidth(0.4);
     doc.setLineDashPattern([2, 2], 0);
@@ -644,7 +715,6 @@ window.PDFEngine = (function() {
 
     y += 8;
 
-    // Sectie 2: Plakdozen met woorden onderaan
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(232, 159, 15);
@@ -661,7 +731,7 @@ window.PDFEngine = (function() {
       const x = M + kol * (doosBreed + 10);
       const yR = y + rij * (doosHoog + 5);
 
-      // Plakvak (lege rechthoek waar beeld in komt)
+      // Plakvak
       doc.setFillColor(255, 250, 240);
       doc.setDrawColor(220, 180, 100);
       doc.setLineWidth(0.4);
@@ -669,10 +739,18 @@ window.PDFEngine = (function() {
       doc.roundedRect(x, yR, 26, doosHoog - 4, 2, 2, 'FD');
       doc.setLineDashPattern([], 0);
 
-      // Klein "plak hier"-teken in vak
-      doc.setFontSize(7);
-      doc.setTextColor(220, 180, 100);
-      doc.text('plak hier', x + 13, yR + (doosHoog - 4) / 2 + 1, { align: 'center' });
+      if (opgelost) {
+        // OPLOSSING: beeld groen omkaderd in het plakvak
+        plaatsEmoji(doc, w.beeld, x + 13, yR + (doosHoog - 4) / 2, 18);
+        doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+        doc.setLineWidth(0.6);
+        doc.roundedRect(x, yR, 26, doosHoog - 4, 2, 2);
+      } else {
+        // Klein "plak hier"-teken in vak
+        doc.setFontSize(7);
+        doc.setTextColor(220, 180, 100);
+        doc.text('plak hier', x + 13, yR + (doosHoog - 4) / 2 + 1, { align: 'center' });
+      }
 
       // Woord ernaast
       doc.setFontSize(14);
@@ -690,14 +768,16 @@ window.PDFEngine = (function() {
   //  Woord en bijhorend beeld krijgen dezelfde kleur
   //  Picto: 👁️ → 🎨 (kijk en kleur)
   // ---------------------------------------------------------------
-  function tekenKleurKoppel(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: kleur dezelfde paren');
+  function tekenKleurKoppel(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: kleur dezelfde paren' : 'Oefening: kleur dezelfde paren');
     y = tekenPictoInstructie(doc, y, ['👁️', '🎨']);
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
     doc.setTextColor(120, 120, 120);
-    doc.text('Kleur het beeld en het juiste woord in dezelfde kleur.', M, y);
+    doc.text(opgelost
+      ? 'De cijfers tonen welke paren bij elkaar horen.'
+      : 'Kleur het beeld en het juiste woord in dezelfde kleur.', M, y);
     doc.setFont('helvetica', 'normal');
     y += 6;
 
@@ -711,14 +791,14 @@ window.PDFEngine = (function() {
     items.forEach((_, i) => {
       const yR = y + i * rH;
 
-      // Beeld links (in lichte cirkel om te kleuren)
+      // Beeld links
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(180, 180, 180);
       doc.setLineWidth(0.6);
       doc.circle(M + 12, yR + 11, 11, 'FD');
       plaatsEmoji(doc, beelden[i].beeld, M + 12, yR + 11, 14);
 
-      // Woord rechts (in lichte cirkel om te kleuren)
+      // Woord rechts
       const xR = M + IB - kolomBreedte;
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(180, 180, 180);
@@ -729,6 +809,29 @@ window.PDFEngine = (function() {
       doc.setTextColor(45, 42, 50);
       doc.text(woorden[i].tekst, xR + kolomBreedte / 2, yR + 14, { align: 'center' });
       doc.setFont('helvetica', 'normal');
+
+      // OPLOSSING: cijfer bij beeld én juiste woord
+      if (opgelost) {
+        const beeldItem = beelden[i];
+        const woordIdx = woorden.findIndex(w => w.id === beeldItem.id);
+        const paarNr = i + 1;
+
+        doc.setFillColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+        doc.circle(M + 22, yR + 4, 3, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(paarNr), M + 22, yR + 5.5, { align: 'center' });
+
+        if (woordIdx !== -1) {
+          const yWoord = y + woordIdx * rH;
+          doc.setFillColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+          doc.circle(xR + kolomBreedte - 4, yWoord + 4, 3, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.text(String(paarNr), xR + kolomBreedte - 4, yWoord + 5.5, { align: 'center' });
+        }
+        doc.setFont('helvetica', 'normal');
+      }
     });
 
     tekenVoet(doc);
@@ -739,8 +842,8 @@ window.PDFEngine = (function() {
   //  Letterraster met woorden verstopt + beelden onderaan als hint
   //  Picto: 👁️ → 🔍 (kijk en zoek)
   // ---------------------------------------------------------------
-  function tekenWoordzoeker(doc, thema) {
-    let y = tekenKop(doc, thema, 'Oefening: woordzoeker');
+  function tekenWoordzoeker(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: woordzoeker' : 'Oefening: woordzoeker');
     y = tekenPictoInstructie(doc, y, ['👁️', '🔍']);
 
     // Filter: alleen losse woorden, niet te kort/lang, geen zinnen
@@ -773,9 +876,9 @@ window.PDFEngine = (function() {
       const woord = (item.kort || item.tekst).replace(/^(de |het |een )/i, '').toUpperCase().replace(/[^A-Z]/g, '');
       let pogingen = 50;
       while (pogingen-- > 0) {
-        const horizontaal = Math.random() < 0.5;
-        const r = Math.floor(Math.random() * rasterGrootte);
-        const k = Math.floor(Math.random() * rasterGrootte);
+        const horizontaal = _rng() < 0.5;
+        const r = Math.floor(_rng() * rasterGrootte);
+        const k = Math.floor(_rng() * rasterGrootte);
 
         if (horizontaal) {
           if (k + woord.length > rasterGrootte) continue;
@@ -786,7 +889,7 @@ window.PDFEngine = (function() {
           }
           if (kanPlaatsen) {
             for (let i = 0; i < woord.length; i++) raster[r][k + i] = woord[i];
-            geplaatst.push({ item, woord });
+            geplaatst.push({ item, woord, startR: r, startK: k, horizontaal: true });
             break;
           }
         } else {
@@ -798,7 +901,7 @@ window.PDFEngine = (function() {
           }
           if (kanPlaatsen) {
             for (let i = 0; i < woord.length; i++) raster[r + i][k] = woord[i];
-            geplaatst.push({ item, woord });
+            geplaatst.push({ item, woord, startR: r, startK: k, horizontaal: false });
             break;
           }
         }
@@ -809,7 +912,7 @@ window.PDFEngine = (function() {
     for (let r = 0; r < rasterGrootte; r++) {
       for (let k = 0; k < rasterGrootte; k++) {
         if (raster[r][k] === '') {
-          raster[r][k] = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+          raster[r][k] = String.fromCharCode(65 + Math.floor(_rng() * 26));
         }
       }
     }
@@ -841,6 +944,25 @@ window.PDFEngine = (function() {
     }
     doc.setFont('helvetica', 'normal');
 
+    // OPLOSSING: groene ovaal rond elk gevonden woord
+    if (opgelost) {
+      doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+      doc.setLineWidth(1.0);
+      geplaatst.forEach(g => {
+        const x1 = rasterStartX + g.startK * celGrootte + 1;
+        const y1 = rasterStartY + g.startR * celGrootte + 1;
+        let breedte, hoogte;
+        if (g.horizontaal) {
+          breedte = g.woord.length * celGrootte - 2;
+          hoogte = celGrootte - 2;
+        } else {
+          breedte = celGrootte - 2;
+          hoogte = g.woord.length * celGrootte - 2;
+        }
+        doc.roundedRect(x1, y1, breedte, hoogte, 3, 3);
+      });
+    }
+
     // Beelden onder als hint van wat er te zoeken is
     const ySonderRaster = rasterStartY + rasterBreedte + 8;
     doc.setFontSize(10);
@@ -871,7 +993,8 @@ window.PDFEngine = (function() {
   //  Voorkant: beeld. Achterkant: woord. Voor dubbelzijdig printen.
   //  Picto: 🃏
   // ---------------------------------------------------------------
-  function tekenWoordkaartjes(doc, thema) {
+  function tekenWoordkaartjes(doc, thema, opgelost) {
+    // Woordkaartjes hebben geen "opgelost" — voor- en achterkant tonen al het juiste woord
     const items = thema.items.slice(0, 8);
 
     // -- Voorkant pagina --
@@ -1011,12 +1134,19 @@ window.PDFEngine = (function() {
   };
 
   function maakWerkblad(themaConfigs, opties) {
+    return _genereerPDF(themaConfigs, opties, false);
+  }
+
+  function maakOplossingssleutel(themaConfigs, opties) {
+    return _genereerPDF(themaConfigs, opties || {}, true);
+  }
+
+  function _genereerPDF(themaConfigs, opties, opgelost) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
-    // Backwards-compat: als oude API gebruikt wordt (één thema-object met opties.koppel etc.)
+    // Backwards-compat
     if (!Array.isArray(themaConfigs)) {
-      // Oud formaat, converteer
       const oudThema = themaConfigs;
       const oudOpties = opties || {};
       const oefAangevinkt = [];
@@ -1029,12 +1159,23 @@ window.PDFEngine = (function() {
 
     if (themaConfigs.length === 0) return;
 
+    // Bepaal of we per thema of gemengd werken
+    const isMengen = (opties.verdeling === 'mengen') && themaConfigs.length > 1;
+
+    // Seed: combinatie van thema-ids + huidige tijd, of vast voor oplossing
+    // Belangrijk: gebruik dezelfde seed bij werkblad én oplossing zodat ze identiek zijn
+    // We slaan de seed op per generatie. Eerste keer (werkblad) -> nieuwe seed. Bij oplossing wordt dezelfde seed hergebruikt.
+    const themaSleutel = themaConfigs.map(tc => tc.thema.id).join('-');
+    if (!opgelost) {
+      _laatsteSeed[themaSleutel] = Math.floor(Math.random() * 2147483647);
+    }
+    const seed = _laatsteSeed[themaSleutel] || 12345;
+
     let eerste = true;
     const add = () => { if (!eerste) doc.addPage(); eerste = false; };
+    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
 
-    // Bij multi-thema met "Mengen" — alleen zinvol als oefeningen overlappen
-    if ((opties.verdeling === 'mengen') && themaConfigs.length > 1) {
-      // Verzamel alle items in één thema
+    if (isMengen) {
       const allItems = [];
       themaConfigs.forEach(tc => {
         tc.thema.items.forEach(it => allItems.push(it));
@@ -1047,50 +1188,39 @@ window.PDFEngine = (function() {
         emoji: themaEmoji,
         items: allItems
       };
-      // Pak oefeningen die in ALLE thema's voorkomen (intersectie)
       let gemeenschappelijk = new Set(themaConfigs[0].oefeningen);
       themaConfigs.slice(1).forEach(tc => {
         gemeenschappelijk = new Set([...gemeenschappelijk].filter(x => tc.oefeningen.includes(x)));
       });
-      // Volgorde: vaste volgorde
-      const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
+      let oefIdx = 0;
       vol.filter(k => gemeenschappelijk.has(k)).forEach(k => {
         add();
-        OEFENING_FUNCTIES[k](doc, gemengd);
+        // Reset RNG met deterministische seed per oefening
+        _resetRng(seed + oefIdx * 1000);
+        OEFENING_FUNCTIES[k](doc, gemengd, opgelost);
+        oefIdx++;
       });
     } else {
-      // Per thema — elk thema krijgt zijn eigen oefeningen
-      themaConfigs.forEach(tc => {
-        const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
+      let oefIdx = 0;
+      themaConfigs.forEach((tc, themaIdx) => {
         vol.filter(k => tc.oefeningen.includes(k)).forEach(k => {
           add();
-          OEFENING_FUNCTIES[k](doc, tc.thema);
+          _resetRng(seed + oefIdx * 1000 + themaIdx * 100000);
+          OEFENING_FUNCTIES[k](doc, tc.thema, opgelost);
+          oefIdx++;
         });
       });
     }
 
-    // Bestandsnaam
     const themaIds = themaConfigs.map(tc => tc.thema.id).join('-');
-    const bestandsnaam = `werkblad-${themaIds}-jufzisa.pdf`;
+    const bestandsnaam = opgelost
+      ? `oplossing-${themaIds}-jufzisa.pdf`
+      : `werkblad-${themaIds}-jufzisa.pdf`;
     doc.save(bestandsnaam);
   }
 
-  function maakOplossingssleutel(themaConfigs) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('p', 'mm', 'a4');
-
-    if (!Array.isArray(themaConfigs) || themaConfigs.length === 0) return;
-
-    let eerste = true;
-    themaConfigs.forEach(tc => {
-      if (!eerste) doc.addPage();
-      eerste = false;
-      tekenOplossingssleutel(doc, tc.thema);
-    });
-
-    const themaIds = themaConfigs.map(tc => tc.thema.id).join('-');
-    doc.save(`oplossingssleutel-${themaIds}-jufzisa.pdf`);
-  }
+  // Bewaar laatste gebruikte seed per thema-combinatie
+  const _laatsteSeed = {};
 
   return { maakWerkblad, maakOplossingssleutel };
 })();
