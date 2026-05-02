@@ -648,6 +648,47 @@ window.Voortgang = (function() {
   async function zetTaakVoorKind(code, taakObj) {
     if (!code) return;
     const nieuw = _bouwTaak(taakObj);
+
+    // ARCHIVEER de oude taak (indien aanwezig) voor we hem overschrijven.
+    // Zo kan de leerkracht zien wat eerder geoefend werd.
+    if (db) {
+      try {
+        const oudeDoc = await db.collection('kinderen').doc(code).get();
+        if (oudeDoc.exists) {
+          const oudeData = oudeDoc.data();
+          if (oudeData.taak && oudeData.taak.themaId &&
+              Array.isArray(oudeData.taak.woordIds) && oudeData.taak.woordIds.length > 0) {
+            const archief = {
+              themaId: oudeData.taak.themaId,
+              woordIds: [...oudeData.taak.woordIds],
+              vaardigheden: Array.isArray(oudeData.taak.vaardigheden) ? [...oudeData.taak.vaardigheden] : ['luisteren'],
+              voltooidOp: Date.now(),
+              status: oudeData.taak.status || 'bezig',
+              perWoord: JSON.parse(JSON.stringify(oudeData.taak.perWoord || {})),
+              foutWoordenLaatsteToets: Array.isArray(oudeData.taak.foutWoordenLaatsteToets)
+                                          ? [...oudeData.taak.foutWoordenLaatsteToets] : []
+            };
+            const huidigeGeschiedenis = Array.isArray(oudeData.taakgeschiedenis) ? oudeData.taakgeschiedenis : [];
+            huidigeGeschiedenis.push(archief);
+            // Beperk tot laatste 50 archieven
+            const beperkt = huidigeGeschiedenis.length > 50
+                             ? huidigeGeschiedenis.slice(-50)
+                             : huidigeGeschiedenis;
+            // Update direct hier
+            const updateArchief = { taakgeschiedenis: beperkt };
+            await db.collection('kinderen').doc(code).update(updateArchief);
+            // Lokale cache bijwerken als het over huidig kind gaat
+            if (code === huidigKindCode) {
+              taakgeschiedenisCache = beperkt;
+              localStorage.setItem('andersleren_taakgeschiedenis_' + code, JSON.stringify(beperkt));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Archiveren oude taak mislukt (gaan toch verder):', e);
+      }
+    }
+
     if (code === huidigKindCode) {
       taakCache = nieuw;
       localStorage.setItem('andersleren_taak_' + code, JSON.stringify(taakCache));
@@ -665,6 +706,20 @@ window.Voortgang = (function() {
         console.warn('Bewaren taak voor kind in Firestore mislukt:', e);
         throw e;
       }
+    }
+  }
+
+  // Voor leerkracht-paneel: haal de taakgeschiedenis op van een specifiek kind.
+  async function haalTaakgeschiedenisOpVoorKind(code) {
+    if (!db) return [];
+    try {
+      const doc = await db.collection('kinderen').doc(code).get();
+      if (!doc.exists) return [];
+      const arr = doc.data().taakgeschiedenis;
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      console.warn('Ophalen geschiedenis mislukt:', e);
+      return [];
     }
   }
 
@@ -822,6 +877,7 @@ window.Voortgang = (function() {
     archiveerHuidigeTaak,
     getTaakgeschiedenis,
     haalTaakOpVoorKind,
+    haalTaakgeschiedenisOpVoorKind,
     zetTaakVoorKind,
     // Spreektoetsen
     getSpreektoetsen,
