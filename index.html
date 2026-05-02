@@ -39,40 +39,122 @@
 <body class="lk-body">
 
 <header class="lk-header">
+  <button class="lk-menu-toggle" onclick="lkToggleMenu()" aria-label="Menu" title="Menu">☰</button>
+  <h1>👩‍🏫 Anders Leren · Leerkracht</h1>
   <button class="lk-kindapp-knop" onclick="lkBekijkKindApp()" title="Open de kind-app in een nieuw tabblad om te zien wat de leerlingen zien">
     👁️ Bekijk kind-app
   </button>
-  <h1>👩‍🏫 Leerkracht-paneel</h1>
-  <p>Anders Leren · maak codes, print QR's, zie voortgang</p>
 </header>
 
-<main class="lk-main">
+<div class="lk-app">
 
-  <!-- Tabs -->
-  <div class="lk-tabs">
-    <button class="lk-tab actief" data-tab="kinderen" onclick="lkKiesTab('kinderen')">👥 Mijn klas</button>
-    <button class="lk-tab" data-tab="overzicht" onclick="lkKiesTab('overzicht')">📊 Wie kan wat?</button>
-    <button class="lk-tab" data-tab="woorden" onclick="lkKiesTab('woorden')">🏷️ Woorden</button>
-    <button class="lk-tab" data-tab="werkbladen" onclick="lkKiesTab('werkbladen')">📄 Werkbladen</button>
-    <button class="lk-tab" data-tab="info" onclick="lkKiesTab('info')">ℹ️ Hulp</button>
-  </div>
+  <!-- ============ ZIJBALK met navigatie ============ -->
+  <aside class="lk-zijbalk" id="lk-zijbalk">
+    <nav class="lk-nav">
+      <button class="lk-tab actief" data-tab="welkom"     onclick="lkKiesTab('welkom')">     <span class="lk-nav-icoon">🏠</span> <span class="lk-nav-tekst">Welkom</span></button>
+      <button class="lk-tab"        data-tab="kinderen"   onclick="lkKiesTab('kinderen')">   <span class="lk-nav-icoon">👥</span> <span class="lk-nav-tekst">Mijn klas</span></button>
+      <button class="lk-tab"        data-tab="overzicht"  onclick="lkKiesTab('overzicht')">  <span class="lk-nav-icoon">📊</span> <span class="lk-nav-tekst">Wie kan wat?</span></button>
+      <button class="lk-tab"        data-tab="woorden"    onclick="lkKiesTab('woorden')">    <span class="lk-nav-icoon">🏷️</span> <span class="lk-nav-tekst">Woorden</span></button>
+      <button class="lk-tab"        data-tab="werkbladen" onclick="lkKiesTab('werkbladen')"> <span class="lk-nav-icoon">📄</span> <span class="lk-nav-tekst">Werkbladen</span></button>
+      <button class="lk-tab"        data-tab="info"       onclick="lkKiesTab('info')">       <span class="lk-nav-icoon">ℹ️</span> <span class="lk-nav-tekst">Hulp</span></button>
+    </nav>
+    <div class="lk-zijbalk-voet">
+      <p class="lk-merk">Juf Zisa</p>
+    </div>
+  </aside>
 
-  <!-- ============ TAB: KINDEREN ============ -->
-  <div id="lk-tab-kinderen" class="lk-tab-inhoud actief">
+  <!-- ============ HOOFDGEDEELTE ============ -->
+  <main class="lk-main">
 
-    <div class="lk-vak" id="lk-vak-firebase-niet-ingesteld" style="display:none">
-      <h2>⚠️ Firebase nog niet ingesteld</h2>
-      <p>Vul eerst je Firebase-config in <code>firebase-config.js</code> in. Daarna werkt dit paneel volledig.</p>
+    <!-- ============ TAB: WELKOM ============ -->
+    <div id="lk-tab-welkom" class="lk-tab-inhoud actief">
+      <div class="welkom-hero">
+        <span class="welkom-zebra">🦓</span>
+        <h2>Welkom <span id="welkom-leerkrachtnaam">!</span></h2>
+        <p class="welkom-onder">Hier beheer je je klas, kies je per leerling de woorden en maak je werkbladen.</p>
+      </div>
+
+      <div class="welkom-stats" id="welkom-stats">
+        <!-- gevuld door JS -->
+      </div>
+
+      <div class="welkom-stappen">
+        <h3>Hoe werkt het?</h3>
+        <div class="stappen-rij">
+
+          <div class="stap-kaart">
+            <div class="stap-nummer">1</div>
+            <div class="stap-tekst">
+              <h4>👥 Voeg een leerling toe</h4>
+              <p>Maak een code aan in <strong>Mijn klas</strong>. Print de QR-code en geef ze mee naar huis. Zo logt het kind in zonder paswoord.</p>
+              <button class="stap-knop" onclick="lkKiesTab('kinderen')">Naar Mijn klas →</button>
+            </div>
+          </div>
+
+          <div class="stap-kaart">
+            <div class="stap-nummer">2</div>
+            <div class="stap-tekst">
+              <h4>🏷️ Kies wat de leerling oefent</h4>
+              <p>Klik bij een leerling op het 🏷️-knopje. Vink de thema's aan die het kind al kan, en binnen elk thema desgewenst per categorie of per woord.</p>
+              <p class="stap-tip">💡 Tip: een nieuwe leerling start standaard met <em>niets</em>. Begin met enkel <em>Klas (survival)</em>.</p>
+            </div>
+          </div>
+
+          <div class="stap-kaart">
+            <div class="stap-nummer">3</div>
+            <div class="stap-tekst">
+              <h4>🏷️ Personaliseer woorden voor de hele klas</h4>
+              <p>In <strong>Woorden</strong> kan je het basispakket aanpassen voor jouw klas: tekst wijzigen, eigen foto's gebruiken, of nieuwe woorden toevoegen. Geldt voor alle leerlingen.</p>
+              <button class="stap-knop" onclick="lkKiesTab('woorden')">Naar Woorden →</button>
+            </div>
+          </div>
+
+          <div class="stap-kaart">
+            <div class="stap-nummer">4</div>
+            <div class="stap-tekst">
+              <h4>📊 Volg de voortgang</h4>
+              <p>Bij <strong>Wie kan wat?</strong> zie je in één oogopslag welke woorden elke leerling al kent (3 sterren) of nog moeilijk vindt.</p>
+              <button class="stap-knop" onclick="lkKiesTab('overzicht')">Naar overzicht →</button>
+            </div>
+          </div>
+
+          <div class="stap-kaart">
+            <div class="stap-nummer">5</div>
+            <div class="stap-tekst">
+              <h4>📄 Maak werkbladen</h4>
+              <p>Genereer PDF-werkbladen per thema, met 10 verschillende oefenvormen. Inclusief oplossingssleutel.</p>
+              <button class="stap-knop" onclick="lkKiesTab('werkbladen')">Naar werkbladen →</button>
+            </div>
+          </div>
+
+          <div class="stap-kaart">
+            <div class="stap-nummer">👁️</div>
+            <div class="stap-tekst">
+              <h4>Wil je zien wat het kind ziet?</h4>
+              <p>Rechtsboven staat een knop <strong>"Bekijk kind-app"</strong>. Of klik op het 👁️-knopje naast een leerling om als die leerling in te loggen.</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
     </div>
 
-    <div class="lk-vak">
-      <h2>➕ Nieuwe leerling</h2>
-      <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
-        Maak een code voor elk kind. De code is volledig anoniem voor de cloud — de naam is alleen voor jou.
-      </p>
-      <div class="lk-form">
-        <input type="text" id="nieuw-naam" placeholder="Naam (bv. Mohammed)" autocomplete="off">
-        <input type="text" id="nieuw-code" placeholder="Code (bv. ZEBRA-1234)" autocomplete="off"
+    <!-- ============ TAB: KINDEREN ============ -->
+    <div id="lk-tab-kinderen" class="lk-tab-inhoud">
+
+      <div class="lk-vak" id="lk-vak-firebase-niet-ingesteld" style="display:none">
+        <h2>⚠️ Firebase nog niet ingesteld</h2>
+        <p>Vul eerst je Firebase-config in <code>firebase-config.js</code> in. Daarna werkt dit paneel volledig.</p>
+      </div>
+
+      <div class="lk-vak">
+        <h2>➕ Nieuwe leerling</h2>
+        <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
+          Maak een code voor elk kind. De code is volledig anoniem voor de cloud — de naam is alleen voor jou.
+        </p>
+        <div class="lk-form">
+          <input type="text" id="nieuw-naam" placeholder="Naam (bv. Mohammed)" autocomplete="off">
+          <input type="text" id="nieuw-code" placeholder="Code (bv. ZEBRA-1234)" autocomplete="off"
                autocapitalize="characters">
         <button onclick="lkGenereerCode()">🎲 Code genereren</button>
         <button onclick="lkVoegToe()" style="background: var(--kleur-zisa); color: var(--kleur-zwart)">
@@ -208,6 +290,8 @@
   </div>
 
 </main>
+
+</div><!-- /lk-app -->
 
 <!-- QR Modal -->
 <div class="qr-modal" id="qr-modal">
