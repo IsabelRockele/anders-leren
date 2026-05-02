@@ -21,10 +21,10 @@ window.THEMA_SURVIVAL_KLAS = {
     { id: 'sk-schrijven', niveau: 'basis', soort: 'woord', tekst: 'schrijven',  kort: 'schrijven',  beeld: '✍️', picto: 'klas/schrijven.png', zin: 'Schrijf je naam.' },
     { id: 'sk-lezen',     niveau: 'basis', soort: 'woord', tekst: 'lezen',      kort: 'lezen',      beeld: '📖', picto: 'klas/lezen.png',     zin: 'Lees deze zin.' },
     { id: 'sk-rekenen',   niveau: 'basis', soort: 'woord', tekst: 'rekenen',    kort: 'rekenen',    beeld: '🧮', picto: 'klas/rekenen.png',   zin: 'Wij gaan rekenen.' },
-    { id: 'sk-tekenen',   niveau: 'basis', soort: 'woord', tekst: 'tekenen',    kort: 'tekenen',    beeld: '🎨', zin: 'Teken een huis.' },
+    { id: 'sk-tekenen',   niveau: 'basis', soort: 'woord', tekst: 'tekenen',    kort: 'tekenen',    beeld: '🎨', picto: 'klas/tekenen.png',zin: 'Teken een huis.' },
     { id: 'sk-kleuren',   niveau: 'basis', soort: 'woord', tekst: 'kleuren',    kort: 'kleuren',    beeld: '🖍️', picto: 'klas/kleuren.png',   zin: 'Kleur de bloem rood.' },
     { id: 'sk-knippen',   niveau: 'basis', soort: 'woord', tekst: 'knippen',    kort: 'knippen',    beeld: '✂️', picto: 'klas/knippen.png',   zin: 'Knip langs de lijn.' },
-    { id: 'sk-plakken',   niveau: 'basis', soort: 'woord', tekst: 'plakken',    kort: 'plakken',    beeld: '🧴', zin: 'Plak het in je schrift.' },
+    { id: 'sk-plakken',   niveau: 'basis', soort: 'woord', tekst: 'plakken',    kort: 'plakken',    beeld: '🧴', picto: 'klas/plakken.png',zin: 'Plak het in je schrift.' },
     { id: 'sk-luisteren', niveau: 'basis', soort: 'woord', tekst: 'luisteren',  kort: 'luisteren',  beeld: '👂', picto: 'klas/luisteren.png', zin: 'Luister goed naar de juf.' },
     { id: 'sk-kijken',    niveau: 'basis', soort: 'woord', tekst: 'kijken',     kort: 'kijken',     beeld: '👀', picto: 'klas/kijken.png',    zin: 'Kijk naar het bord.' },
 
@@ -58,7 +58,7 @@ window.THEMA_SURVIVAL_KLAS = {
     { id: 'sk-rij',       niveau: 'verdieping', soort: 'zin-hoor', tekst: 'Maak een rij.',                kort: 'maak rij',       beeld: '🚶', picto: 'klas/in_de_rij.png',         zin: 'Maak nu een rij aan de deur.' },
     { id: 'sk-stoel',     niveau: 'verdieping', soort: 'zin-hoor', tekst: 'Sta achter je stoel.',         kort: 'achter stoel',   beeld: '🪑', picto: 'klas/achter_de_stoel.png',   zin: 'Iedereen achter je stoel staan.' },
     { id: 'sk-kijk-bord', niveau: 'verdieping', soort: 'zin-hoor', tekst: 'Kijk naar het bord.',          kort: 'kijk bord',      beeld: '🖼️', picto: 'klas/bord.png',              zin: 'Kinderen, kijk naar het bord.' },
-    { id: 'sk-kom',       niveau: 'verdieping', soort: 'zin-hoor', tekst: 'Kom hier.',                    kort: 'kom hier',       beeld: '👉', zin: 'Mohammed, kom even hier.' },
+    { id: 'sk-kom',       niveau: 'verdieping', soort: 'zin-hoor', tekst: 'Kom hier.',                    kort: 'kom hier',       beeld: '👉', picto: 'klas/kom_hier.png',  zin: 'Mohammed, kom even hier.' },
     { id: 'sk-vinger',    niveau: 'verdieping', soort: 'zin-hoor', tekst: 'Vinger op de mond.',           kort: 'vinger mond',    beeld: '🤫', picto: 'klas/stil_zijn.png',         zin: 'Vinger op de mond, alstublieft.' },
 
     // ========== VERDIEPING — zelf-zinnen (zeg-zinnen) ==========
