@@ -75,12 +75,563 @@ function getActieveItems(thema) {
   return verrijkt.items;
 }
 
+
 // Toets-state
 const TOETS_AANTAL = 10;
 let toetsVragen = [];
+let toetsFoutIds = []; // ids die fout waren in deze toetsronde
 let toetsHuidig = 0;
 let toetsJuist = 0;
 let toetsItem = null;
+
+// =================================================================
+//  TAAK-FLOW
+// =================================================================
+//
+// Stuurt het kind door de fases van een taak: leren → luisteren-oefenen
+// → mini-toets-luisteren → (klaar of moeilijk).
+//
+// State:
+//   - taakModus = true zodra het kind in een taak zit
+//   - taakHuidigeFase = 'leren' | 'luisteren-oef' | 'luisteren-toets' | 'klaar'
+//   - taakItems = items van de taak (uit het thema gefilterd op woordIds)
+//   - taakLeerIndex = welk item is zichtbaar in leren-fase
+//   - taakOefItem = huidig item in oefen-fase
+//   - taakToetsFoutCount = aantal foutieve toetsen voor deze taak
+//
+// Belangrijk: in oefen- en toets-fases speelt audio NIET automatisch.
+// Het kind moet zelf op de hoorknop klikken om het woord te horen.
+
+let taakModus = false;
+let taakHuidigeFase = null;
+let taakItems = [];
+let taakLeerIndex = 0;
+let taakOefItem = null;
+
+// Helper: zoek het thema-object op basis van id
+function _vindThema(themaId) {
+  return ALLE_THEMAS.find(t => t.id === themaId);
+}
+
+// Helper: items van de huidige taak (gefilterd uit thema)
+function _taakItems(taak, thema) {
+  if (!taak || !thema) return [];
+  const verrijkt = verrijkThema(thema);
+  const set = new Set(taak.woordIds || []);
+  return verrijkt.items.filter(it => set.has(it.id));
+}
+
+// Hoofdknop op startscherm: taak-knop. Toont de taak-zone als er een taak is,
+// of verbergt hem als er geen is.
+function rendererTaakZone() {
+  const zone = document.getElementById('taak-zone');
+  if (!zone) return;
+
+  const taak = Voortgang.getTaak();
+  if (!taak || !taak.themaId || !Array.isArray(taak.woordIds) || taak.woordIds.length === 0) {
+    zone.style.display = 'none';
+    return;
+  }
+  const thema = _vindThema(taak.themaId);
+  if (!thema) {
+    zone.style.display = 'none';
+    return;
+  }
+
+  // Vul UI
+  const themaNaamEl = document.getElementById('taak-thema-naam');
+  const aantalEl = document.getElementById('taak-aantal');
+  const statusEl = document.getElementById('taak-status');
+  const knop = zone.querySelector('.taak-knop-groot');
+
+  if (themaNaamEl) themaNaamEl.textContent = `${thema.emoji} ${thema.naam}`;
+  if (aantalEl) {
+    const n = taak.woordIds.length;
+    aantalEl.textContent = n === 1 ? '1 woord' : `${n} woorden`;
+  }
+  zone.style.display = '';
+
+  // Status-overlay onderaan de knop (voltooid / moeilijk)
+  if (statusEl) {
+    if (taak.status === 'voltooid') {
+      statusEl.style.display = '';
+      statusEl.className = 'taak-status voltooid';
+      statusEl.innerHTML = `<span class="taak-status-emoji">🏆</span><span class="taak-status-tekst">Klaar! Vraag aan je juf voor een nieuwe taak.</span>`;
+      if (knop) knop.classList.add('voltooid');
+    } else if (taak.status === 'moeilijk' || taak.status === 'haperde') {
+      statusEl.style.display = '';
+      statusEl.className = 'taak-status haperde';
+      statusEl.innerHTML = `<span class="taak-status-emoji">💪</span><span class="taak-status-tekst">Probeer nog eens!</span>`;
+      if (knop) knop.classList.remove('voltooid');
+    } else {
+      statusEl.style.display = 'none';
+      if (knop) knop.classList.remove('voltooid');
+    }
+  }
+}
+
+// Wordt aangeroepen als kind op de grote oranje taak-knop klikt.
+function startTaak() {
+  const taak = Voortgang.getTaak();
+  if (!taak || !taak.themaId) return;
+
+  const thema = _vindThema(taak.themaId);
+  if (!thema) {
+    alert('Het thema van je taak is niet gevonden. Vraag aan je juf.');
+    return;
+  }
+
+  // Als taak al voltooid of moeilijk was: kind start hem opnieuw → reset
+  if (taak.status === 'voltooid' || taak.status === 'moeilijk' || taak.status === 'haperde') {
+    Voortgang.updateTaak({
+      status: 'bezig',
+      huidigeFase: 'leren',
+      foutWoordenLaatsteToets: [],
+      aantalPogingen: { luisteren: 0, lezen: 0, schrijven: 0 }
+    });
+  }
+
+  huidigThema = thema;
+  taakModus = true;
+  taakItems = _taakItems(Voortgang.getTaak(), thema);
+
+  if (taakItems.length === 0) {
+    alert('Er zijn geen woorden in je taak. Vraag aan je juf.');
+    taakModus = false;
+    return;
+  }
+
+  // Start altijd bij leren-fase wanneer kind op taak-knop klikt
+  taakStartFase('leren');
+}
+
+// Centrale fase-router
+function taakStartFase(fase) {
+  taakHuidigeFase = fase;
+  Voortgang.updateTaak({ huidigeFase: fase });
+
+  if (fase === 'leren') {
+    taakLeerIndex = 0;
+    taakRendererLeren();
+    toonScherm('scherm-taak-leren');
+  } else if (fase === 'luisteren-oef') {
+    taakStartLuisterenOefenen();
+  } else if (fase === 'luisteren-toets') {
+    taakStartLuisterenToets();
+  } else if (fase === 'klaar') {
+    taakToonKlaar();
+  }
+}
+
+// Bij klik op een fase-terug-knop: ga één fase terug.
+function taakFaseTerug() {
+  if (taakHuidigeFase === 'luisteren-oef') {
+    taakStartFase('leren');
+  } else if (taakHuidigeFase === 'luisteren-toets') {
+    taakStartFase('luisteren-oef');
+  }
+  // Vanuit 'leren' geen terug; vanuit 'klaar' ook niet
+}
+
+// Verlaat de taak en ga terug naar startscherm.
+function taakVerlaten() {
+  taakModus = false;
+  taakHuidigeFase = null;
+  taakItems = [];
+  taakLeerIndex = 0;
+  taakOefItem = null;
+  AudioEngine.stop();
+  naarStart();
+}
+
+// =================================================================
+//  TAAK FASE 1 — LEREN  (audio mag automatisch)
+// =================================================================
+function taakRendererLeren() {
+  if (taakItems.length === 0) return;
+  const item = taakItems[taakLeerIndex];
+  const taak = Voortgang.getTaak();
+
+  document.getElementById('taak-leer-beeld').innerHTML = Picto.html(item);
+  document.getElementById('taak-leer-woord').textContent = item.tekst;
+
+  // Zin tonen indien zinscontext aan en zin bestaat
+  const zinEl = document.getElementById('taak-leer-zin');
+  const zinKnop = document.getElementById('taak-leer-zin-knop');
+  const toonZin = !!(taak && taak.zinscontext && item.zin && item.zin.trim());
+  if (zinEl) {
+    zinEl.style.display = toonZin ? '' : 'none';
+    zinEl.textContent = toonZin ? item.zin : '';
+  }
+  if (zinKnop) zinKnop.style.display = toonZin ? '' : 'none';
+
+  // Tellers
+  document.getElementById('taak-leer-huidig').textContent = taakLeerIndex + 1;
+  document.getElementById('taak-leer-totaal').textContent = taakItems.length;
+
+  // Vorige/volgende-knoppen
+  const vorigeKnop = document.getElementById('taak-leer-vorige');
+  const volgendeKnop = document.getElementById('taak-leer-volgende');
+  if (vorigeKnop) vorigeKnop.disabled = (taakLeerIndex === 0);
+  if (volgendeKnop) {
+    if (taakLeerIndex >= taakItems.length - 1) {
+      volgendeKnop.textContent = '▶ Verder';
+      volgendeKnop.classList.add('eind');
+    } else {
+      volgendeKnop.textContent = 'Volgende →';
+      volgendeKnop.classList.remove('eind');
+    }
+  }
+
+  // Registreer gezien (gebruik bestaande sterren-systeem voor stats)
+  Voortgang.registreerGezien(huidigThema.id, item.id);
+
+  // Audio: mag automatisch in leren-fase
+  spreekVeilig(item.tekst, 300);
+}
+
+function taakLeerHoorWoord() {
+  if (taakItems[taakLeerIndex]) AudioEngine.spreek(taakItems[taakLeerIndex].tekst);
+}
+
+function taakLeerHoorZin() {
+  const item = taakItems[taakLeerIndex];
+  if (item && item.zin) AudioEngine.spreek(item.zin);
+}
+
+function taakLeerVorige() {
+  if (taakLeerIndex > 0) {
+    taakLeerIndex--;
+    taakRendererLeren();
+  }
+}
+
+function taakLeerVolgende() {
+  if (taakLeerIndex >= taakItems.length - 1) {
+    // Einde leren → volgende fase
+    taakStartFase('luisteren-oef');
+    return;
+  }
+  taakLeerIndex++;
+  taakRendererLeren();
+}
+
+// =================================================================
+//  TAAK FASE 2 — LUISTEREN-OEFENEN  (klikspel, stilte, audio op vraag)
+// =================================================================
+function taakStartLuisterenOefenen() {
+  // Pak een woord dat nog geen 3× juist heeft
+  const item = _kiesVolgendOefenItem('luisteren');
+  if (!item) {
+    // Alle woorden 3× juist → naar toets
+    taakStartFase('luisteren-toets');
+    return;
+  }
+  taakOefItem = item;
+  taakRendererLuisterenOefenen();
+  toonScherm('scherm-taak-oefenen');
+}
+
+// Kies item dat nog niet "zit" op een vaardigheid. Geeft null als alles zit.
+function _kiesVolgendOefenItem(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  if (!taak) return null;
+  const sleutel = vaardigheid + '_juist';
+  const kandidaten = taakItems.filter(it => {
+    const data = taak.perWoord && taak.perWoord[it.id] ? taak.perWoord[it.id] : null;
+    const teller = data ? (data[sleutel] || 0) : 0;
+    return teller < 3;
+  });
+  if (kandidaten.length === 0) return null;
+
+  // Vorige item uitsluiten als er meer dan 1 kandidaat is — voorkomt dat
+  // hetzelfde woord 2x na elkaar komt.
+  const vorigeId = taakOefItem ? taakOefItem.id : null;
+  let pool = kandidaten;
+  if (vorigeId && kandidaten.length > 1) {
+    const zonderVorige = kandidaten.filter(it => it.id !== vorigeId);
+    if (zonderVorige.length > 0) pool = zonderVorige;
+  }
+
+  // Geef voorkeur aan items die net fout waren (teller 0) binnen de pool
+  const nul = pool.filter(it => {
+    const data = taak.perWoord[it.id];
+    return !data || (data[sleutel] || 0) === 0;
+  });
+  const finalePool = nul.length > 0 ? nul : pool;
+  return finalePool[Math.floor(Math.random() * finalePool.length)];
+}
+
+function taakRendererLuisterenOefenen() {
+  if (!taakOefItem) return;
+  const taak = Voortgang.getTaak();
+
+  // Beeld in het oefen-scherm
+  document.getElementById('taak-oef-beeld').innerHTML = Picto.html(taakOefItem);
+
+  // Voortgang: aantal woorden dat al 3× juist is
+  let klaar = 0;
+  taakItems.forEach(it => {
+    const d = taak.perWoord && taak.perWoord[it.id];
+    if (d && (d.luisteren_juist || 0) >= 3) klaar++;
+  });
+  document.getElementById('taak-oef-klaar').textContent = klaar;
+  document.getElementById('taak-oef-totaal').textContent = taakItems.length;
+  // Voortgangsbalk
+  const pct = taakItems.length > 0 ? (klaar / taakItems.length) * 100 : 0;
+  const balk = document.getElementById('taak-oef-balk');
+  if (balk) balk.style.width = pct + '%';
+
+  // Bouw 4 woord-knoppen: het juiste + 3 afleiders uit het thema
+  const verrijkt = verrijkThema(huidigThema);
+  const beschikbAfl = verrijkt.items.filter(x => x.id !== taakOefItem.id);
+  const afl = [];
+  while (afl.length < 3 && beschikbAfl.length > 0) {
+    const idx = Math.floor(Math.random() * beschikbAfl.length);
+    afl.push(beschikbAfl[idx]);
+    beschikbAfl.splice(idx, 1);
+  }
+  const opties = [taakOefItem, ...afl].sort(() => Math.random() - 0.5);
+
+  const div = document.getElementById('taak-oef-opties');
+  div.innerHTML = '';
+  opties.forEach(opt => {
+    const k = document.createElement('button');
+    k.className = 'optie-knop';
+    k.textContent = opt.tekst;
+    k.onclick = () => taakKiesOefAntwoord(k, opt);
+    div.appendChild(k);
+  });
+
+  // Belangrijk: GEEN automatische audio in oefen-fase.
+  // Kind moet zelf op hoorknop klikken om het woord te horen.
+}
+
+function taakOefHoor() {
+  if (taakOefItem) AudioEngine.spreek(taakOefItem.tekst);
+}
+
+async function taakKiesOefAntwoord(knop, gekozen) {
+  document.querySelectorAll('#taak-oef-opties .optie-knop').forEach(k => k.disabled = true);
+
+  if (gekozen.id === taakOefItem.id) {
+    knop.classList.add('juist');
+    await Voortgang.registreerJuistInTaak(taakOefItem.id, 'luisteren');
+    // Sterren-systeem voor vrij oefenen ook updaten
+    Voortgang.registreerJuist(huidigThema.id, taakOefItem.id);
+    AudioEngine.spreek(taakOefItem.tekst);
+  } else {
+    knop.classList.add('fout');
+    document.querySelectorAll('#taak-oef-opties .optie-knop').forEach(k => {
+      if (k.textContent === taakOefItem.tekst) k.classList.add('juist');
+    });
+    await Voortgang.registreerFoutInTaak(taakOefItem.id, 'luisteren');
+    Voortgang.registreerFout(huidigThema.id, taakOefItem.id);
+    AudioEngine.spreek(taakOefItem.tekst);
+  }
+
+  setTimeout(() => {
+    if (!taakModus) return;
+    taakStartLuisterenOefenen(); // herhaalt: kies volgende
+  }, 1400);
+}
+
+// =================================================================
+//  TAAK FASE 3 — MINI-TOETS LUISTEREN  (klikspel zonder feedback)
+// =================================================================
+let taakToetsLijst = [];
+let taakToetsIdx = 0;
+let taakToetsJuist = 0;
+let taakToetsFoutIds = [];
+
+function taakStartLuisterenToets() {
+  taakToetsLijst = [...taakItems].sort(() => Math.random() - 0.5);
+  taakToetsIdx = 0;
+  taakToetsJuist = 0;
+  taakToetsFoutIds = [];
+  document.getElementById('taak-toets-totaal').textContent = taakToetsLijst.length;
+  taakRendererToets();
+  toonScherm('scherm-taak-toets');
+}
+
+function taakRendererToets() {
+  const item = taakToetsLijst[taakToetsIdx];
+  if (!item) return;
+  document.getElementById('taak-toets-huidig').textContent = taakToetsIdx + 1;
+
+  // SPIEGEL versie: groot WOORD bovenaan in plaats van beeld
+  const beeldEl = document.getElementById('taak-toets-beeld');
+  if (beeldEl) {
+    beeldEl.innerHTML = `<div class="taak-toets-woord-groot">${item.tekst}</div>`;
+  }
+
+  // Voortgangsbalk
+  const pct = (taakToetsIdx / taakToetsLijst.length) * 100;
+  const balk = document.getElementById('taak-toets-balk');
+  if (balk) balk.style.width = pct + '%';
+
+  // 4 opties als BEELDEN (niet als woordknoppen): het juiste + 3 afleiders
+  const verrijkt = verrijkThema(huidigThema);
+  const beschikbAfl = verrijkt.items.filter(x => x.id !== item.id);
+  const afl = [];
+  while (afl.length < 3 && beschikbAfl.length > 0) {
+    const idx = Math.floor(Math.random() * beschikbAfl.length);
+    afl.push(beschikbAfl[idx]);
+    beschikbAfl.splice(idx, 1);
+  }
+  const opties = [item, ...afl].sort(() => Math.random() - 0.5);
+
+  const div = document.getElementById('taak-toets-opties');
+  div.innerHTML = '';
+  div.className = 'taak-toets-beeld-rij'; // andere layout dan optie-rij
+  opties.forEach(opt => {
+    const k = document.createElement('button');
+    k.className = 'taak-toets-beeld-knop';
+    k.innerHTML = Picto.html(opt, { grootte: 80 });
+    k.dataset.id = opt.id;
+    k.onclick = () => taakKiesToetsAntwoord(k, opt, item);
+    div.appendChild(k);
+  });
+
+  // Geen automatische audio. Kind klikt zelf op hoorknop om woord te horen.
+}
+
+function taakToetsHoor() {
+  const item = taakToetsLijst[taakToetsIdx];
+  if (item) AudioEngine.spreek(item.tekst);
+}
+
+async function taakKiesToetsAntwoord(knop, gekozen, juistItem) {
+  document.querySelectorAll('#taak-toets-opties .taak-toets-beeld-knop').forEach(k => k.disabled = true);
+
+  if (gekozen.id === juistItem.id) {
+    knop.classList.add('juist');
+    taakToetsJuist++;
+    Voortgang.registreerJuist(huidigThema.id, juistItem.id);
+  } else {
+    knop.classList.add('fout');
+    // Toon ook het juiste antwoord
+    document.querySelectorAll('#taak-toets-opties .taak-toets-beeld-knop').forEach(k => {
+      if (k.dataset.id === juistItem.id) k.classList.add('juist');
+    });
+    if (taakToetsFoutIds.indexOf(juistItem.id) === -1) taakToetsFoutIds.push(juistItem.id);
+    Voortgang.registreerFout(huidigThema.id, juistItem.id);
+  }
+
+  setTimeout(() => {
+    if (!taakModus) return;
+    taakToetsIdx++;
+    if (taakToetsIdx >= taakToetsLijst.length) {
+      taakEindigToets();
+    } else {
+      taakRendererToets();
+    }
+  }, 1400);
+}
+
+async function taakEindigToets() {
+  await Voortgang.bewaar(Auth.getCode());
+
+  const aantal = taakToetsLijst.length;
+  const juist = taakToetsJuist;
+  const pct = aantal > 0 ? Math.round((juist / aantal) * 100) : 0;
+
+  const taak = Voortgang.getTaak();
+  if (!taak) { taakVerlaten(); return; }
+
+  if (pct >= 80) {
+    // GESLAAGD → status voltooid (voor luisteren-fase v1)
+    await Voortgang.updateTaak({
+      status: 'voltooid',
+      huidigeFase: 'klaar',
+      foutWoordenLaatsteToets: taakToetsFoutIds
+    });
+    taakStartFase('klaar');
+  } else {
+    // NIET GESLAAGD: tel poging
+    const nieuwAantal = ((taak.aantalPogingen && taak.aantalPogingen.luisteren) || 0) + 1;
+    const nieuw = Object.assign({}, taak.aantalPogingen || {}, { luisteren: nieuwAantal });
+    if (nieuwAantal >= 2) {
+      // Tweede mislukking → status moeilijk, taak stopt
+      await Voortgang.updateTaak({
+        status: 'moeilijk',
+        aantalPogingen: nieuw,
+        foutWoordenLaatsteToets: taakToetsFoutIds
+      });
+      taakToonResultaatMoeilijk(juist, aantal);
+    } else {
+      // Eerste mislukking → herhalen
+      await Voortgang.updateTaak({
+        aantalPogingen: nieuw,
+        foutWoordenLaatsteToets: taakToetsFoutIds
+      });
+      taakToonResultaatHerhaal(juist, aantal);
+    }
+  }
+}
+
+// =================================================================
+//  TAAK — RESULTAAT-SCHERMEN
+// =================================================================
+function taakToonKlaar() {
+  document.getElementById('taak-resultaat-emoji').textContent = '🏆';
+  document.getElementById('taak-resultaat-titel').textContent = 'Klaar!';
+  document.getElementById('taak-resultaat-tekst').textContent = 'Je taak is af. Vraag aan je juf voor een nieuwe!';
+  // Beelden van de geleerde woorden
+  const overzichtEl = document.getElementById('taak-resultaat-overzicht');
+  if (overzichtEl) {
+    overzichtEl.innerHTML = '';
+    taakItems.forEach(item => {
+      const d = document.createElement('div');
+      d.className = 'taak-resultaat-woord';
+      d.innerHTML = `${Picto.html(item, { grootte: 48 })}<span>${item.tekst}</span>`;
+      overzichtEl.appendChild(d);
+    });
+  }
+  // Knop = naar startscherm
+  const knopEl = document.getElementById('taak-resultaat-knop');
+  if (knopEl) {
+    knopEl.textContent = '↩️ Naar het menu';
+    knopEl.onclick = taakVerlaten;
+  }
+  AudioEngine.spreek('Heel goed! Je taak is helemaal klaar!');
+  toonScherm('scherm-taak-resultaat');
+}
+
+function taakToonResultaatMoeilijk(juist, aantal) {
+  document.getElementById('taak-resultaat-emoji').textContent = '💪';
+  document.getElementById('taak-resultaat-titel').textContent = 'Goed geprobeerd!';
+  document.getElementById('taak-resultaat-tekst').textContent = 'Vraag aan je juf om samen te oefenen.';
+  const overzichtEl = document.getElementById('taak-resultaat-overzicht');
+  if (overzichtEl) overzichtEl.innerHTML = '';
+  const knopEl = document.getElementById('taak-resultaat-knop');
+  if (knopEl) {
+    knopEl.textContent = '↩️ Naar het menu';
+    knopEl.onclick = taakVerlaten;
+  }
+  AudioEngine.spreek('Goed geprobeerd. We oefenen samen verder.');
+  toonScherm('scherm-taak-resultaat');
+}
+
+function taakToonResultaatHerhaal(juist, aantal) {
+  document.getElementById('taak-resultaat-emoji').textContent = '🌱';
+  document.getElementById('taak-resultaat-titel').textContent = 'Probeer nog eens!';
+  document.getElementById('taak-resultaat-tekst').textContent = 'Oefen nog wat. Je kan het!';
+  const overzichtEl = document.getElementById('taak-resultaat-overzicht');
+  if (overzichtEl) overzichtEl.innerHTML = '';
+  const knopEl = document.getElementById('taak-resultaat-knop');
+  if (knopEl) {
+    knopEl.textContent = '🔁 Nog eens proberen';
+    knopEl.onclick = () => {
+      // Reset oefenfase (perWoord-tellers behouden) en ga terug naar oefenen
+      taakStartFase('luisteren-oef');
+    };
+  }
+  AudioEngine.spreek('Niet erg, we oefenen nog even verder.');
+  toonScherm('scherm-taak-resultaat');
+}
+
+
 
 // =================================================================
 //  INIT
@@ -195,7 +746,6 @@ function volgendeSlimItem() {
   const gekozen = Voortgang.kiesVolgendItem(themas);
 
   if (!gekozen) {
-    // Alles klaar! Kind heeft alles geleerd
     toonSlimAlleskKlaar();
     return;
   }
@@ -414,6 +964,7 @@ function toonSlimAlleskKlaar() {
 //  STARTSCHERM (na login)
 // =================================================================
 function rendererStart() {
+  rendererTaakZone();
   rendererSurvivalGrid();
   rendererThemaGrid('woorden-grid', THEMAS_WOORDEN);
   rendererThemaGrid('zinnen-grid', THEMAS_ZINNEN);
@@ -424,7 +975,11 @@ function rendererSurvivalGrid() {
   const grid = document.getElementById('survival-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  THEMAS_SURVIVAL.forEach(thema => {
+  const actieveThemas = THEMAS_SURVIVAL.filter(t => Voortgang.isThemaActiefVoorKind(t));
+  // Toon de hele zone enkel als er minstens één survival-thema actief is
+  const zone = grid.closest('.survival-zone');
+  if (zone) zone.style.display = actieveThemas.length === 0 ? 'none' : '';
+  actieveThemas.forEach(thema => {
     const stats = Voortgang.statsThema(verrijkThema(thema));
     const knop = document.createElement('button');
     knop.className = 'survival-kaart';
@@ -444,7 +999,8 @@ function rendererSurvivalGrid() {
 function rendererThemaGrid(gridId, themas) {
   const grid = document.getElementById(gridId);
   grid.innerHTML = '';
-  themas.forEach(thema => {
+  const actieveThemas = themas.filter(t => Voortgang.isThemaActiefVoorKind(t));
+  actieveThemas.forEach(thema => {
     const stats = Voortgang.statsThema(verrijkThema(thema));
     const knop = document.createElement('button');
     knop.className = 'thema-kaart';
@@ -552,13 +1108,11 @@ function kiesThema(thema) {
     </div>
   `;
 
-  // Bepaal welke stap "Begin hier" krijgt
-  // Reset alle stappen
+  // Bepaal welke stap visueel gemarkeerd wordt als suggestie
   ['stap-1','stap-2','stap-3','stap-4'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('begin-hier');
   });
-  // Stap 1 als nog niets is gezien; stap 3 als wel iets gezien maar nog niet stevig
   let aanwijzerStap = 'stap-1';
   if (s.gezien > 0 && s.gekend < s.totaal) aanwijzerStap = 'stap-3';
   if (s.gekend >= s.totaal && s.totaal > 0) aanwijzerStap = 'stap-4';
@@ -618,12 +1172,23 @@ function startModus(modus) {
 // =================================================================
 //  MODUS: KIJKEN & LUISTEREN
 // =================================================================
+
+// Helper: items voor de huidige weergave
 function rendererKijken() {
   const _itemsKijken = getActieveItems(huidigThema);
+  if (_itemsKijken.length === 0) return;
   const item = _itemsKijken[kijkenIndex];
   document.getElementById('kijken-beeld').innerHTML = Picto.html(item);
   document.getElementById('kijken-woord').textContent = item.tekst;
-  document.getElementById('kijken-zin').textContent = item.zin;
+
+  // Toon zin als die er is
+  const toonZin = !!(item.zin && item.zin.trim());
+  const zinEl = document.getElementById('kijken-zin');
+  const zinKnop = document.querySelector('.audio-knop.zin');
+  if (zinEl) zinEl.style.display = toonZin ? '' : 'none';
+  if (zinEl && toonZin) zinEl.textContent = item.zin || '';
+  if (zinKnop) zinKnop.style.display = toonZin ? '' : 'none';
+
   document.getElementById('kijken-huidig').textContent = kijkenIndex + 1;
   document.getElementById('kijken-totaal').textContent = _itemsKijken.length;
 
@@ -634,15 +1199,19 @@ function rendererKijken() {
 }
 
 function hoorWoord() {
-  AudioEngine.spreek(getActieveItems(huidigThema)[kijkenIndex].tekst);
+  const items = getActieveItems(huidigThema);
+  if (items[kijkenIndex]) AudioEngine.spreek(items[kijkenIndex].tekst);
 }
 
 function hoorZin() {
-  AudioEngine.spreek(getActieveItems(huidigThema)[kijkenIndex].zin);
+  const items = getActieveItems(huidigThema);
+  if (items[kijkenIndex] && items[kijkenIndex].zin) AudioEngine.spreek(items[kijkenIndex].zin);
 }
 
 function kijkenVolgende() {
-  kijkenIndex = (kijkenIndex + 1) % getActieveItems(huidigThema).length;
+  const totaal = getActieveItems(huidigThema).length;
+  if (totaal === 0) return;
+  kijkenIndex = (kijkenIndex + 1) % totaal;
   rendererKijken();
   // Bewaar elke 3 stappen
   if (kijkenIndex % 3 === 0) Voortgang.bewaar(Auth.getCode());
@@ -650,6 +1219,7 @@ function kijkenVolgende() {
 
 function kijkenVorige() {
   const _t = getActieveItems(huidigThema).length;
+  if (_t === 0) return;
   kijkenIndex = (kijkenIndex - 1 + _t) % _t;
   rendererKijken();
 }
@@ -764,8 +1334,16 @@ function startToets() {
   // Schud thema-items, neem eerste TOETS_AANTAL (of alles als minder)
   const items = [...getActieveItems(huidigThema)].sort(() => Math.random() - 0.5);
   toetsVragen = items.slice(0, Math.min(TOETS_AANTAL, items.length));
+
+  if (toetsVragen.length === 0) {
+    alert('Er zijn geen woorden om te toetsen. Vraag aan je juf of meester.');
+    naarStart();
+    return;
+  }
+
   toetsHuidig = 0;
   toetsJuist = 0;
+  toetsFoutIds = [];
   document.getElementById('toets-totaal').textContent = toetsVragen.length;
   toonToetsVraag();
   toonScherm('scherm-toets');
@@ -780,9 +1358,9 @@ function toonToetsVraag() {
   const pct = (toetsHuidig / toetsVragen.length) * 100;
   document.getElementById('toets-balk-vulling').style.width = pct + '%';
 
-  // 3 afleiders
-  const afl = [];
+  // 3 afleiders uit hetzelfde thema
   const beschikb = getActieveItems(huidigThema).filter(x => x.id !== toetsItem.id);
+  const afl = [];
   while (afl.length < 3 && beschikb.length > afl.length) {
     const k = beschikb[Math.floor(Math.random() * beschikb.length)];
     if (!afl.includes(k)) afl.push(k);
@@ -820,6 +1398,7 @@ function kiesToetsAntwoord(knop, gekozen) {
       if (k.textContent === toetsItem.tekst) k.classList.add('juist');
     });
     Voortgang.registreerFout(huidigThema.id, toetsItem.id);
+    if (toetsFoutIds.indexOf(toetsItem.id) === -1) toetsFoutIds.push(toetsItem.id);
     AudioEngine.spreek(toetsItem.tekst);
   }
 
@@ -866,6 +1445,11 @@ async function eindigToets() {
   document.getElementById('resultaat-tekst').textContent = tekst;
 
   toonScherm('scherm-toets-eind');
+}
+
+// Hoofdknop op toets-eind-scherm: terug naar het thema-scherm.
+function resultaatVerder() {
+  naarThema();
 }
 
 // =================================================================
