@@ -89,6 +89,88 @@ window.PDFEngine = (function() {
     }
   }
 
+  // ---------------------------------------------------------------
+  //  PICTO (PNG) → DATA URL — met emoji-fallback
+  //  PNG's worden eerst getest. Bij ontbrekend bestand of laadfout
+  //  blijft picto-cache leeg en valt plaatsItemBeeld terug op emoji.
+  // ---------------------------------------------------------------
+  const _pictoCache = {}; // pad → dataURL (string) of null = niet beschikbaar
+
+  function _pictoLaden(bron) {
+    return new Promise(resolve => {
+      if (bron in _pictoCache) {
+        resolve(_pictoCache[bron]);
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          // Vierkant canvas op originele resolutie (max 256 voor pdf-grootte)
+          const maxDim = Math.max(img.width, img.height);
+          const schaal = maxDim > 256 ? 256 / maxDim : 1;
+          canvas.width = Math.round(img.width * schaal);
+          canvas.height = Math.round(img.height * schaal);
+          const ctx = canvas.getContext('2d');
+          // Witte achtergrond (anders krijg je transparante artefacten in PDF)
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          _pictoCache[bron] = canvas.toDataURL('image/png');
+        } catch (e) {
+          console.warn('Picto canvas-fout voor', bron, e);
+          _pictoCache[bron] = null;
+        }
+        resolve(_pictoCache[bron]);
+      };
+      img.onerror = () => {
+        _pictoCache[bron] = null;
+        resolve(null);
+      };
+      // Bron is ofwel een URL (begint met http) ofwel een relatief picto-pad
+      img.src = bron.startsWith('http') ? bron : ('picto/' + bron);
+    });
+  }
+
+  // Pre-fetch alle pictos/foto's voor een lijst items.
+  async function prefetchPictos(items) {
+    const bronnen = new Set();
+    items.forEach(it => {
+      if (!it) return;
+      if (it.foto) bronnen.add(it.foto);
+      else if (it.picto) bronnen.add(it.picto);
+    });
+    await Promise.all([...bronnen].map(b => _pictoLaden(b)));
+  }
+
+  // Plaatst het beeld van een item op de PDF.
+  // Gebruikt foto-URL/PNG als die in de cache zit, anders fallback naar emoji.
+  // x, y is het MIDDEN.
+  function plaatsItemBeeld(doc, item, xMm, yMm, grootteMm) {
+    if (!item) return;
+    grootteMm = grootteMm || 12;
+    // Foto- of picto-bron beschikbaar?
+    const bron = item.foto || item.picto;
+    if (bron && _pictoCache[bron]) {
+      try {
+        doc.addImage(
+          _pictoCache[bron],
+          'PNG',
+          xMm - grootteMm / 2,
+          yMm - grootteMm / 2,
+          grootteMm,
+          grootteMm
+        );
+        return;
+      } catch (e) {
+        console.warn('Picto plaatsen mislukt:', bron, e);
+      }
+    }
+    // Fallback: emoji
+    if (item.beeld) plaatsEmoji(doc, item.beeld, xMm, yMm, grootteMm);
+  }
+
   function tekenKop(doc, thema, oefenTitel) {
     // Brand-strook bovenaan
     doc.setFillColor(255, 248, 238);
@@ -202,7 +284,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.5);
       doc.roundedRect(xL, yR, kB, 22, 3, 3, 'FD');
-      plaatsEmoji(doc, links[i].beeld, xL + kB / 2, yR + 11, 16);
+      plaatsItemBeeld(doc, links[i], xL + kB / 2, yR + 11, 16);
 
       // Verbindingspunten
       doc.setFillColor(45, 42, 50);
@@ -264,7 +346,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(x, yR, 18, 18, 2, 2, 'FD');
-      plaatsEmoji(doc, w.beeld, x + 9, yR + 9, 13);
+      plaatsItemBeeld(doc, w, x + 9, yR + 9, 13);
 
       // Voorbeeldwoord lichtgrijs
       doc.setFontSize(13);
@@ -345,7 +427,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(M, yR, 22, 22, 3, 3, 'FD');
-      plaatsEmoji(doc, w.beeld, M + 11, yR + 11, 16);
+      plaatsItemBeeld(doc, w, M + 11, yR + 11, 16);
 
       // Letters door elkaar — markeer ÉÉN specifieke positie als startletter
       // (niet alle letters die gelijk zijn aan de eerste — dat veroorzaakte dubbele markeringen bij "eten")
@@ -451,7 +533,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(M, yR, 22, 22, 3, 3, 'FD');
-      plaatsEmoji(doc, w.beeld, M + 11, yR + 11, 17);
+      plaatsItemBeeld(doc, w, M + 11, yR + 11, 17);
 
       // 3 woorden naast elkaar
       const afl = thema.items.filter(x => x.id !== w.id);
@@ -523,7 +605,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(180, 180, 180);
       doc.setLineWidth(0.6);
       doc.roundedRect(x, yR, 26, 26, 3, 3, 'FD');
-      plaatsEmoji(doc, w.beeld, x + 13, yR + 13, 18);
+      plaatsItemBeeld(doc, w, x + 13, yR + 13, 18);
 
       // Woord ernaast
       doc.setFontSize(12);
@@ -567,7 +649,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(x, yR, 20, 20, 2, 2, 'FD');
-      plaatsEmoji(doc, w.beeld, x + 10, yR + 10, 15);
+      plaatsItemBeeld(doc, w, x + 10, yR + 10, 15);
 
       // Lege schrijflijn — geen voorbeeldwoord!
       const lY = yR + 18;
@@ -610,7 +692,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(M, yR, 24, 24, 3, 3, 'FD');
-      plaatsEmoji(doc, w.beeld, M + 12, yR + 12, 18);
+      plaatsItemBeeld(doc, w, M + 12, yR + 12, 18);
 
       // 3 keuzes ONDER ELKAAR — met aankruis-vakjes
       const afl = thema.items.filter(x => x.id !== w.id);
@@ -702,7 +784,7 @@ window.PDFEngine = (function() {
       doc.rect(x, y, beeldGrootte, beeldGrootte);
       doc.setLineDashPattern([], 0);
 
-      plaatsEmoji(doc, w.beeld, x + beeldGrootte / 2, y + beeldGrootte / 2, beeldGrootte - 4);
+      plaatsItemBeeld(doc, w, x + beeldGrootte / 2, y + beeldGrootte / 2, beeldGrootte - 4);
     });
 
     y += beeldGrootte + 12;
@@ -741,7 +823,7 @@ window.PDFEngine = (function() {
 
       if (opgelost) {
         // OPLOSSING: beeld groen omkaderd in het plakvak
-        plaatsEmoji(doc, w.beeld, x + 13, yR + (doosHoog - 4) / 2, 18);
+        plaatsItemBeeld(doc, w, x + 13, yR + (doosHoog - 4) / 2, 18);
         doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
         doc.setLineWidth(0.6);
         doc.roundedRect(x, yR, 26, doosHoog - 4, 2, 2);
@@ -796,7 +878,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(180, 180, 180);
       doc.setLineWidth(0.6);
       doc.circle(M + 12, yR + 11, 11, 'FD');
-      plaatsEmoji(doc, beelden[i].beeld, M + 12, yR + 11, 14);
+      plaatsItemBeeld(doc, beelden[i], M + 12, yR + 11, 14);
 
       // Woord rechts
       const xR = M + IB - kolomBreedte;
@@ -984,7 +1066,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.3);
       doc.roundedRect(x, beeldenY, beeldGr, beeldGr, 2, 2, 'FD');
-      plaatsEmoji(doc, g.item.beeld, x + beeldGr / 2, beeldenY + beeldGr / 2, beeldGr - 2);
+      plaatsItemBeeld(doc, g.item, x + beeldGr / 2, beeldenY + beeldGr / 2, beeldGr - 2);
     });
 
     tekenVoet(doc);
@@ -1022,7 +1104,7 @@ window.PDFEngine = (function() {
       doc.setLineDashPattern([], 0);
 
       // Beeld groot in midden
-      plaatsEmoji(doc, w.beeld, x + kaartBreed / 2, yR + kaartHoog / 2, 30);
+      plaatsItemBeeld(doc, w, x + kaartBreed / 2, yR + kaartHoog / 2, 30);
     });
 
     tekenVoet(doc);
@@ -1097,7 +1179,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.3);
       doc.roundedRect(x, yR, 12, 12, 2, 2, 'FD');
-      plaatsEmoji(doc, w.beeld, x + 6, yR + 6, 9);
+      plaatsItemBeeld(doc, w, x + 6, yR + 6, 9);
 
       // Tekst ernaast
       doc.setFontSize(12);
@@ -1143,7 +1225,14 @@ window.PDFEngine = (function() {
     return _genereerPDF(themaConfigs, opties || {}, true);
   }
 
-  function _genereerPDF(themaConfigs, opties, opgelost) {
+  // Filter items van een thema op categorieën uit de werkblad-config.
+  // Lege of ontbrekende categorieën-lijst = alle items.
+  function _filterOpCategorieen(items, categorieen) {
+    if (!categorieen || categorieen.length === 0) return items;
+    return items.filter(it => !it.categorie || categorieen.includes(it.categorie));
+  }
+
+  async function _genereerPDF(themaConfigs, opties, opgelost) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF('p', 'mm', 'a4');
 
@@ -1160,6 +1249,28 @@ window.PDFEngine = (function() {
     }
 
     if (themaConfigs.length === 0) return;
+
+    // Toepassen van categorieën-filter PER thema-config:
+    // We klonen het thema-object met een gefilterde items-lijst
+    // zodat de teken-functies (die schud(thema.items) doen) automatisch correct zijn.
+    themaConfigs = themaConfigs.map(tc => {
+      const gefilterd = _filterOpCategorieen(tc.thema.items, tc.categorieen);
+      // Niets veranderd? Origineel hergebruiken (geen onnodige clone)
+      if (gefilterd.length === tc.thema.items.length) return tc;
+      return {
+        ...tc,
+        thema: { ...tc.thema, items: gefilterd, _origineelThemaId: tc.thema.id }
+      };
+    });
+
+    // Pre-fetch alle pictos die voorkomen in de te-tekenen items
+    const allItems = [];
+    themaConfigs.forEach(tc => tc.thema.items.forEach(it => allItems.push(it)));
+    try {
+      await prefetchPictos(allItems);
+    } catch (e) {
+      console.warn('Prefetch pictos faalde — ga verder met emoji-fallback', e);
+    }
 
     // Bepaal of we per thema of gemengd werken
     const isMengen = (opties.verdeling === 'mengen') && themaConfigs.length > 1;
