@@ -5898,3 +5898,140 @@ h1, h2, h3 {
     justify-content: flex-end;
   }
 }
+
+/* Klas-label tussen kindertabs (gegroepeerd) */
+.lk-kindtabs-klaslabel {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5D4037;
+  background: #FFFCF6;
+  border: 1px dashed #E5DFD0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  margin-right: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  user-select: none;
+}
+
+.lk-kindtabs-klaslabel::before {
+  content: "🏫 ";
+  margin-right: 3px;
+}
+
+/* Klas-cel in tabel — compact */
+.lk-klas-cel {
+  font-weight: 600;
+  text-align: center;
+  font-size: 13px;
+  color: #5D4037;
+  white-space: nowrap;
+}
+
+/* Nieuwe-leerling formulier met grid */
+.lk-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 130px 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 800px) {
+  .lk-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lk-form-grid > button {
+    grid-column: 1 / -1;
+  }
+}
+
+/* =================================================================
+   WERKBLADEN-VOOR-TAAK MODAL
+   ================================================================= */
+
+.lk-twb-woorden-strook {
+  background: #FFFCF6;
+  border: 1px solid #FFD166;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 4px 0 14px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.lk-twb-woordenlijst {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #5D4037;
+}
+
+.lk-twb-oef-lijst {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px;
+  max-height: 32vh;
+  overflow-y: auto;
+  padding: 4px;
+  background: #fafaf5;
+  border: 1px solid #e5dfd0;
+  border-radius: 8px;
+}
+
+.lk-twb-oef-rij {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #e5dfd0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.1s;
+  font-size: 13px;
+}
+
+.lk-twb-oef-rij:hover {
+  border-color: #ffd166;
+}
+
+.lk-twb-oef-rij.aan {
+  background: #FFF8E1;
+  border-color: #FFD166;
+}
+
+.lk-twb-oef-rij input[type="checkbox"] {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.lk-twb-oef-rij span {
+  flex: 1;
+  user-select: none;
+}
+
+/* Oplossingssleutel-toggle in werkbladen-modal */
+.lk-twb-oplossing-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: #5D4037;
+  cursor: pointer;
+  user-select: none;
+  background: #FFFCF6;
+  border: 1px solid #E5DFD0;
+  border-radius: 6px;
+}
+
+.lk-twb-oplossing-toggle:hover {
+  background: #FFF8E1;
+  border-color: #FFD166;
+}
+
+.lk-twb-oplossing-toggle input[type="checkbox"] {
+  cursor: pointer;
+}
