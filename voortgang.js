@@ -982,15 +982,35 @@ window.Voortgang = (function() {
     return lijst;
   }
 
-  async function maakKind(code, naam) {
+  async function maakKind(code, naamOfData) {
     if (!db) throw new Error('Firebase niet ingesteld.');
     const codeNorm = code.trim().toUpperCase();
+
+    // Backward compat: ofwel string (oude naam), ofwel object {voornaam, achternaam, klas}
+    let velden;
+    if (typeof naamOfData === 'string') {
+      velden = {
+        naam: naamOfData || '',
+        voornaam: '',
+        achternaam: '',
+        klas: ''
+      };
+    } else {
+      const v = (naamOfData && naamOfData.voornaam) ? naamOfData.voornaam.trim() : '';
+      const a = (naamOfData && naamOfData.achternaam) ? naamOfData.achternaam.trim() : '';
+      const k = (naamOfData && naamOfData.klas) ? naamOfData.klas.trim() : '';
+      velden = {
+        naam: [v, a].filter(Boolean).join(' '),
+        voornaam: v,
+        achternaam: a,
+        klas: k
+      };
+    }
+
     await db.collection('kinderen').doc(codeNorm).set({
-      naam: naam || '',
+      ...velden,
       gemaakt: window.firebase.firestore.FieldValue.serverTimestamp(),
       voortgang: {},
-      // Lege thema_actief = nieuwe leerling start zonder thema's.
-      // Leerkracht moet expliciet thema's aanvinken in het paneel.
       thema_actief: []
     });
     return codeNorm;
@@ -1001,11 +1021,27 @@ window.Voortgang = (function() {
     await db.collection('kinderen').doc(code).delete();
   }
 
+  // Verouderd — blijft werken voor backward compat
   async function wijzigNaamVanKind(code, nieuweNaam) {
     if (!db) throw new Error('Firebase niet ingesteld.');
     if (!code) throw new Error('Code is verplicht.');
     await db.collection('kinderen').doc(code).update({
       naam: (nieuweNaam || '').trim()
+    });
+  }
+
+  // Nieuwe centrale functie: wijzig voornaam + achternaam + klas in één keer
+  async function wijzigKindGegevens(code, voornaam, achternaam, klas) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!code) throw new Error('Code is verplicht.');
+    const v = (voornaam || '').trim();
+    const a = (achternaam || '').trim();
+    const k = (klas || '').trim();
+    await db.collection('kinderen').doc(code).update({
+      voornaam: v,
+      achternaam: a,
+      klas: k,
+      naam: [v, a].filter(Boolean).join(' ') // voor backward compat met oudere code
     });
   }
 
@@ -1025,6 +1061,7 @@ window.Voortgang = (function() {
     maakKind,
     verwijderKind,
     wijzigNaamVanKind,
+    wijzigKindGegevens,
     // Categorieën
     getCategorieenVoorThema,
     filterItemsOpCategorieen,
