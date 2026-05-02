@@ -165,10 +165,86 @@ async function lkLaadKinderen() {
   try {
     lkKinderen = await Voortgang.alleKinderen();
     lkRendererTabel();
+    lkRendererAandachtsstrook();
   } catch (e) {
     document.getElementById('lk-tabel-wrap').innerHTML =
       '<p style="color:var(--kleur-fout)">Kon de leerlingen niet laden: ' + e.message + '</p>';
   }
+}
+
+// Manueel: knop bovenaan klikken
+async function lkVerversen() {
+  const knop = document.querySelector('button[onclick="lkVerversen()"]');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Laden...'; }
+  try {
+    await lkLaadKinderen();
+  } finally {
+    if (knop) { knop.disabled = false; knop.textContent = '🔄 Vernieuwen'; }
+  }
+}
+
+// Auto: bij terugkeer naar dit tabblad → verversen
+// (alleen wanneer document terug zichtbaar wordt)
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // Alleen verversen als we al een keer geladen hebben (anders dubbel werk bij eerste laad)
+      if (lkKinderen && lkKinderen.length > 0 && typeof lkLaadKinderen === 'function') {
+        lkLaadKinderen();
+      }
+    }
+  });
+}
+
+// Aandachtsstrook bovenaan tabel: leerlingen met taak-status die actie vraagt.
+// Toont voltooide én moeilijke taken.
+function lkRendererAandachtsstrook() {
+  const wrap = document.getElementById('lk-aandacht-strook');
+  if (!wrap) return;
+
+  const voltooid = [];
+  const moeilijk = [];
+  lkKinderen.forEach(kind => {
+    if (!kind.taak || !kind.taak.themaId) return;
+    const status = kind.taak.status;
+    if (status === 'voltooid') voltooid.push(kind);
+    else if (status === 'moeilijk' || status === 'haperde') moeilijk.push(kind);
+  });
+
+  if (voltooid.length === 0 && moeilijk.length === 0) {
+    wrap.innerHTML = '';
+    return;
+  }
+
+  let html = '<div class="lk-aandacht-blok">';
+  if (voltooid.length > 0) {
+    const namen = voltooid.map(k => `<a class="lk-aandacht-naam" onclick="lkScrollNaarKind('${k.code}')">${k.naam || k.code}</a>`).join(', ');
+    html += `<div class="lk-aandacht-rij voltooid">
+      <span class="lk-aandacht-emoji">🏆</span>
+      <span class="lk-aandacht-tekst"><strong>${voltooid.length === 1 ? '1 leerling heeft' : voltooid.length + ' leerlingen hebben'} de taak voltooid:</strong> ${namen}</span>
+    </div>`;
+  }
+  if (moeilijk.length > 0) {
+    const namen = moeilijk.map(k => `<a class="lk-aandacht-naam" onclick="lkScrollNaarKind('${k.code}')">${k.naam || k.code}</a>`).join(', ');
+    html += `<div class="lk-aandacht-rij moeilijk">
+      <span class="lk-aandacht-emoji">⚠️</span>
+      <span class="lk-aandacht-tekst"><strong>${moeilijk.length === 1 ? '1 leerling vond' : moeilijk.length + ' leerlingen vonden'} de taak moeilijk:</strong> ${namen}</span>
+    </div>`;
+  }
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+// Scroll naar de leerling-rij + klap hem open zodat detail zichtbaar is
+function lkScrollNaarKind(code) {
+  if (!lkUitgeklapt.has(code)) {
+    lkUitgeklapt.add(code);
+    lkRendererTabel();
+  }
+  setTimeout(() => {
+    const rij = document.querySelector(`tr[data-code="${code}"]`);
+    if (rij) rij.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 50);
 }
 
 function lkRendererTabel() {
@@ -958,24 +1034,76 @@ let _taakModalVaardigheden = new Set(['luisteren']); // 'luisteren', 'lezen', 's
 let _taakModalOefenvormenLuisteren = new Set(['klikspel']); // 'klikspel', 'verbinden', 'verslepen'
 let _taakModalOefenvormenSchrijven = new Set(['slepen']); // 'slepen', 'typen'
 let _taakModalZinscontext = false;
+// Geschiedenis voor kleur-codering van woorden: array van vorige taken voor dit kind
+let _taakModalGeschiedenis = [];
+// Huidige (nog niet gearchiveerde) taak — telt ook mee voor de kleur-codering
+let _taakModalHuidigeTaak = null;
+
+// Helper: bepaal kleur voor een woord-id binnen het huidig gekozen thema
+//   'geel'  = woord was ooit fout in een toets (huidig of vorige taak)
+//   'groen' = woord stond ooit in een taak (huidig of vorige) en was niet fout
+//   ''      = nog nooit geoefend in een taak (wit/standaard)
+function _taakModalWoordKleur(woordId) {
+  if (!_taakModalThemaId) return '';
+  let ooitGeoefend = false;
+  let ooitFout = false;
+
+  // Check 1: huidige nog-niet-gearchiveerde taak
+  if (_taakModalHuidigeTaak &&
+      _taakModalHuidigeTaak.themaId === _taakModalThemaId &&
+      Array.isArray(_taakModalHuidigeTaak.woordIds) &&
+      _taakModalHuidigeTaak.woordIds.indexOf(woordId) !== -1) {
+    ooitGeoefend = true;
+    if (Array.isArray(_taakModalHuidigeTaak.foutWoordenLaatsteToets) &&
+        _taakModalHuidigeTaak.foutWoordenLaatsteToets.indexOf(woordId) !== -1) {
+      ooitFout = true;
+    }
+  }
+
+  // Check 2: gearchiveerde geschiedenis
+  for (const archief of _taakModalGeschiedenis) {
+    if (archief.themaId !== _taakModalThemaId) continue;
+    if (!Array.isArray(archief.woordIds) || archief.woordIds.indexOf(woordId) === -1) continue;
+    ooitGeoefend = true;
+    if (Array.isArray(archief.foutWoordenLaatsteToets) &&
+        archief.foutWoordenLaatsteToets.indexOf(woordId) !== -1) {
+      ooitFout = true;
+    }
+  }
+
+  if (ooitFout) return 'geel';
+  if (ooitGeoefend) return 'groen';
+  return '';
+}
 
 async function lkBeheerTaak(code, naam) {
   _taakModalKindCode = code;
   _taakModalNaam = naam || code;
 
-  // Huidige taak ophalen (kan null zijn)
+  // Huidige taak + geschiedenis ophalen
   let huidigeTaak = null;
   try {
     huidigeTaak = await Voortgang.haalTaakOpVoorKind(code);
   } catch (e) {
     console.warn('Taak ophalen mislukt:', e);
   }
+  _taakModalHuidigeTaak = huidigeTaak;
+  try {
+    _taakModalGeschiedenis = await Voortgang.haalTaakgeschiedenisOpVoorKind(code);
+  } catch (e) {
+    console.warn('Geschiedenis ophalen mislukt:', e);
+    _taakModalGeschiedenis = [];
+  }
 
-  // Voorinstelling: als er een taak is, hetzelfde thema/woorden/instellingen,
-  // anders defaults
+  // Voorinstelling: als er een taak is, hetzelfde thema/instellingen overnemen.
+  // Bij voltooid of moeilijk: woorden NIET vooraf aanvinken — leerkracht kiest opnieuw
+  // (wel met groen/geel-codering zichtbaar zodat ze weet wat al kende of fout was).
   if (huidigeTaak && huidigeTaak.themaId) {
     _taakModalThemaId = huidigeTaak.themaId;
-    _taakModalWoordIds = new Set(huidigeTaak.woordIds || []);
+    const taakAfgewerkt = (huidigeTaak.status === 'voltooid' ||
+                           huidigeTaak.status === 'moeilijk' ||
+                           huidigeTaak.status === 'haperde');
+    _taakModalWoordIds = taakAfgewerkt ? new Set() : new Set(huidigeTaak.woordIds || []);
     _taakModalVaardigheden = new Set(huidigeTaak.vaardigheden || ['luisteren']);
     _taakModalOefenvormenLuisteren = new Set(huidigeTaak.oefenvormen_luisteren || ['klikspel']);
     _taakModalOefenvormenSchrijven = new Set(huidigeTaak.oefenvormen_schrijven || ['slepen']);
@@ -1096,6 +1224,21 @@ function rendererTaakModal(huidigeTaak) {
       const items = verrijkt.items;
       const aantalAangevinkt = _taakModalWoordIds.size;
 
+      // Tellen voor legende: hebben we überhaupt geschiedenis voor dit thema?
+      let heeftGroen = false, heeftGeel = false;
+      items.forEach(it => {
+        const k = _taakModalWoordKleur(it.id);
+        if (k === 'groen') heeftGroen = true;
+        if (k === 'geel') heeftGeel = true;
+      });
+      const legende = (heeftGroen || heeftGeel)
+        ? `<div class="lk-taak-legende">
+             <span class="lk-legende-item"><span class="lk-legende-bol groen"></span> al gekend</span>
+             <span class="lk-legende-item"><span class="lk-legende-bol geel"></span> nog moeilijk</span>
+             <span class="lk-legende-item"><span class="lk-legende-bol wit"></span> nog niet geoefend</span>
+           </div>`
+        : '';
+
       html += `
         <div class="lk-taak-veld">
           <label class="lk-taak-label">Welke woorden in de taak? <span class="lk-taak-teller">(${aantalAangevinkt} gekozen)</span></label>
@@ -1103,12 +1246,15 @@ function rendererTaakModal(huidigeTaak) {
             <button class="lk-knop-mini" onclick="lkTaakAllesAan()">Alle aanvinken</button>
             <button class="lk-knop-mini" onclick="lkTaakNietsAan()">Alles uit</button>
           </div>
+          ${legende}
           <div class="lk-taak-woorden">
       `;
       items.forEach(item => {
         const aan = _taakModalWoordIds.has(item.id);
+        const kleur = _taakModalWoordKleur(item.id);
+        const kleurKlas = kleur ? `geschiedenis-${kleur}` : '';
         html += `
-          <label class="cat-item-rij ${aan ? 'aan' : ''}">
+          <label class="cat-item-rij ${aan ? 'aan' : ''} ${kleurKlas}">
             <input type="checkbox" ${aan ? 'checked' : ''} onchange="lkTaakToggleWoord('${item.id}')">
             <span class="cat-item-beeld">${Picto.html(item, { grootte: 28 })}</span>
             <span class="cat-item-tekst">${item.tekst}</span>
