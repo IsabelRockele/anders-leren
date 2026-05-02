@@ -1176,6 +1176,8 @@ h1, h2, h3 {
   .lk-main { padding: 20px 14px 40px; }
 }
 
+/* OUDE horizontale tabbalk — niet meer gebruikt na zijbalk-herwerking,
+   behouden voor het geval andere paginas dit nog hergebruiken. */
 .lk-tabs {
   display: flex;
   gap: 8px;
@@ -1186,7 +1188,7 @@ h1, h2, h3 {
   box-shadow: var(--schaduw);
 }
 
-.lk-tab {
+.lk-tabs .lk-tab {
   flex: 1;
   background: transparent;
   border: none;
@@ -1199,8 +1201,8 @@ h1, h2, h3 {
   color: var(--kleur-zwart);
 }
 
-.lk-tab.actief { background: var(--kleur-zisa); }
-.lk-tab:hover:not(.actief) { background: var(--kleur-zachtgrijs); }
+.lk-tabs .lk-tab.actief { background: var(--kleur-zisa); }
+.lk-tabs .lk-tab:hover:not(.actief) { background: var(--kleur-zachtgrijs); }
 
 .lk-tab-inhoud { display: none; }
 .lk-tab-inhoud.actief { display: block; }
@@ -3121,5 +3123,1550 @@ h1, h2, h3 {
     position: static;
     display: block;
     margin: 12px auto 0;
+  }
+}
+
+/* =================================================================
+   CATEGORIEËN-MODAL — uitklapbare woord-checkboxes
+   ================================================================= */
+
+/* Categorie-rij = chip + uitklap-knop op één lijn */
+.categorie-rij {
+  display: inline-flex;
+  align-items: stretch;
+  margin: 4px 6px 4px 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.categorie-rij .categorie-chip {
+  margin: 0;  /* override van .categorie-chip default margin */
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+
+/* "Deels aan" — categorie aan maar sommige woorden uitgesloten */
+.categorie-chip.deels {
+  background: linear-gradient(135deg, var(--kleur-zisa, #ffd166) 70%, #fff7d6 70%);
+  border-style: dashed;
+}
+
+.cat-teller {
+  font-size: 12px;
+  opacity: 0.7;
+  font-weight: normal;
+  margin-left: 2px;
+}
+
+.cat-uitklap {
+  background: #f5f5f0;
+  border: 1.5px solid #d4d4d4;
+  border-left: none;
+  cursor: pointer;
+  padding: 0 10px;
+  font-size: 12px;
+  border-top-right-radius: 14px;
+  border-bottom-right-radius: 14px;
+  color: #555;
+  transition: background 0.15s;
+}
+
+.cat-uitklap:hover {
+  background: #ebe8e0;
+  color: #000;
+}
+
+/* Wanneer chip "aan" is, krijgt de uitklap-knop dezelfde border-kleur */
+.categorie-rij:has(.categorie-chip.aan) .cat-uitklap {
+  border-color: #e89f0f;
+}
+
+/* Wanneer rij open is, lichte achtergrond van de uitklap-knop */
+.categorie-rij.open .cat-uitklap {
+  background: var(--kleur-zisa, #ffd166);
+  color: var(--kleur-zwart);
+}
+
+/* Uitklap-paneel met items */
+.cat-items-uitklap {
+  display: block;
+  width: 100%;
+  flex-basis: 100%;
+  margin: 6px 0 14px 0;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e5dfd0;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 12px;
+}
+
+/* Forceer dat de uitklap onder de chip-rij staat (volgende lijn in flex) */
+.lk-cat-thema-blok .categorie-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.lk-cat-thema-blok .cat-items-uitklap {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+.cat-item-rij {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.1s;
+}
+
+.cat-item-rij:hover {
+  background: #faf7ee;
+}
+
+.cat-item-rij input[type="checkbox"] {
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.cat-item-rij input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.cat-item-rij.aan {
+  /* nothing extra — geactiveerd is de standaard */
+}
+
+.cat-item-rij:not(.aan) .cat-item-tekst {
+  text-decoration: line-through;
+  opacity: 0.4;
+}
+
+.cat-item-beeld {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.cat-item-beeld .picto-img {
+  max-height: 26px;
+  width: auto;
+}
+
+.cat-item-beeld .picto-emoji {
+  font-size: 18px;
+}
+
+.cat-item-tekst {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cat-leeg,
+.cat-uitschakeld-hint {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  opacity: 0.6;
+  font-style: italic;
+  padding: 6px;
+  margin: 0;
+}
+
+.cat-uitschakeld-hint {
+  background: #fff5e0;
+  border-radius: 6px;
+  padding: 8px 10px;
+  border-left: 3px solid #ffb845;
+  font-style: normal;
+  opacity: 0.8;
+}
+
+/* =================================================================
+   CATEGORIE-MODAL — uitbreidingen voor thema-niveau
+   ================================================================= */
+
+.lk-cat-snelacties {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 4px 0 16px 0;
+  padding: 10px 12px;
+  background: #faf7f1;
+  border-radius: 8px;
+}
+
+.lk-cat-snelacties .lk-knop-mini {
+  font-size: 13px;
+}
+
+.lk-cat-groep-titel {
+  font-size: 14px;
+  margin: 22px 0 8px 0;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e5dfd0;
+  padding-bottom: 4px;
+}
+
+.lk-cat-thema-blok {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: #faf7f1;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.lk-cat-thema-blok.thema-aan {
+  border-color: #ffd166;
+  background: #fffbf0;
+}
+
+.lk-cat-thema-blok.thema-uit {
+  opacity: 0.6;
+  background: #f0f0eb;
+}
+
+.lk-cat-thema-kop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.lk-cat-thema-blok.thema-aan .lk-cat-thema-kop {
+  margin-bottom: 8px;
+}
+
+.lk-cat-thema-vink {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.lk-cat-thema-vink input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lk-cat-thema-vink .lk-cat-thema-naam {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 0;
+}
+
+.lk-cat-thema-teller {
+  font-size: 12px;
+  background: white;
+  padding: 3px 9px;
+  border-radius: 11px;
+  border: 1px solid #e5dfd0;
+  opacity: 0.75;
+  flex-shrink: 0;
+}
+
+.thema-uitklap {
+  margin-left: 4px;
+}
+
+/* Items-uitklap voor thema's zonder categorieën */
+.cat-items-uitklap.thema-items {
+  margin-top: 4px;
+}
+
+/* =================================================================
+   ZIJBALK-LAYOUT — leerkracht-paneel
+   ================================================================= */
+
+.lk-body {
+  margin: 0;
+  font-family: 'Fredoka', sans-serif;
+  background: #faf7f1;
+  color: #2D2A32;
+  min-height: 100vh;
+}
+
+.lk-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, #2D2A32 0%, #4A4453 100%);
+  color: white;
+  padding: 14px 22px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.lk-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  flex: 1;
+}
+
+.lk-menu-toggle {
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.3);
+  color: white;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  display: none;
+}
+
+.lk-menu-toggle:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* Bekijk-kind-app knop bij nieuwe header → andere positie */
+.lk-header .lk-kindapp-knop {
+  position: static;
+  flex-shrink: 0;
+}
+
+/* App-grid: zijbalk + main */
+.lk-app {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: calc(100vh - 65px);
+}
+
+/* ---------- Zijbalk ---------- */
+.lk-zijbalk {
+  background: white;
+  border-right: 1px solid #e5dfd0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 0 12px 0;
+  position: sticky;
+  top: 65px;
+  height: calc(100vh - 65px);
+  overflow-y: auto;
+}
+
+.lk-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+  flex: 1;
+}
+
+.lk-nav .lk-tab {
+  background: transparent;
+  border: none;
+  color: #555;
+  text-align: left;
+  font-family: inherit;
+  font-size: 15px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.lk-nav .lk-tab:hover {
+  background: #faf7f1;
+  color: #2D2A32;
+}
+
+.lk-nav .lk-tab.actief {
+  background: #ffd166;
+  color: #2D2A32;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(255,209,102,0.4);
+}
+
+.lk-nav-icoon {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.lk-nav-tekst {
+  flex: 1;
+}
+
+.lk-zijbalk-voet {
+  padding: 12px 22px;
+  border-top: 1px solid #e5dfd0;
+  margin-top: 8px;
+}
+
+.lk-merk {
+  margin: 0;
+  font-size: 13px;
+  color: #999;
+  text-align: center;
+}
+
+/* ---------- Main: ruimte voor tabellen ---------- */
+.lk-main {
+  padding: 28px 32px;
+  max-width: 1600px;
+  width: 100%;
+}
+
+/* Welkom-tab heeft eigen smallere maxbreedte voor leesbaarheid */
+#lk-tab-welkom {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* ---------- Welkom-tab ---------- */
+.welkom-hero {
+  background: linear-gradient(135deg, #fff8e0 0%, #ffd166 100%);
+  border-radius: 16px;
+  padding: 36px 32px;
+  margin-bottom: 28px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.welkom-zebra {
+  font-size: 56px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.welkom-hero h2 {
+  margin: 0 0 6px 0;
+  font-size: 28px;
+  color: #2D2A32;
+}
+
+.welkom-onder {
+  margin: 0;
+  color: #4A4453;
+  font-size: 16px;
+}
+
+/* Stats-strook */
+.welkom-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 32px;
+}
+
+.welkom-stat {
+  background: white;
+  border: 1px solid #e5dfd0;
+  border-radius: 12px;
+  padding: 18px 20px;
+  text-align: center;
+}
+
+.welkom-stat-getal {
+  display: block;
+  font-size: 32px;
+  font-weight: 600;
+  color: #2D2A32;
+  line-height: 1.1;
+}
+
+.welkom-stat-label {
+  display: block;
+  font-size: 13px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* Stappen-uitleg */
+.welkom-stappen {
+  margin-bottom: 32px;
+}
+
+.welkom-stappen h3 {
+  font-size: 22px;
+  margin: 0 0 18px 0;
+  color: #2D2A32;
+}
+
+.stappen-rij {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 16px;
+}
+
+.stap-kaart {
+  background: white;
+  border: 1px solid #e5dfd0;
+  border-radius: 12px;
+  padding: 20px 22px;
+  display: flex;
+  gap: 16px;
+  transition: all 0.15s;
+}
+
+.stap-kaart:hover {
+  border-color: #ffd166;
+  box-shadow: 0 4px 12px rgba(255,209,102,0.2);
+}
+
+.stap-nummer {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  background: #ffd166;
+  color: #2D2A32;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.stap-tekst {
+  flex: 1;
+}
+
+.stap-tekst h4 {
+  margin: 0 0 6px 0;
+  font-size: 16px;
+  color: #2D2A32;
+}
+
+.stap-tekst p {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.stap-tekst p:last-child {
+  margin-bottom: 0;
+}
+
+.stap-tip {
+  background: #fff5e0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px !important;
+  border-left: 3px solid #ffb845;
+}
+
+.stap-knop {
+  background: transparent;
+  border: 1.5px solid #ffd166;
+  color: #2D2A32;
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.stap-knop:hover {
+  background: #ffd166;
+}
+
+/* ---------- Mobiel: zijbalk wordt drawer ---------- */
+@media (max-width: 900px) {
+  .lk-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lk-header h1 {
+    font-size: 16px;
+  }
+
+  .lk-app {
+    grid-template-columns: 1fr;
+  }
+
+  .lk-zijbalk {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px;
+    height: 100vh;
+    z-index: 20;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+    padding-top: 70px;
+  }
+
+  .lk-zijbalk.open {
+    transform: translateX(0);
+  }
+
+  /* Achtergrond-overlay als zijbalk open is */
+  .lk-zijbalk.open::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 260px;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: -1;
+  }
+
+  .lk-main {
+    padding: 18px 16px;
+  }
+
+  .welkom-hero {
+    padding: 24px 18px;
+  }
+
+  .stappen-rij {
+    grid-template-columns: 1fr;
+  }
+
+  .stap-kaart {
+    padding: 16px 18px;
+  }
+}
+
+/* =================================================================
+   BEGIN-HIER hoofdknop op thema-scherm + niveau-indicator
+   ================================================================= */
+
+.thema-niveau-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #fff8e0 0%, #ffd166 100%);
+  border-radius: 18px;
+  padding: 6px 14px;
+  margin: 6px 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2D2A32;
+  box-shadow: 0 2px 6px rgba(255,209,102,0.3);
+}
+
+.thema-niveau-indicator span:first-child {
+  font-size: 18px;
+}
+
+.begin-hier-knop {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  background: linear-gradient(135deg, #ffd166 0%, #ffb845 100%);
+  color: #2D2A32;
+  border: none;
+  border-radius: 18px;
+  padding: 22px 28px;
+  cursor: pointer;
+  font-family: 'Fredoka', sans-serif;
+  margin: 16px 0 8px 0;
+  box-shadow: 0 6px 18px rgba(255,209,102,0.4);
+  transition: all 0.2s ease;
+}
+
+.begin-hier-knop:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(255,209,102,0.5);
+}
+
+.begin-hier-knop:active {
+  transform: translateY(0);
+}
+
+.begin-zebra {
+  font-size: 56px;
+  flex-shrink: 0;
+}
+
+.begin-tekst {
+  flex: 1;
+  text-align: left;
+}
+
+.begin-tekst strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.begin-tekst small {
+  font-size: 15px;
+  opacity: 0.75;
+}
+
+.begin-pijl {
+  font-size: 32px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.of-zelf-kiezen {
+  margin: 24px 0 8px 0;
+  text-align: center;
+  font-size: 14px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* "groot"-modifier voor de verder-knop op resultaat-scherm */
+.nav-knop.groot {
+  font-size: 20px;
+  padding: 18px 36px;
+  border-radius: 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+@media (max-width: 600px) {
+  .begin-hier-knop {
+    padding: 16px 18px;
+    gap: 12px;
+  }
+  .begin-zebra { font-size: 42px; }
+  .begin-tekst strong { font-size: 20px; }
+  .begin-tekst small { font-size: 14px; }
+}
+
+/* =================================================================
+   TAAK-ZONE op kind-startpagina — grote, opvallende knop
+   ================================================================= */
+
+.taak-zone {
+  margin: 12px 0 20px 0;
+}
+
+.taak-knop-groot {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  background: linear-gradient(135deg, #FF8C42 0%, #FF6B35 100%);
+  color: white;
+  border: none;
+  border-radius: 24px;
+  padding: 24px 28px;
+  cursor: pointer;
+  font-family: 'Fredoka', sans-serif;
+  box-shadow: 0 10px 28px rgba(255, 107, 53, 0.35);
+  transition: all 0.2s ease;
+  gap: 18px;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+
+.taak-knop-groot::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  right: -10%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.taak-knop-groot:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 36px rgba(255, 107, 53, 0.45);
+}
+
+.taak-knop-groot:active {
+  transform: translateY(-1px);
+}
+
+.taak-knop-groot.voltooid {
+  background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
+  box-shadow: 0 10px 28px rgba(76, 175, 80, 0.35);
+}
+
+.taak-knop-groot.voltooid:hover {
+  box-shadow: 0 14px 36px rgba(76, 175, 80, 0.45);
+}
+
+.taak-zebra {
+  font-size: 64px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+  animation: taak-zebra-wiebel 3s ease-in-out infinite;
+}
+
+@keyframes taak-zebra-wiebel {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+.taak-tekst {
+  flex: 1;
+}
+
+.taak-bovenkop {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.85;
+  margin-bottom: 4px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.taak-thema {
+  font-size: 26px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  line-height: 1.1;
+}
+
+.taak-aantal {
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.taak-pijl {
+  font-size: 40px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* Status onder de taak-knop (voltooid / haperde) */
+.taak-status {
+  margin-top: 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 15px;
+}
+
+.taak-status.voltooid {
+  background: #E8F5E9;
+  color: #2E7D32;
+  border: 1px solid #A5D6A7;
+}
+
+.taak-status.haperde {
+  background: #FFF8E1;
+  color: #5D4037;
+  border: 1px solid #FFCC80;
+}
+
+.taak-status-emoji {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.taak-status-tekst {
+  flex: 1;
+}
+
+@media (max-width: 600px) {
+  .taak-knop-groot {
+    padding: 18px 18px;
+    gap: 14px;
+    border-radius: 18px;
+  }
+  .taak-zebra { font-size: 48px; }
+  .taak-thema { font-size: 22px; }
+  .taak-aantal { font-size: 14px; }
+  .taak-pijl { font-size: 32px; }
+}
+
+/* =================================================================
+   TAAK-MODAL leerkracht
+   ================================================================= */
+
+.lk-taak-status {
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+}
+
+.lk-taak-status-kop {
+  font-weight: 600;
+  font-size: 15px;
+  color: #2D2A32;
+}
+
+.lk-taak-status-kop small {
+  font-weight: normal;
+  opacity: 0.7;
+  margin-left: 6px;
+}
+
+.lk-taak-fouten {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.lk-taak-veld {
+  margin-bottom: 18px;
+}
+
+.lk-taak-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.lk-taak-teller {
+  font-weight: normal;
+  opacity: 0.7;
+  font-size: 13px;
+}
+
+.lk-taak-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #d4d4d4;
+  border-radius: 10px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 15px;
+  background: white;
+  cursor: pointer;
+}
+
+.lk-taak-select:focus {
+  outline: none;
+  border-color: #ffd166;
+}
+
+.lk-taak-tip {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: #888;
+  font-style: italic;
+}
+
+.lk-taak-snelacties {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.lk-taak-groep {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin: 12px 0 6px 0;
+  border-bottom: 1px solid #e5dfd0;
+  padding-bottom: 4px;
+}
+
+.lk-taak-woorden {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 12px;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e5dfd0;
+}
+
+/* Taak-knop in actie-rij wat opvallender */
+.lk-knop-mini.lk-taak-knop {
+  background: #fff5e0;
+  border-color: #ffb845;
+}
+
+.lk-knop-mini.lk-taak-knop:hover {
+  background: #ffd166;
+}
+
+/* =================================================================
+   VRIJ-OEFENEN-MODAL — eenvoudige thema-vinkjes
+   ================================================================= */
+
+.lk-vrij-themalijst {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.lk-vrij-themarij {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid #e5dfd0;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 14px;
+}
+
+.lk-vrij-themarij:hover {
+  border-color: #ffd166;
+  background: #fffbf0;
+}
+
+.lk-vrij-themarij.aan {
+  background: #fff8e0;
+  border-color: #ffd166;
+  box-shadow: 0 2px 6px rgba(255, 209, 102, 0.2);
+}
+
+.lk-vrij-themarij input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lk-vrij-thema-emoji {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.lk-vrij-thema-naam {
+  flex: 1;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lk-vrij-thema-teller {
+  font-size: 12px;
+  color: #888;
+  background: #f5f5f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+/* =================================================================
+   TAAK-MODAL — vaardigheden, oefenvormen, zinscontext
+   ================================================================= */
+
+.lk-taak-vaardigheden {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.lk-taak-vaardigheid {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid #e5dfd0;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 14px;
+}
+
+.lk-taak-vaardigheid:hover:not(.uitgeschakeld) {
+  border-color: #ffd166;
+  background: #fffbf0;
+}
+
+.lk-taak-vaardigheid.aan {
+  background: #fff8e0;
+  border-color: #ffd166;
+  box-shadow: 0 2px 6px rgba(255, 209, 102, 0.2);
+}
+
+.lk-taak-vaardigheid.uitgeschakeld {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f5f5f0;
+}
+
+.lk-taak-vaardigheid input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lk-taak-vaardigheid.uitgeschakeld input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
+.lk-vaardigheid-icoon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.lk-vaardigheid-naam {
+  flex: 1;
+  font-weight: 500;
+}
+
+.lk-vaardigheid-naam small {
+  font-weight: normal;
+  opacity: 0.65;
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.lk-taak-zinscontext {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid #e5dfd0;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 14px;
+}
+
+.lk-taak-zinscontext:hover {
+  border-color: #ffd166;
+  background: #fffbf0;
+}
+
+.lk-taak-zinscontext.aan {
+  background: #fff8e0;
+  border-color: #ffd166;
+}
+
+.lk-taak-zinscontext input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* =================================================================
+   TAAK FASE-SCHERMEN — leren / oefenen / toets / resultaat
+   ================================================================= */
+
+/* Taak-header (gekleurd kader voor herkenning) */
+.modus-header.taak-header {
+  background: linear-gradient(135deg, #fff5e0 0%, #ffe5b4 100%);
+  border-bottom: 2px solid #ffd166;
+}
+
+/* Voortgangsbalk in oefen- en toets-fase */
+.taak-oef-balk-wrap {
+  width: 100%;
+  max-width: 600px;
+  height: 12px;
+  background: #f0e6d2;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 8px auto 16px;
+}
+
+.taak-oef-balk-vul {
+  height: 100%;
+  background: linear-gradient(90deg, #FFD166 0%, #FF8C42 100%);
+  transition: width 0.4s ease;
+  border-radius: 999px;
+}
+
+/* Optie-rij voor klikspel — 4 grote knoppen */
+.optie-rij {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 700px) {
+  .optie-rij {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Audio-knop "groot" — voor oefen- en toets-fases waar de hoorknop centraal staat */
+.audio-knop.groot {
+  font-size: 18px;
+  padding: 16px 24px;
+  border-radius: 18px;
+  box-shadow: 0 4px 12px rgba(255, 209, 102, 0.35);
+}
+
+.audio-knop.groot .audio-icoon {
+  font-size: 28px;
+}
+
+/* Resultaat-overzicht — beelden van geleerde woorden */
+.taak-resultaat-overzicht {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+  max-width: 500px;
+}
+
+.taak-resultaat-woord {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: #fff8e0;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Volgende-knop "eind" gestyled als de laatste actie */
+.nav-knop.eind {
+  background: linear-gradient(135deg, #FF8C42 0%, #FF6B35 100%);
+  color: white;
+  border: none;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Mobiel: optie-rij in één kolom */
+@media (max-width: 600px) {
+  .optie-rij {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =================================================================
+   PICTO-fix: zet PNG's in kaart-beeld op een redelijke grootte
+   ================================================================= */
+
+.kaart-beeld .picto-img,
+.kaart-beeld > img.picto-img {
+  height: 200px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Mobiel: iets kleiner */
+@media (max-width: 600px) {
+  .kaart-beeld .picto-img,
+  .kaart-beeld > img.picto-img {
+    height: 150px;
+  }
+}
+
+/* =================================================================
+   TAAK-TOETS — gespiegeld: woord bovenaan, beelden als opties
+   ================================================================= */
+
+.taak-toets-woord-groot {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 56px;
+  font-weight: 600;
+  color: var(--kleur-zwart);
+  text-align: center;
+  padding: 30px 20px;
+  line-height: 1.2;
+}
+
+.taak-toets-beeld-rij {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.taak-toets-beeld-knop {
+  background: var(--kleur-wit);
+  border: 3px solid var(--kleur-rand);
+  border-radius: 18px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  box-shadow: var(--schaduw);
+}
+
+.taak-toets-beeld-knop:hover:not(:disabled) {
+  border-color: #ffd166;
+  background: #fffbf0;
+  transform: translateY(-2px);
+}
+
+.taak-toets-beeld-knop:disabled {
+  cursor: default;
+}
+
+.taak-toets-beeld-knop.juist {
+  border-color: #4CAF50;
+  background: #E8F5E9;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.taak-toets-beeld-knop.fout {
+  border-color: #E57373;
+  background: #FFEBEE;
+  box-shadow: 0 4px 12px rgba(229, 115, 115, 0.3);
+}
+
+.taak-toets-beeld-knop .picto-img {
+  height: 80px;
+  width: auto;
+  max-width: 100%;
+}
+
+.taak-toets-beeld-knop .picto-emoji {
+  font-size: 80px;
+}
+
+@media (max-width: 600px) {
+  .taak-toets-beeld-rij {
+    gap: 8px;
+  }
+  .taak-toets-beeld-knop {
+    min-height: 100px;
+    padding: 12px;
+  }
+  .taak-toets-beeld-knop .picto-img,
+  .taak-toets-beeld-knop .picto-emoji {
+    height: 64px;
+    font-size: 64px;
+  }
+  .taak-toets-woord-groot {
+    font-size: 40px;
+    padding: 20px 12px;
+  }
+}
+
+/* Toets-header: andere kleur (lichtblauw) zodat kind voelt dat dit anders is */
+.modus-header.taak-toets-header {
+  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+  border-bottom: 2px solid #64B5F6;
+}
+
+/* =================================================================
+   LEERKRACHT-TABEL — taak-status, uitklapbare detailrij
+   ================================================================= */
+
+.lk-tabel-rij {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.lk-tabel-rij:hover {
+  background: #fdfaf0;
+}
+
+.lk-tabel-rij.open {
+  background: #fff8e0;
+}
+
+.lk-rij-pijl-cel {
+  width: 30px;
+  text-align: center;
+  user-select: none;
+}
+
+.lk-rij-pijl {
+  font-size: 12px;
+  color: #888;
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+.lk-code-mini {
+  display: inline-block;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #888;
+  background: #f5f5f0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+.lk-acties-cel {
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* Taak-cel in tabelrij */
+.lk-taak-cel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lk-taak-cel-thema {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.lk-taak-cel-thema small {
+  opacity: 0.65;
+  font-weight: normal;
+  font-size: 12px;
+}
+
+.lk-taak-leeg {
+  opacity: 0.5;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.lk-vrij-tekst {
+  font-size: 13px;
+  color: #555;
+}
+
+/* Status-badges */
+.lk-status-badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 500;
+  width: fit-content;
+}
+
+.lk-status-badge.voltooid {
+  background: #E8F5E9;
+  color: #2E7D32;
+  border: 1px solid #A5D6A7;
+}
+
+.lk-status-badge.moeilijk {
+  background: #FFF8E1;
+  color: #5D4037;
+  border: 1px solid #FFCC80;
+}
+
+.lk-status-badge.bezig {
+  background: #E3F2FD;
+  color: #1565C0;
+  border: 1px solid #90CAF9;
+}
+
+/* Detailrij — uitgeklapt */
+.lk-tabel-detailrij td {
+  background: #fffbf0;
+  padding: 0 !important;
+  border-top: none !important;
+}
+
+.lk-detail {
+  padding: 16px 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.lk-detail-blok {
+  background: white;
+  border-radius: 12px;
+  padding: 14px 18px;
+  border: 1px solid #e5dfd0;
+}
+
+.lk-detail-blok h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #2D2A32;
+  font-weight: 600;
+}
+
+.lk-detail-rij {
+  margin: 6px 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lk-detail-leeg {
+  margin: 6px 0;
+  font-size: 13px;
+  color: #888;
+  font-style: italic;
+}
+
+.lk-detail-tag {
+  display: inline-block;
+  background: #fff8e0;
+  border: 1px solid #ffd166;
+  border-radius: 12px;
+  padding: 3px 10px;
+  margin: 2px 4px 2px 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lk-detail-woorden {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.lk-detail-woord {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f5f5f0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #e5dfd0;
+}
+
+.lk-detail-woord.klaar {
+  background: #E8F5E9;
+  border-color: #A5D6A7;
+  color: #2E7D32;
+}
+
+.lk-bolletjes {
+  font-family: monospace;
+  letter-spacing: 1px;
+  font-size: 10px;
+  opacity: 0.75;
+}
+
+/* Mobiel: tabel scrollbaar maken */
+@media (max-width: 800px) {
+  .lk-tabel {
+    font-size: 13px;
+  }
+  .lk-detail {
+    padding: 12px 14px;
   }
 }
