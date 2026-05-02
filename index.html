@@ -52,10 +52,14 @@
   <aside class="lk-zijbalk" id="lk-zijbalk">
     <nav class="lk-nav">
       <button class="lk-tab actief" data-tab="welkom"     onclick="lkKiesTab('welkom')">     <span class="lk-nav-icoon">🏠</span> <span class="lk-nav-tekst">Welkom</span></button>
+      <button class="lk-tab"        data-tab="school"     onclick="lkKiesTab('school')">     <span class="lk-nav-icoon">🏫</span> <span class="lk-nav-tekst">Mijn school</span></button>
       <button class="lk-tab"        data-tab="kinderen"   onclick="lkKiesTab('kinderen')">   <span class="lk-nav-icoon">👥</span> <span class="lk-nav-tekst">Mijn klas</span></button>
-      <button class="lk-tab"        data-tab="overzicht"  onclick="lkKiesTab('overzicht')">  <span class="lk-nav-icoon">📊</span> <span class="lk-nav-tekst">Wie kan wat?</span></button>
       <button class="lk-tab"        data-tab="woorden"    onclick="lkKiesTab('woorden')">    <span class="lk-nav-icoon">🏷️</span> <span class="lk-nav-tekst">Woorden</span></button>
-      <button class="lk-tab"        data-tab="werkbladen" onclick="lkKiesTab('werkbladen')"> <span class="lk-nav-icoon">📄</span> <span class="lk-nav-tekst">Werkbladen</span></button>
+      <button class="lk-tab"        data-tab="werkbladen" onclick="lkKiesTab('werkbladen')"> <span class="lk-nav-icoon">📝</span> <span class="lk-nav-tekst">Werkbladen</span></button>
+      <button class="lk-tab"        data-tab="taken"      onclick="lkKiesTab('taken')">      <span class="lk-nav-icoon">📋</span> <span class="lk-nav-tekst">Taken</span></button>
+      <button class="lk-tab"        data-tab="spreken"    onclick="lkKiesTab('spreken')">    <span class="lk-nav-icoon">🗣️</span> <span class="lk-nav-tekst">Spreektoetsen</span></button>
+      <button class="lk-tab"        data-tab="rapporten"  onclick="lkKiesTab('rapporten')">  <span class="lk-nav-icoon">📄</span> <span class="lk-nav-tekst">Rapporten</span></button>
+      <button class="lk-tab"        data-tab="overzicht"  onclick="lkKiesTab('overzicht')">  <span class="lk-nav-icoon">📊</span> <span class="lk-nav-tekst">Wie kan wat?</span></button>
       <button class="lk-tab"        data-tab="info"       onclick="lkKiesTab('info')">       <span class="lk-nav-icoon">ℹ️</span> <span class="lk-nav-tekst">Hulp</span></button>
     </nav>
     <div class="lk-zijbalk-voet">
@@ -65,6 +69,19 @@
 
   <!-- ============ HOOFDGEDEELTE ============ -->
   <main class="lk-main">
+
+    <!-- Periode-balk: toont actieve rapportperiode + dropdown -->
+    <div class="lk-periode-balk" id="lk-periode-balk">
+      <span class="lk-periode-icoon">📅</span>
+      <span class="lk-periode-label">Rapportperiode:</span>
+      <button class="lk-periode-knop" id="lk-periode-knop" onclick="lkPeriodeMenuToggle()">
+        <span id="lk-periode-naam">— laden —</span>
+        <span class="lk-periode-pijl">▾</span>
+      </button>
+      <div class="lk-periode-menu" id="lk-periode-menu">
+        <!-- gevuld door JS -->
+      </div>
+    </div>
 
     <!-- ============ TAB: WELKOM ============ -->
     <div id="lk-tab-welkom" class="lk-tab-inhoud actief">
@@ -186,6 +203,48 @@
     </div>
   </div>
 
+  <!-- ============ TAB: TAKEN ============ -->
+  <div id="lk-tab-taken" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>📋 Taken</h2>
+      <p style="opacity:0.75; margin-top:-4px">
+        Per leerling kan je taken aanmaken en de geschiedenis raadplegen. Nieuwste taken staan bovenaan.
+      </p>
+
+      <!-- Kindertabs bovenaan -->
+      <div class="lk-kindtabs" id="lk-kindtabs-taken"></div>
+
+      <!-- Inhoud per gekozen kind -->
+      <div class="lk-kindinhoud" id="lk-kindinhoud-taken"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: SPREKEN ============ -->
+  <div id="lk-tab-spreken" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>🗣️ Spreektoetsen</h2>
+      <p style="opacity:0.75; margin-top:-4px">
+        Per leerling neem je spreektoetsen af. Klik bovenaan op een naam om diens toetsen te zien.
+      </p>
+
+      <div class="lk-kindtabs" id="lk-kindtabs-spreken"></div>
+      <div class="lk-kindinhoud" id="lk-kindinhoud-spreken"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: RAPPORTEN ============ -->
+  <div id="lk-tab-rapporten" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>📄 Rapporten</h2>
+      <p style="opacity:0.75; margin-top:-4px">
+        Per leerling kan je een PDF-rapport maken op basis van de toetsen en jouw commentaar.
+      </p>
+
+      <div class="lk-kindtabs" id="lk-kindtabs-rapporten"></div>
+      <div class="lk-kindinhoud" id="lk-kindinhoud-rapporten"></div>
+    </div>
+  </div>
+
   <!-- ============ TAB: OVERZICHT ============ -->
   <div id="lk-tab-overzicht" class="lk-tab-inhoud">
     <div class="lk-vak">
@@ -259,6 +318,53 @@
         <button class="grote-knop" style="background: var(--kleur-juist); color: white" onclick="genereerOplossingssleutel()">
           ✓ Oplossingssleutel (PDF)
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: SCHOOL ============ -->
+  <div id="lk-tab-school" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>🏫 Mijn school</h2>
+      <p style="opacity:0.75; margin-top:-4px">
+        Deze gegevens verschijnen in de header en footer van de PDF-rapporten die je per leerling kan genereren.
+      </p>
+
+      <div class="lk-school-form">
+        <div class="lk-school-veld">
+          <label>Schoolnaam</label>
+          <input type="text" id="school-naam" placeholder="Bv. GO! Basisschool De Vlinder" maxlength="100">
+        </div>
+
+        <div class="lk-school-veld">
+          <label>Klas</label>
+          <input type="text" id="school-klas" placeholder="Bv. 2de leerjaar A" maxlength="60">
+        </div>
+
+        <div class="lk-school-veld">
+          <label>Leerkracht</label>
+          <input type="text" id="school-leerkracht" placeholder="Bv. Juf Isabel" maxlength="60">
+        </div>
+
+        <div class="lk-school-veld">
+          <label>Schoollogo</label>
+          <p class="lk-school-tip">PNG of JPG. Wordt automatisch verkleind tot een geschikte grootte voor het rapport.</p>
+          <div class="lk-logo-zone">
+            <div class="lk-logo-preview" id="school-logo-preview">
+              <span class="lk-logo-placeholder">Geen logo opgeladen</span>
+            </div>
+            <div class="lk-logo-knoppen">
+              <input type="file" id="school-logo-input" accept="image/png, image/jpeg" style="display:none" onchange="lkSchoolLogoUpload(event)">
+              <button class="lk-knop-mini" onclick="document.getElementById('school-logo-input').click()">📤 Logo opladen</button>
+              <button class="lk-knop-mini gevaar" id="school-logo-wis" style="display:none" onclick="lkSchoolLogoWissen()">🗑️ Wissen</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="lk-school-acties">
+          <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166); padding:10px 22px; font-size:15px" onclick="lkSchoolBewaren()">💾 Bewaren</button>
+          <span id="school-status" class="lk-school-status"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -337,6 +443,7 @@
 <script src="woordenbeheer.js"></script>
 <script src="afbeelding-upload.js"></script>
 <script src="pdf-engine.js"></script>
+<script src="rapport-engine.js"></script>
 <script src="leerkracht.js"></script>
 
 </body>
