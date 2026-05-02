@@ -3,370 +3,227 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anders Leren — Nederlands voor nieuwkomers | Juf Zisa</title>
+  <title>Leerkracht-paneel · Anders Leren | Juf Zisa</title>
+
+  <!-- ============================================================
+       QR-DETECTIE — kind doorsturen naar kind-app
+       Als de URL een ?code=... parameter heeft, dan komt deze
+       persoon binnen via een leerlingen-QR. Onmiddellijk doorsturen
+       naar kind.html zonder dat ze het leerkracht-paneel zien.
+       Plaats dit vóór alle andere scripts/styles om de redirect
+       zo snel mogelijk uit te voeren.
+       ============================================================ -->
+  <script>
+    (function() {
+      var p = new URLSearchParams(window.location.search);
+      var code = p.get('code');
+      if (code) {
+        // Bewaar query-string + fragment, hash gebruiken we niet
+        window.location.replace('kind.html?code=' + encodeURIComponent(code));
+      }
+    })();
+  </script>
+
   <link rel="stylesheet" href="style.css">
 
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
+  <!-- QRCode library voor QR-code generatie -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- jsPDF voor werkbladen -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
-<body>
+<body class="lk-body">
 
-<!-- ============ SCHERM: LOGIN ============ -->
-<div id="scherm-login" class="scherm actief">
-  <div class="login-doos">
-    <div class="login-zebra">🦓</div>
-    <h1>Anders Leren</h1>
-    <p class="login-onder">Hallo! Tik je code in.</p>
+<header class="lk-header">
+  <button class="lk-kindapp-knop" onclick="lkBekijkKindApp()" title="Open de kind-app in een nieuw tabblad om te zien wat de leerlingen zien">
+    👁️ Bekijk kind-app
+  </button>
+  <h1>👩‍🏫 Leerkracht-paneel</h1>
+  <p>Anders Leren · maak codes, print QR's, zie voortgang</p>
+</header>
 
-    <div class="login-form">
-      <input type="text" id="login-code" placeholder="ZEBRA-1234"
-             autocomplete="off" autocapitalize="characters" spellcheck="false">
-      <button class="grote-knop" onclick="probeerLogin()">Begin →</button>
-      <div id="login-fout" class="login-fout"></div>
+<main class="lk-main">
+
+  <!-- Tabs -->
+  <div class="lk-tabs">
+    <button class="lk-tab actief" data-tab="kinderen" onclick="lkKiesTab('kinderen')">👥 Mijn klas</button>
+    <button class="lk-tab" data-tab="overzicht" onclick="lkKiesTab('overzicht')">📊 Wie kan wat?</button>
+    <button class="lk-tab" data-tab="woorden" onclick="lkKiesTab('woorden')">🏷️ Woorden</button>
+    <button class="lk-tab" data-tab="werkbladen" onclick="lkKiesTab('werkbladen')">📄 Werkbladen</button>
+    <button class="lk-tab" data-tab="info" onclick="lkKiesTab('info')">ℹ️ Hulp</button>
+  </div>
+
+  <!-- ============ TAB: KINDEREN ============ -->
+  <div id="lk-tab-kinderen" class="lk-tab-inhoud actief">
+
+    <div class="lk-vak" id="lk-vak-firebase-niet-ingesteld" style="display:none">
+      <h2>⚠️ Firebase nog niet ingesteld</h2>
+      <p>Vul eerst je Firebase-config in <code>firebase-config.js</code> in. Daarna werkt dit paneel volledig.</p>
     </div>
 
-    <p class="login-hulp">Geen code? Vraag het aan je juf.</p>
+    <div class="lk-vak">
+      <h2>➕ Nieuwe leerling</h2>
+      <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
+        Maak een code voor elk kind. De code is volledig anoniem voor de cloud — de naam is alleen voor jou.
+      </p>
+      <div class="lk-form">
+        <input type="text" id="nieuw-naam" placeholder="Naam (bv. Mohammed)" autocomplete="off">
+        <input type="text" id="nieuw-code" placeholder="Code (bv. ZEBRA-1234)" autocomplete="off"
+               autocapitalize="characters">
+        <button onclick="lkGenereerCode()">🎲 Code genereren</button>
+        <button onclick="lkVoegToe()" style="background: var(--kleur-zisa); color: var(--kleur-zwart)">
+          ➕ Toevoegen
+        </button>
+      </div>
+      <div id="lk-fout" style="color: var(--kleur-fout); font-weight:600; margin-top:8px"></div>
+    </div>
+
+    <div class="lk-vak">
+      <div class="lk-vak-kop">
+        <h2>👥 Leerlingen</h2>
+        <div class="lk-print-knoppen">
+          <button class="lk-knop-mini" onclick="lkPrintLijst()" title="Compacte lijst met namen en codes">
+            🖨️ Lijst printen
+          </button>
+          <button class="lk-knop-mini" onclick="lkPrintAlleQR()" title="QR-blaadjes per kind om mee te geven">
+            🖨️ QR-blaadjes printen
+          </button>
+        </div>
+      </div>
+      <div id="lk-tabel-wrap">
+        <p style="opacity:0.6">Bezig met laden...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: OVERZICHT ============ -->
+  <div id="lk-tab-overzicht" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>📊 Voortgang per leerling</h2>
+      <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
+        Klik op een leerling om te zien welke woorden hij/zij al kan.
+      </p>
+      <div id="lk-overzicht"><p style="opacity:0.6">Bezig met laden...</p></div>
+    </div>
+
+    <div class="lk-vak kind-detail" id="lk-kind-detail">
+      <div class="kind-detail-kop">
+        <div>
+          <h2 id="lk-detail-naam"></h2>
+          <p style="opacity:0.7; font-size:14px">Code: <strong id="lk-detail-code"></strong></p>
+        </div>
+        <button class="lk-knop-mini" onclick="document.getElementById('lk-kind-detail').classList.remove('actief')">
+          ✕ Sluiten
+        </button>
+      </div>
+      <div id="lk-detail-inhoud"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: WOORDEN ============ -->
+  <div id="lk-tab-woorden" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>🏷️ Woorden in deze klas</h2>
+      <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
+        Bekijk de basislijst van Juf Zisa, pas woorden aan, vervang afbeeldingen door eigen foto's, of voeg eigen woorden toe.
+        Wijzigingen gelden voor al je leerlingen. De basislijst blijft intact en updates uit de basislijst krijg je automatisch.
+      </p>
+
+      <div class="wb-thema-kiezer">
+        <label for="wb-thema-select" style="font-weight:600; margin-right:8px">Thema:</label>
+        <select id="wb-thema-select" onchange="wbKiesThema(this.value)" class="wb-select"></select>
+      </div>
+
+      <div id="wb-inhoud" style="margin-top:20px">
+        <p style="opacity:0.6">Kies een thema om de woordenlijst te bekijken.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: WERKBLADEN ============ -->
+  <div id="lk-tab-werkbladen" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>📄 Werkblad maken</h2>
+      <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
+        Stel een werkblad samen voor één of meerdere thema's. Je kan per thema kiezen welk niveau en welke oefeningen je wil. Het werkblad wordt als PDF gedownload.
+      </p>
+
+      <div class="werkblad-sectie">
+        <div class="sectie-titel">1️⃣ Welke thema's?</div>
+        <div id="werkblad-themas-lijst" class="themas-checklist">
+          <!-- gevuld door JS -->
+        </div>
+      </div>
+
+      <div class="werkblad-sectie">
+        <div class="sectie-titel">2️⃣ Niveau en oefeningen per thema</div>
+        <div id="werkblad-thema-panelen">
+          <!-- gevuld door JS -->
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px">
+        <button class="grote-knop" onclick="genereerWerkblad()">
+          📥 Werkblad (PDF)
+        </button>
+        <button class="grote-knop" style="background: var(--kleur-juist); color: white" onclick="genereerOplossingssleutel()">
+          ✓ Oplossingssleutel (PDF)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: INFO ============ -->
+  <div id="lk-tab-info" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>ℹ️ Hoe werkt het?</h2>
+      <ol style="line-height:1.8; padding-left:24px; font-size:15px">
+        <li><strong>Maak een code per leerling</strong> in tabblad "Mijn klas". Schrijf op papier op welk kind welke code heeft (de cloud kent geen namen).</li>
+        <li><strong>Geef het kind de code</strong> om in te tikken op tablet of computer in de klas.</li>
+        <li><strong>Print de QR-code</strong> en geef die mee naar huis. Ouders scannen → kind logt automatisch in op zijn/haar voortgang.</li>
+        <li><strong>Bekijk in "Wie kan wat?"</strong> wie welke woorden al kent (3 sterren = "gekend").</li>
+      </ol>
+    </div>
+
+    <div class="lk-vak">
+      <h2>🔒 Privacy &amp; AVG</h2>
+      <p style="line-height:1.7; font-size:15px">
+        Alleen voortgangsdata (welk woord juist/fout) en de zelfgekozen code worden in de cloud opgeslagen. Namen blijven enkel op jouw paneel staan, niet bij de leerling-data. Geen e-mails, geen wachtwoorden, geen persoonlijke gegevens.
+      </p>
+    </div>
+
+    <div class="lk-vak">
+      <h2>⭐ Sterrensysteem</h2>
+      <ul style="line-height:1.8; padding-left:24px; font-size:15px">
+        <li><strong>0 sterren:</strong> nog niet getest</li>
+        <li><strong>1 ster:</strong> 1 keer juist beantwoord</li>
+        <li><strong>2 sterren:</strong> 3 keer juist op rij</li>
+        <li><strong>3 sterren:</strong> 5 keer juist op rij = "gekend"</li>
+      </ul>
+    </div>
+  </div>
+
+</main>
+
+<!-- QR Modal -->
+<div class="qr-modal" id="qr-modal">
+  <div class="qr-doos">
+    <h3>QR-code naar huis</h3>
+    <div class="qr-code-naam" id="qr-naam">ZEBRA-1234</div>
+    <div id="qr-canvas"></div>
+    <p>Scan deze code thuis met de telefoon of tablet. De voortgang wordt automatisch geladen.</p>
+    <div class="knop-rij">
+      <button onclick="document.getElementById('qr-modal').classList.remove('actief')">Sluiten</button>
+      <button class="primair" onclick="lkPrintQR()">🖨️ Printen</button>
+    </div>
   </div>
 </div>
 
-<!-- ============ SCHERM: START (na login) ============ -->
-<div id="scherm-start" class="scherm">
-  <button class="uitlog-knop-zwevend" onclick="uitloggen()" title="Uitloggen">⏻</button>
-
-  <main class="thema-keuze">
-    <!-- ===== Welkom ===== -->
-    <div class="welkom-balk">
-      <span class="welkom-tekst">Hallo <span id="welkom-naam">!</span></span>
-      <span class="welkom-zebra">🦓</span>
-    </div>
-
-    <!-- ===== SURVIVAL-ZONE — Begin hier ===== -->
-    <div class="survival-zone">
-      <div class="survival-kop">
-        <span class="survival-pijl">👇</span>
-        <span class="survival-titel">Begin hier</span>
-        <span class="survival-pijl">👇</span>
-      </div>
-      <p class="survival-onder">Wat ik elke dag op school hoor en zeg</p>
-      <div id="survival-grid" class="survival-grid"></div>
-    </div>
-
-    <!-- ===== ANDERE THEMA'S ===== -->
-    <div class="andere-scheiding">
-      <span class="andere-lijn"></span>
-      <span class="andere-label">📚 Andere thema's om te oefenen</span>
-      <span class="andere-lijn"></span>
-    </div>
-
-    <div class="thema-tabs">
-      <button class="tab-knop actief" data-tab="woorden" onclick="kiesTab('woorden')">📚 Woorden</button>
-      <button class="tab-knop" data-tab="zinnen" onclick="kiesTab('zinnen')">💬 Zinnen</button>
-      <button class="tab-knop" data-tab="voortgang" onclick="kiesTab('voortgang')">⭐ Mijn voortgang</button>
-    </div>
-
-    <div id="tab-woorden" class="tab-inhoud actief">
-      <div id="woorden-grid" class="themas-grid"></div>
-    </div>
-    <div id="tab-zinnen" class="tab-inhoud">
-      <div id="zinnen-grid" class="themas-grid"></div>
-    </div>
-    <div id="tab-voortgang" class="tab-inhoud">
-      <div id="voortgang-overzicht"></div>
-    </div>
-  </main>
-
-  <footer class="voet"><p>Een tool van <strong>Juf Zisa</strong> · jufzisa.be</p></footer>
-</div>
-
-<!-- ============ SCHERM: SLIM LEREN ============ -->
-<div id="scherm-slim" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="stopSlimLeren()">← Stop</button>
-    <h1>🦓 Slim leren</h1>
-    <span class="teller">⭐ <span id="slim-streak">0</span></span>
-  </header>
-  <main class="slim-main">
-    <div class="slim-status" id="slim-status">
-      <span class="slim-status-emoji" id="slim-status-emoji">🌱</span>
-      <span class="slim-status-tekst" id="slim-status-tekst">Nieuw woord</span>
-    </div>
-
-    <div class="slim-kaart" id="slim-kaart">
-      <!-- Wordt dynamisch gevuld -->
-    </div>
-
-    <div class="slim-acties" id="slim-acties">
-      <!-- Wordt dynamisch gevuld -->
-    </div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: THEMA-MENU ============ -->
-<div id="scherm-thema" class="scherm">
-  <header class="thema-header">
-    <button class="terug-knop" onclick="naarStart()">← Terug</button>
-    <div class="thema-titel">
-      <span id="thema-emoji-groot"></span>
-      <h1 id="thema-naam"></h1>
-    </div>
-  </header>
-
-  <main class="modi-keuze">
-    <div class="thema-statbalk" id="thema-statbalk"></div>
-
-    <h2 class="stappen-kop">Stap voor stap</h2>
-    <div class="stappen-lijst">
-      <button class="stap-kaart" id="stap-1" onclick="startModus('kijken')">
-        <div class="stap-nummer">1</div>
-        <div class="stap-icoon">👀</div>
-        <div class="stap-tekst">
-          <h3>Leer de woorden</h3>
-          <p>Zie en hoor elk woord rustig.</p>
-        </div>
-        <div class="stap-pijl">→</div>
-      </button>
-
-      <button class="stap-kaart" id="stap-2" onclick="startModus('spelen')">
-        <div class="stap-nummer">2</div>
-        <div class="stap-icoon">🎮</div>
-        <div class="stap-tekst">
-          <h3>Speel met de woorden</h3>
-          <p>Memory, klikspel, sleepspel.</p>
-        </div>
-        <div class="stap-pijl">→</div>
-      </button>
-
-      <button class="stap-kaart" id="stap-3" onclick="startModus('slim')">
-        <div class="stap-nummer">3</div>
-        <div class="stap-icoon">🦓</div>
-        <div class="stap-tekst">
-          <h3>Slim leren</h3>
-          <p>Hoor het woord, klik het juiste beeld.</p>
-        </div>
-        <div class="stap-pijl">→</div>
-      </button>
-
-      <button class="stap-kaart toets" id="stap-4" onclick="startModus('toets')">
-        <div class="stap-nummer">4</div>
-        <div class="stap-icoon">⭐</div>
-        <div class="stap-tekst">
-          <h3>Toon wat je kan</h3>
-          <p>Toets met 10 vragen.</p>
-        </div>
-        <div class="stap-pijl">→</div>
-      </button>
-    </div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: KIJKEN ============ -->
-<div id="scherm-kijken" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="naarThema()">← Terug</button>
-    <h1>Kijk & luister</h1>
-    <span class="teller"><span id="kijken-huidig">1</span>/<span id="kijken-totaal">12</span></span>
-  </header>
-  <main class="kijken-main">
-    <div class="kaart-groot">
-      <div class="kaart-beeld" id="kijken-beeld">🎒</div>
-      <div class="kaart-woord" id="kijken-woord">de boekentas</div>
-      <div class="kaart-zin" id="kijken-zin">Ik draag mijn boekentas.</div>
-    </div>
-    <div class="audio-knoppen">
-      <button class="audio-knop hoor" onclick="hoorWoord()">
-        <span class="audio-icoon">🔊</span><span>Hoor het woord</span>
-      </button>
-      <button class="audio-knop zin" onclick="hoorZin()">
-        <span class="audio-icoon">💬</span><span>Hoor de zin</span>
-      </button>
-    </div>
-    <div class="navigatie-knoppen">
-      <button class="nav-knop" onclick="kijkenVorige()">← Vorige</button>
-      <button class="nav-knop primair" onclick="kijkenVolgende()">Volgende →</button>
-    </div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: LEZEN ============ -->
-<div id="scherm-lezen" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="naarThema()">← Terug</button>
-    <h1>Lees de woorden</h1>
-  </header>
-  <main class="lezen-main">
-    <p class="lezen-uitleg">👆 Klik op een kaart om het woord te horen.</p>
-    <div id="lezen-grid" class="lezen-grid"></div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: OEFENEN ============ -->
-<div id="scherm-oefenen" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="naarThema()">← Terug</button>
-    <h1>Oefen</h1>
-    <span class="teller">Score: <span id="score">0</span></span>
-  </header>
-  <main class="oefenen-main">
-    <div class="oefen-vraag">
-      <p class="vraag-tekst">Klik het juiste woord:</p>
-      <div class="oefen-beeld" id="oefen-beeld">🎒</div>
-      <button class="hoor-mini" onclick="herhaalOefen()">🔊 Hoor opnieuw</button>
-    </div>
-    <div class="oefen-opties" id="oefen-opties"></div>
-    <div class="oefen-feedback" id="oefen-feedback"></div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: TOETS ============ -->
-<div id="scherm-toets" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="bevestigVerlatenToets()">← Terug</button>
-    <h1>Toets</h1>
-    <span class="teller">Vraag <span id="toets-huidig">1</span>/<span id="toets-totaal">10</span></span>
-  </header>
-  <main class="oefenen-main">
-    <div class="oefen-vraag">
-      <p class="vraag-tekst">Klik het juiste woord:</p>
-      <div class="oefen-beeld" id="toets-beeld">🎒</div>
-      <button class="hoor-mini" onclick="herhaalToets()">🔊 Hoor opnieuw</button>
-    </div>
-    <div class="oefen-opties" id="toets-opties"></div>
-    <div class="toets-balk">
-      <div class="toets-balk-vulling" id="toets-balk-vulling"></div>
-    </div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: SPELEN — keuze ============ -->
-<div id="scherm-spelen" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="naarThema()">← Terug</button>
-    <h1>🎮 Welk spel?</h1>
-  </header>
-  <main class="spelen-keuze-main">
-    <p class="spelen-uitleg">Kies een spel om te oefenen.</p>
-    <div class="spelen-tegels">
-      <button class="speltegel" onclick="startSpel('klikspel')">
-        <div class="speltegel-emoji">🎯</div>
-        <h3>Klikspel</h3>
-        <p>Klik het juiste woord bij het beeld.</p>
-      </button>
-      <button class="speltegel" onclick="startSpel('memory')">
-        <div class="speltegel-emoji">🃏</div>
-        <h3>Memory</h3>
-        <p>Vind de juiste paren!</p>
-      </button>
-      <button class="speltegel" onclick="startSpel('verbinden')">
-        <div class="speltegel-emoji">🔗</div>
-        <h3>Verbinden</h3>
-        <p>Trek een lijn van beeld naar woord.</p>
-      </button>
-      <button class="speltegel" onclick="startSpel('snelheid')">
-        <div class="speltegel-emoji">⏱️</div>
-        <h3>Snelheid</h3>
-        <p>Hoeveel kan je in 30 seconden?</p>
-      </button>
-    </div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: KLIKSPEL ============ -->
-<div id="scherm-klikspel" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="stopSpel()">← Stop</button>
-    <h1>🎯 Klikspel</h1>
-    <span class="teller">⭐ <span id="klik-streak">0</span></span>
-  </header>
-  <main class="klikspel-main">
-    <div class="klikspel-vraag">
-      <p class="vraag-tekst">Welk woord hoort bij dit beeld?</p>
-      <div class="klikspel-beeld" id="klik-beeld">🎒</div>
-      <button class="hoor-mini" onclick="klikHoorOpnieuw()">🔊 Hoor opnieuw</button>
-    </div>
-    <div class="klikspel-opties" id="klik-opties"></div>
-    <div class="klikspel-feedback" id="klik-feedback"></div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: MEMORY ============ -->
-<div id="scherm-memory" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="stopSpel()">← Stop</button>
-    <h1>🃏 Memory</h1>
-    <span class="teller">Paren: <span id="memory-paren">0</span>/<span id="memory-totaal">0</span></span>
-  </header>
-  <main class="memory-main">
-    <p class="memory-uitleg">Klik twee kaarten en zoek de paren!</p>
-    <div class="memory-grid" id="memory-grid"></div>
-    <div class="memory-feedback" id="memory-feedback"></div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: VERBINDEN ============ -->
-<div id="scherm-verbinden" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="stopSpel()">← Stop</button>
-    <h1>🔗 Verbinden</h1>
-    <span class="teller">Goed: <span id="verbind-goed">0</span>/<span id="verbind-totaal">0</span></span>
-  </header>
-  <main class="verbinden-main">
-    <p class="verbinden-uitleg">Sleep een lijn van een beeld naar het juiste woord — of klik beeld én woord.</p>
-    <div class="verbinden-veld" id="verbind-veld">
-      <svg class="verbinden-svg" id="verbind-svg"></svg>
-      <div class="verbinden-kolom verbinden-links" id="verbind-links"></div>
-      <div class="verbinden-kolom verbinden-rechts" id="verbind-rechts"></div>
-    </div>
-    <button class="grote-knop" id="verbind-volgende-knop" style="display:none" onclick="verbindVolgendeRonde()">▶ Volgende ronde</button>
-  </main>
-</div>
-
-<!-- ============ SCHERM: SNELHEID ============ -->
-<div id="scherm-snelheid" class="scherm">
-  <header class="modus-header">
-    <button class="terug-knop" onclick="stopSpel()">← Stop</button>
-    <h1>⏱️ Snelheid</h1>
-    <span class="teller">Score: <span id="snel-score">0</span></span>
-  </header>
-  <main class="klikspel-main">
-    <div class="snelheid-timer-balk">
-      <div class="snelheid-timer-vul" id="snel-timer-vul"></div>
-      <span class="snelheid-timer-tekst" id="snel-timer-tekst">30</span>
-    </div>
-    <div class="klikspel-vraag" id="snel-vraag-doos">
-      <p class="vraag-tekst">Welk woord hoort bij dit beeld?</p>
-      <div class="klikspel-beeld" id="snel-beeld">🎒</div>
-    </div>
-    <div class="klikspel-opties" id="snel-opties"></div>
-    <div class="snelheid-eind" id="snel-eind" style="display:none">
-      <h2 id="snel-eind-titel">⏰ Tijd om!</h2>
-      <p id="snel-eind-tekst">Score: <strong id="snel-eind-score">0</strong></p>
-      <button class="grote-knop" onclick="startSnelheid()">▶ Opnieuw</button>
-      <button class="grote-knop sec" onclick="stopSpel()">← Terug naar spellen</button>
-    </div>
-  </main>
-</div>
-
-<!-- ============ SCHERM: TOETS RESULTAAT ============ -->
-<div id="scherm-toets-eind" class="scherm">
-  <main class="resultaat-main">
-    <div class="resultaat-doos">
-      <div class="resultaat-emoji" id="resultaat-emoji">🎉</div>
-      <h2 id="resultaat-titel">Goed gedaan!</h2>
-      <div class="resultaat-score">
-        <span id="resultaat-juist">8</span>/<span id="resultaat-totaal">10</span>
-      </div>
-      <p id="resultaat-tekst">Je hebt 8 van de 10 vragen juist!</p>
-      <div class="resultaat-knoppen">
-        <button class="nav-knop primair" onclick="naarThema()">Terug naar thema</button>
-        <button class="nav-knop" onclick="startModus('toets')">Nog eens proberen</button>
-      </div>
-    </div>
-  </main>
-</div>
-
-<!-- Scripts: data eerst -->
+<!-- Data scripts (voor overzicht thema's) -->
 <script src="themas/survival-klas.js"></script>
 <script src="themas/survival-speelplaats.js"></script>
 <script src="themas/survival-heenterug.js"></script>
@@ -386,14 +243,13 @@
 <script src="themas/zinnen-hulp.js"></script>
 <script src="themas/zinnen-tijd.js"></script>
 
-<!-- Engines -->
 <script src="firebase-config.js"></script>
-<script src="audio.js"></script>
 <script src="voortgang.js"></script>
-<script src="woordenbeheer.js"></script>
 <script src="picto.js"></script>
-<script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="woordenbeheer.js"></script>
+<script src="afbeelding-upload.js"></script>
+<script src="pdf-engine.js"></script>
+<script src="leerkracht.js"></script>
 
 </body>
 </html>
