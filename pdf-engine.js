@@ -141,23 +141,17 @@ window.PDFEngine = (function() {
       if (it.foto) bronnen.add(it.foto);
       else if (it.picto) bronnen.add(it.picto);
     });
-    console.log('[prefetchPictos] items:', items.length, 'bronnen:', [...bronnen]);
     await Promise.all([...bronnen].map(b => _pictoLaden(b)));
-    console.log('[prefetchPictos] klaar. Cache-status:', [...bronnen].map(b => b + '=' + (_pictoCache[b] ? 'OK' : 'NULL')).join(', '));
   }
 
   // Plaatst het beeld van een item op de PDF.
   // Gebruikt foto-URL/PNG als die in de cache zit, anders fallback naar emoji.
   // x, y is het MIDDEN.
   function plaatsItemBeeld(doc, item, xMm, yMm, grootteMm) {
-    if (!item) {
-      console.warn('[plaatsItemBeeld] geen item meegegeven');
-      return;
-    }
+    if (!item) return;
     grootteMm = grootteMm || 12;
     // Foto- of picto-bron beschikbaar?
     const bron = item.foto || item.picto;
-    console.log('[plaatsItemBeeld]', item.id, 'bron:', bron, 'in cache:', bron ? (bron in _pictoCache ? (_pictoCache[bron] ? 'JA' : 'null') : 'niet geladen') : '—', 'beeld:', item.beeld);
     if (bron && _pictoCache[bron]) {
       try {
         doc.addImage(
@@ -174,15 +168,7 @@ window.PDFEngine = (function() {
       }
     }
     // Fallback: emoji
-    if (item.beeld) {
-      try {
-        plaatsEmoji(doc, item.beeld, xMm, yMm, grootteMm);
-      } catch (e) {
-        console.warn('[plaatsItemBeeld] emoji mislukt voor', item.id, item.beeld, e);
-      }
-    } else {
-      console.warn('[plaatsItemBeeld] geen beeld voor item', item.id, item.tekst);
-    }
+    if (item.beeld) plaatsEmoji(doc, item.beeld, xMm, yMm, grootteMm);
   }
 
   function tekenKop(doc, thema, oefenTitel) {
@@ -560,16 +546,29 @@ window.PDFEngine = (function() {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       opt.forEach((o, idx) => {
-        doc.setTextColor(45, 42, 50);
-        doc.text(o.tekst, startX + idx * oB + oB / 2, yR + 14, { align: 'center' });
+        const xCenter = startX + idx * oB + oB / 2;
 
-        // OPLOSSING: groene cirkel rond het juiste woord
+        doc.setTextColor(45, 42, 50);
+        doc.text(o.tekst, xCenter, yR + 14, { align: 'center' });
+
+        // Aanvinkhokje onder het woord
+        const vakGrootte = 5;
+        const vakX = xCenter - vakGrootte / 2;
+        const vakY = yR + 18;
+        doc.setDrawColor(45, 42, 50);
+        doc.setLineWidth(0.4);
+        doc.rect(vakX, vakY, vakGrootte, vakGrootte);
+
+        // OPLOSSING: kruisje in het juiste vakje + groen kader rond hokje
         if (opgelost && o.id === w.id) {
+          // Groene rand om vakje
           doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
           doc.setLineWidth(0.8);
-          // Schat de woord-breedte ongeveer
-          const woordBreed = Math.min(o.tekst.length * 2.5 + 4, oB - 4);
-          doc.roundedRect(startX + idx * oB + oB / 2 - woordBreed / 2, yR + 9, woordBreed, 8, 4, 4);
+          doc.rect(vakX, vakY, vakGrootte, vakGrootte);
+          // Kruisje in het vakje
+          doc.setLineWidth(0.6);
+          doc.line(vakX + 0.8, vakY + 0.8, vakX + vakGrootte - 0.8, vakY + vakGrootte - 0.8);
+          doc.line(vakX + vakGrootte - 0.8, vakY + 0.8, vakX + 0.8, vakY + vakGrootte - 0.8);
         }
       });
       doc.setFont('helvetica', 'normal');
