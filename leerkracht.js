@@ -131,13 +131,35 @@ const _lkKindtabsState = {
   rapporten: { gekozenCode: null }
 };
 
-// Sorteer kinderen alfabetisch op naam (case-insensitive), code als fallback
+// Volledige naam: "Voornaam Achternaam", met fallback op het oude 'naam'-veld
+function lkVolledigeNaam(kind) {
+  if (!kind) return '';
+  const voor = (kind.voornaam || '').trim();
+  const achter = (kind.achternaam || '').trim();
+  if (voor || achter) return [voor, achter].filter(Boolean).join(' ');
+  return (kind.naam || '').trim() || kind.code || '';
+}
+
+// Sleutel voor sortering "klas → achternaam → voornaam"
+// Achternaam ontbreekt? Gebruik dan oude 'naam' als fallback.
+function _lkSortSleutel(kind) {
+  const klas = (kind.klas || '~~').toLowerCase(); // ~~ zorgt dat lege klas achteraan komt
+  const achter = (kind.achternaam || '').toLowerCase();
+  const voor = (kind.voornaam || '').toLowerCase();
+  // Als geen voornaam/achternaam: val terug op naam-veld
+  const fallbackNaam = (achter || voor)
+    ? ''
+    : (kind.naam || kind.code || '').toLowerCase();
+  return klas + '|' + (achter || fallbackNaam) + '|' + voor;
+}
+
+// Sorteer kinderen volgens "klas → achternaam → voornaam"
 function _lkSorteerKinderenAlfabet() {
   return [...lkKinderen].sort((a, b) => {
-    const na = (a.naam || a.code || '').toLowerCase();
-    const nb = (b.naam || b.code || '').toLowerCase();
-    if (na < nb) return -1;
-    if (na > nb) return 1;
+    const sa = _lkSortSleutel(a);
+    const sb = _lkSortSleutel(b);
+    if (sa < sb) return -1;
+    if (sa > sb) return 1;
     return 0;
   });
 }
@@ -172,13 +194,32 @@ function lkKindtabsRender(welkeTab) {
     state.gekozenCode = codes[0];
   }
 
-  // Kindertabs renderen
-  let tabsHtml = '';
+  // Kindertabs renderen — gegroepeerd per klas
+  // Bouw een lookup van klas → array van kinderen (in alfabetische volgorde door eerdere sortering)
+  const klassen = []; // array van { klas: 'X', kinderen: [...] }, in volgorde
+  const klasIdx = {}; // klas → index in 'klassen'
   gesorteerd.forEach(k => {
-    const actief = (k.code === state.gekozenCode) ? 'actief' : '';
-    const naam = k.naam || k.code;
-    const codeSafe = k.code.replace(/'/g, "\\'");
-    tabsHtml += `<button class="lk-kindtab ${actief}" onclick="lkKindtabKies('${welkeTab}', '${codeSafe}')">${naam}</button>`;
+    const klasLabel = (k.klas && k.klas.trim()) ? k.klas.trim() : '';
+    if (klasIdx[klasLabel] === undefined) {
+      klasIdx[klasLabel] = klassen.length;
+      klassen.push({ klas: klasLabel, kinderen: [] });
+    }
+    klassen[klasIdx[klasLabel]].kinderen.push(k);
+  });
+
+  let tabsHtml = '';
+  const meerdereKlassen = klassen.length > 1;
+  klassen.forEach((groep) => {
+    if (meerdereKlassen) {
+      const labelTekst = groep.klas || 'Geen klas';
+      tabsHtml += `<span class="lk-kindtabs-klaslabel">${labelTekst}</span>`;
+    }
+    groep.kinderen.forEach(k => {
+      const actief = (k.code === state.gekozenCode) ? 'actief' : '';
+      const naam = lkVolledigeNaam(k);
+      const codeSafe = k.code.replace(/'/g, "\\'");
+      tabsHtml += `<button class="lk-kindtab ${actief}" onclick="lkKindtabKies('${welkeTab}', '${codeSafe}')">${naam}</button>`;
+    });
   });
   tabsEl.innerHTML = tabsHtml;
 
@@ -277,10 +318,18 @@ function _lkRendererTaken(kind) {
     let pdfKnop = '';
     if (heeftToets) {
       if (entry.isHuidig) {
-        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfHuidig('${kind.code}')" title="PDF voor toetsenmap">📄</button>`;
+        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfHuidig('${kind.code}')" title="PDF luistertoets voor toetsenmap">📄</button>`;
       } else {
-        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfVanGeschiedenis('${kind.code}', ${entry.archiefIdx})" title="PDF voor toetsenmap">📄</button>`;
+        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfVanGeschiedenis('${kind.code}', ${entry.archiefIdx})" title="PDF luistertoets voor toetsenmap">📄</button>`;
       }
+    }
+
+    // Werkblad-knop — altijd zichtbaar (huidig én archief)
+    let wbKnop = '';
+    if (entry.isHuidig) {
+      wbKnop = `<button class="lk-knop-mini" onclick="lkTaakWerkbladen('${kind.code}', 'huidig')" title="Werkbladen maken met deze woorden">📝</button>`;
+    } else {
+      wbKnop = `<button class="lk-knop-mini" onclick="lkTaakWerkbladen('${kind.code}', ${entry.archiefIdx})" title="Werkbladen maken met deze woorden">📝</button>`;
     }
 
     const huidigBadge = entry.isHuidig ? '<span class="lk-huidig-badge">huidig</span>' : '';
@@ -291,7 +340,7 @@ function _lkRendererTaken(kind) {
         <span class="lk-taakrij-thema">${themaNaam} ${huidigBadge}</span>
         <span class="lk-taakrij-status">${statusBadge}</span>
         <span class="lk-taakrij-score">${scoreTekst}</span>
-        <span class="lk-taakrij-acties">${pdfKnop}</span>
+        <span class="lk-taakrij-acties">${wbKnop}${pdfKnop}</span>
       </div>
     `;
   });
@@ -1051,13 +1100,18 @@ function lkRendererTabel() {
   }
 
   let html = '<table class="lk-tabel"><thead><tr>';
-  html += '<th></th><th>Naam</th><th>📋 Taak</th><th>🏷️ Vrij oefenen</th><th>Acties</th>';
+  html += '<th></th><th>Klas</th><th>Naam</th><th>📋 Taak</th><th>🏷️ Vrij oefenen</th><th>Acties</th>';
   html += '</tr></thead><tbody>';
 
-  lkKinderen.forEach(kind => {
-    const naamSafe = (kind.naam || '').replace(/'/g, "\\'");
+  // Gesorteerde lijst (klas → achternaam → voornaam)
+  const gesorteerd = _lkSorteerKinderenAlfabet();
+
+  gesorteerd.forEach(kind => {
+    const naamVolledig = lkVolledigeNaam(kind);
+    const naamSafe = naamVolledig.replace(/'/g, "\\'");
     const code = kind.code;
     const isOpen = lkUitgeklapt.has(code);
+    const klasTekst = (kind.klas && kind.klas.trim()) ? kind.klas.trim() : '<span style="opacity:0.4">—</span>';
 
     // === Taak-status compact ===
     let taakCel = '<span class="lk-taak-leeg">— Geen taak —</span>';
@@ -1099,9 +1153,13 @@ function lkRendererTabel() {
     }
 
     // Hoofdrij
+    const naamCel = naamVolledig
+      ? naamVolledig
+      : '<em style="opacity:0.5">geen naam</em>';
     html += `<tr class="lk-tabel-rij ${isOpen ? 'open' : ''}" data-code="${code}">
       <td class="lk-rij-pijl-cel" onclick="lkRijToggle('${code}')"><span class="lk-rij-pijl">${isOpen ? '▼' : '▶'}</span></td>
-      <td onclick="lkRijToggle('${code}')">${kind.naam || '<em style="opacity:0.5">geen naam</em>'}<br><small class="lk-code-mini">${code}</small></td>
+      <td onclick="lkRijToggle('${code}')" class="lk-klas-cel">${klasTekst}</td>
+      <td onclick="lkRijToggle('${code}')">${naamCel}<br><small class="lk-code-mini">${code}</small></td>
       <td onclick="lkRijToggle('${code}')">${taakCel}</td>
       <td onclick="lkRijToggle('${code}')"><span class="lk-vrij-tekst">${vrijTekst}</span></td>
       <td class="lk-acties-cel">
@@ -1115,7 +1173,7 @@ function lkRendererTabel() {
 
     // Uitklapbare detailrij
     if (isOpen) {
-      html += `<tr class="lk-tabel-detailrij"><td colspan="5">${_lkRendererDetail(kind)}</td></tr>`;
+      html += `<tr class="lk-tabel-detailrij"><td colspan="6">${_lkRendererDetail(kind)}</td></tr>`;
     }
   });
 
@@ -1368,7 +1426,9 @@ function lkGenereerCode() {
 }
 
 async function lkVoegToe() {
-  const naam = document.getElementById('nieuw-naam').value.trim();
+  const voornaam = (document.getElementById('nieuw-voornaam') || {}).value || '';
+  const achternaam = (document.getElementById('nieuw-achternaam') || {}).value || '';
+  const klas = (document.getElementById('nieuw-klas') || {}).value || '';
   const code = document.getElementById('nieuw-code').value.trim();
   const fout = document.getElementById('lk-fout');
   fout.textContent = '';
@@ -1393,9 +1453,16 @@ async function lkVoegToe() {
   }
 
   try {
-    await Voortgang.maakKind(codeNorm, naam);
-    document.getElementById('nieuw-naam').value = '';
-    document.getElementById('nieuw-code').value = '';
+    await Voortgang.maakKind(codeNorm, {
+      voornaam: voornaam.trim(),
+      achternaam: achternaam.trim(),
+      klas: klas.trim()
+    });
+    // Velden leegmaken
+    ['nieuw-voornaam', 'nieuw-achternaam', 'nieuw-klas', 'nieuw-code'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
     await lkLaadKinderen();
   } catch (e) {
     fout.textContent = 'Kon niet toevoegen: ' + e.message;
@@ -1413,20 +1480,92 @@ async function lkVerwijder(code, naam) {
 }
 
 async function lkWijzigNaam(code, huidigeNaam) {
-  const nieuw = prompt(`Naam wijzigen voor ${code}:`, huidigeNaam || '');
-  if (nieuw === null) return; // geannuleerd
-  const nieuwTrim = nieuw.trim();
+  // Open modal voor het wijzigen van voornaam, achternaam, klas
+  const kind = lkKinderen.find(k => k.code === code);
+  if (!kind) return;
+
+  // Verwijder eventuele oude modal
+  const oud = document.getElementById('lk-wijzig-modal-bg');
+  if (oud) oud.remove();
+
+  // Bouw modal
+  const bg = document.createElement('div');
+  bg.id = 'lk-wijzig-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+
+  // Initiële waarden: nieuwe velden, fallback op naam-veld bij eerste migratie
+  let initVoor = (kind.voornaam || '').trim();
+  let initAchter = (kind.achternaam || '').trim();
+  if (!initVoor && !initAchter && kind.naam) {
+    // Suggestie: splits oude naam op eerste spatie
+    const stukken = kind.naam.trim().split(/\s+/);
+    if (stukken.length === 1) {
+      initVoor = stukken[0];
+    } else {
+      initVoor = stukken[0];
+      initAchter = stukken.slice(1).join(' ');
+    }
+  }
+  const initKlas = (kind.klas || '').trim();
+
+  bg.innerHTML = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()" style="max-width:500px">
+      <h2>⌨️ Leerling wijzigen</h2>
+      <p class="modal-uitleg" style="margin-bottom:16px">
+        Code: <strong>${code}</strong>
+      </p>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label" for="wijzig-voornaam">Voornaam</label>
+        <input type="text" id="wijzig-voornaam" class="lk-taak-select" value="${initVoor.replace(/"/g, '&quot;')}" placeholder="bv. Mohammed">
+      </div>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label" for="wijzig-achternaam">Achternaam</label>
+        <input type="text" id="wijzig-achternaam" class="lk-taak-select" value="${initAchter.replace(/"/g, '&quot;')}" placeholder="bv. Yilmaz">
+      </div>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label" for="wijzig-klas">Klas</label>
+        <input type="text" id="wijzig-klas" class="lk-taak-select" value="${initKlas.replace(/"/g, '&quot;')}" placeholder="bv. 2A (laat leeg als niet bekend)">
+      </div>
+
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini" onclick="document.getElementById('lk-wijzig-modal-bg').remove()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkWijzigBewaar('${code}')">Bewaren</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+  // Focus op voornaam
+  setTimeout(() => {
+    const el = document.getElementById('wijzig-voornaam');
+    if (el) el.focus();
+  }, 30);
+}
+
+async function lkWijzigBewaar(code) {
+  const voor = (document.getElementById('wijzig-voornaam') || {}).value || '';
+  const achter = (document.getElementById('wijzig-achternaam') || {}).value || '';
+  const klas = (document.getElementById('wijzig-klas') || {}).value || '';
+
   try {
-    await Voortgang.wijzigNaamVanKind(code, nieuwTrim);
+    await Voortgang.wijzigKindGegevens(code, voor, achter, klas);
     // Lokale lijst bijwerken
     const kind = lkKinderen.find(k => k.code === code);
-    if (kind) kind.naam = nieuwTrim;
+    if (kind) {
+      kind.voornaam = voor.trim();
+      kind.achternaam = achter.trim();
+      kind.klas = klas.trim();
+      kind.naam = [voor.trim(), achter.trim()].filter(Boolean).join(' ');
+    }
+    const bg = document.getElementById('lk-wijzig-modal-bg');
+    if (bg) bg.remove();
     if (typeof lkRendererTabel === 'function') lkRendererTabel();
     if (typeof lkKindtabsRender === 'function') lkKindtabsRender();
-    // Ook kindertabs updaten als ze open staan
-    if (typeof lkKindtabsRender === 'function') lkKindtabsRender();
   } catch (e) {
-    alert('Kon naam niet wijzigen: ' + e.message);
+    alert('Kon niet bewaren: ' + e.message);
   }
 }
 
@@ -4040,6 +4179,180 @@ async function lkSprPdfVanGeschiedenis(code, toetsId) {
   } catch (e) {
     console.error('PDF mislukt:', e);
     alert('PDF maken mislukt.');
+  }
+}
+
+// =================================================================
+//  WERKBLADEN VOOR EEN TAAK — mini-modal met oefenvorm-keuze
+// =================================================================
+//
+// Vanuit de Taken-tab: klik op 📝-knop → open modal met de woorden van die
+// taak (alleen-lezen) en checkboxes voor oefenvormen. Bij genereren wordt
+// een kunstmatig "thema" gemaakt waarvan de items enkel de gekozen woorden
+// zijn, zodat de bestaande PDFEngine.maakWerkblad zonder wijziging werkt.
+
+let _twbModalState = {
+  code: null,           // leerling-code
+  taakBron: null,       // 'huidig' of archiefIdx
+  woordIds: [],
+  themaId: null,
+  oefeningen: new Set(['koppel'])  // standaard: koppel aan
+};
+
+function lkTaakWerkbladen(code, taakBron) {
+  const kind = lkKinderen.find(k => k.code === code);
+  if (!kind) return;
+
+  // Vind de juiste taak
+  let taak;
+  if (taakBron === 'huidig') {
+    taak = kind.taak;
+  } else {
+    const gesch = Array.isArray(kind.taakgeschiedenis) ? kind.taakgeschiedenis : [];
+    taak = gesch[taakBron];
+  }
+  if (!taak || !taak.themaId || !Array.isArray(taak.woordIds) || taak.woordIds.length === 0) {
+    alert('Geen woorden gevonden in deze taak.');
+    return;
+  }
+
+  _twbModalState.code = code;
+  _twbModalState.taakBron = taakBron;
+  _twbModalState.themaId = taak.themaId;
+  _twbModalState.woordIds = [...taak.woordIds];
+  // Onthoud niet over taken heen — start altijd met enkel 'koppel' aan
+  _twbModalState.oefeningen = new Set(['koppel']);
+
+  _twbRender();
+}
+
+function _twbRender() {
+  // Verwijder oude modal
+  const oud = document.getElementById('lk-twb-modal-bg');
+  if (oud) oud.remove();
+
+  const kind = lkKinderen.find(k => k.code === _twbModalState.code);
+  const thema = ALLE_THEMAS_LK.find(t => t.id === _twbModalState.themaId);
+  if (!kind || !thema) return;
+  const verrijkt = lkVerrijkThema(thema);
+
+  // Bouw woordenlijst (compact, alleen-lezen)
+  const woordItems = _twbModalState.woordIds
+    .map(id => verrijkt.items.find(it => it.id === id))
+    .filter(Boolean);
+  const woordenTekst = woordItems.map(it => it.tekst).join(', ');
+
+  // Bouw oefenvorm-checkboxes
+  let oefHtml = '';
+  Object.keys(WB_OEFENING_LABELS).forEach(oefKey => {
+    const aan = _twbModalState.oefeningen.has(oefKey) ? 'checked' : '';
+    const label = WB_OEFENING_LABELS[oefKey];
+    oefHtml += `
+      <label class="lk-twb-oef-rij ${aan ? 'aan' : ''}">
+        <input type="checkbox" ${aan} onchange="lkTwbToggleOef('${oefKey}')">
+        <span>${label}</span>
+      </label>
+    `;
+  });
+
+  const aantalOef = _twbModalState.oefeningen.size;
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-twb-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+  bg.innerHTML = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()" style="max-width:600px">
+      <h2>📝 Werkbladen voor ${lkVolledigeNaam(kind)}</h2>
+      <p class="modal-uitleg">
+        Maak werkbladen met de woorden uit deze taak. Kies hieronder welke oefenvormen je wilt.
+      </p>
+
+      <div class="lk-twb-woorden-strook">
+        <strong>${thema.emoji} ${thema.naam}</strong> — ${woordItems.length} woord${woordItems.length === 1 ? '' : 'en'}<br>
+        <span class="lk-twb-woordenlijst">${woordenTekst}</span>
+      </div>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">
+          Oefenvormen <span class="lk-taak-teller">(${aantalOef} aangevinkt)</span>
+        </label>
+        <div class="lk-twb-oef-lijst">
+          ${oefHtml}
+        </div>
+      </div>
+
+      <div class="lk-cat-modal-knoppen" style="flex-wrap:wrap; gap:10px">
+        <label class="lk-twb-oplossing-toggle">
+          <input type="checkbox" id="lk-twb-oplossing" checked>
+          <span>Ook oplossingssleutel meedownloaden</span>
+        </label>
+        <div style="display:flex; gap:6px; margin-left:auto">
+          <button class="lk-knop-mini" onclick="document.getElementById('lk-twb-modal-bg').remove()">Annuleren</button>
+          <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkTwbGenereer()" ${aantalOef === 0 ? 'disabled' : ''}>📝 Genereer</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+}
+
+function lkTwbToggleOef(oefKey) {
+  if (_twbModalState.oefeningen.has(oefKey)) {
+    _twbModalState.oefeningen.delete(oefKey);
+  } else {
+    _twbModalState.oefeningen.add(oefKey);
+  }
+  _twbRender();
+}
+
+async function lkTwbGenereer() {
+  if (_twbModalState.oefeningen.size === 0) {
+    alert('Vink minstens één oefenvorm aan.');
+    return;
+  }
+
+  const thema = ALLE_THEMAS_LK.find(t => t.id === _twbModalState.themaId);
+  if (!thema) {
+    alert('Thema niet gevonden.');
+    return;
+  }
+  const verrijkt = lkVerrijkThema(thema);
+
+  // Filter items op de woordIds van de taak
+  const gefilterdeItems = verrijkt.items.filter(it => _twbModalState.woordIds.indexOf(it.id) !== -1);
+  if (gefilterdeItems.length === 0) {
+    alert('Geen woorden gevonden voor deze taak.');
+    return;
+  }
+
+  // Bouw kunstmatig thema-object met enkel de gekozen woorden.
+  const themaConfigs = [{
+    thema: { ...verrijkt, items: gefilterdeItems },
+    oefeningen: Array.from(_twbModalState.oefeningen),
+    niveau: 'vrij',
+    categorieen: []
+  }];
+
+  // Lees of de leerkracht oplossing wil
+  const oplossingChk = document.getElementById('lk-twb-oplossing');
+  const ookOplossing = !!(oplossingChk && oplossingChk.checked);
+
+  try {
+    // Eerst werkblad
+    await PDFEngine.maakWerkblad(themaConfigs, { verdeling: 'per-thema' });
+    // Daarna oplossingssleutel als aangevinkt — kleine pauze zodat de browser
+    // de eerste download verwerkt voor de tweede start
+    if (ookOplossing) {
+      await new Promise(r => setTimeout(r, 400));
+      await PDFEngine.maakOplossingssleutel(themaConfigs, { verdeling: 'per-thema' });
+    }
+    // Modal sluiten na succes
+    const bg = document.getElementById('lk-twb-modal-bg');
+    if (bg) bg.remove();
+  } catch (e) {
+    console.error('Werkblad genereren mislukt:', e);
+    alert('Het werkblad kon niet gemaakt worden: ' + (e.message || 'onbekend'));
   }
 }
 
