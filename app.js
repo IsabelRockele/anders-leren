@@ -51,6 +51,30 @@ let oefenItem = null;
 let score = 0;
 let gebruikteOefenIndices = [];
 
+// Centrale helper: pas Woordenbeheer toe op een basispakket-thema.
+// Geeft een nieuw thema-object terug met overrides + eigen items.
+// Gebruik dit overal waar je 'thema.items' nodig hebt — niet alleen voor renderen.
+function verrijkThema(thema) {
+  if (!thema) return thema;
+  if (window.Woordenbeheer && Woordenbeheer.pasToeOpThema) {
+    return Woordenbeheer.pasToeOpThema(thema);
+  }
+  return thema;
+}
+
+// Centrale helper: actieve items voor het huidige kind in dit thema.
+// Volgorde:
+//   1. Woordenbeheer toepassen (overrides + verbergen + eigen items)
+//   2. Categorieën-filter van het kind toepassen
+function getActieveItems(thema) {
+  if (!thema || !thema.items) return [];
+  const verrijkt = verrijkThema(thema);
+  if (window.Voortgang && Voortgang.filterItemsOpCategorieen) {
+    return Voortgang.filterItemsOpCategorieen(verrijkt);
+  }
+  return verrijkt.items;
+}
+
 // Toets-state
 const TOETS_AANTAL = 10;
 let toetsVragen = [];
@@ -70,6 +94,13 @@ async function init() {
       // Al geïnitialiseerd
     }
     Voortgang.init();
+    if (window.Woordenbeheer) Woordenbeheer.init();
+  }
+
+  // Woordenbeheer laden — bevat overrides en eigen items van de leerkracht.
+  // Mag falen, dan werkt het kind gewoon met basispakket.
+  if (window.Woordenbeheer) {
+    try { await Woordenbeheer.laad(); } catch (e) { console.warn('Woordenbeheer kon niet laden:', e); }
   }
 
   // Probeer auto-login (URL-code, anders localStorage)
@@ -160,7 +191,8 @@ function stopSlimLeren() {
 }
 
 function volgendeSlimItem() {
-  const gekozen = Voortgang.kiesVolgendItem(slimThemas || THEMAS_WOORDEN);
+  const themas = (slimThemas || THEMAS_WOORDEN).map(verrijkThema);
+  const gekozen = Voortgang.kiesVolgendItem(themas);
 
   if (!gekozen) {
     // Alles klaar! Kind heeft alles geleerd
@@ -214,7 +246,7 @@ function toonSlimKennismaken() {
   const acties = document.getElementById('slim-acties');
 
   kaart.innerHTML = `
-    <div class="grote-beeld">${item.beeld}</div>
+    <div class="grote-beeld">${Picto.html(item)}</div>
     <div class="grote-tekst">${item.tekst}</div>
   `;
 
@@ -287,7 +319,7 @@ function toonSlimOefenen() {
     const k = document.createElement('button');
     k.className = 'slim-beeld-knop';
     k.dataset.itemId = opt.id;
-    k.innerHTML = `<span class="slim-beeld-emoji">${opt.beeld}</span>`;
+    k.innerHTML = Picto.html(opt, { klasse: 'slim-beeld-emoji' });
     k.onclick = () => slimKiesAntwoord(k, opt);
     acties.appendChild(k);
   });
@@ -393,7 +425,7 @@ function rendererSurvivalGrid() {
   if (!grid) return;
   grid.innerHTML = '';
   THEMAS_SURVIVAL.forEach(thema => {
-    const stats = Voortgang.statsThema(thema);
+    const stats = Voortgang.statsThema(verrijkThema(thema));
     const knop = document.createElement('button');
     knop.className = 'survival-kaart';
     knop.innerHTML = `
@@ -413,7 +445,7 @@ function rendererThemaGrid(gridId, themas) {
   const grid = document.getElementById(gridId);
   grid.innerHTML = '';
   themas.forEach(thema => {
-    const stats = Voortgang.statsThema(thema);
+    const stats = Voortgang.statsThema(verrijkThema(thema));
     const knop = document.createElement('button');
     knop.className = 'thema-kaart';
     knop.style.borderColor = thema.kleur + '40';
@@ -443,7 +475,7 @@ function kiesTab(tab) {
 
 function rendererVoortgang() {
   const div = document.getElementById('voortgang-overzicht');
-  const totaalGekend = ALLE_THEMAS.reduce((s, t) => s + Voortgang.statsThema(t).gekend, 0);
+  const totaalGekend = ALLE_THEMAS.reduce((s, t) => s + Voortgang.statsThema(verrijkThema(t)).gekend, 0);
 
   if (totaalGekend === 0) {
     div.innerHTML = `
@@ -456,7 +488,7 @@ function rendererVoortgang() {
 
   let html = '';
   ALLE_THEMAS.forEach(thema => {
-    const s = Voortgang.statsThema(thema);
+    const s = Voortgang.statsThema(verrijkThema(thema));
     if (s.gezien === 0) return;
     html += `
       <div class="voortgang-vak">
@@ -508,7 +540,7 @@ function kiesThema(thema) {
   document.getElementById('thema-naam').textContent = thema.naam;
 
   // Stat-balk bovenaan thema
-  const s = Voortgang.statsThema(thema);
+  const s = Voortgang.statsThema(verrijkThema(thema));
   document.getElementById('thema-statbalk').innerHTML = `
     <span class="statbalk-icoon">${thema.emoji}</span>
     <div class="statbalk-tekst">
@@ -552,6 +584,14 @@ function naarThema() {
 function startModus(modus) {
   if (!huidigThema) return;
 
+  // Beveiliging: als de leerkracht alle categorieën heeft uitgezet
+  // voor dit kind, hebben we niets om te oefenen en moeten we niet crashen.
+  const actief = getActieveItems(huidigThema);
+  if (actief.length === 0) {
+    alert('Er zijn voor jou nog geen woorden in dit thema. Vraag aan je juf of meester.');
+    return;
+  }
+
   if (modus === 'kijken') {
     kijkenIndex = 0;
     rendererKijken();
@@ -579,12 +619,13 @@ function startModus(modus) {
 //  MODUS: KIJKEN & LUISTEREN
 // =================================================================
 function rendererKijken() {
-  const item = huidigThema.items[kijkenIndex];
-  document.getElementById('kijken-beeld').textContent = item.beeld;
+  const _itemsKijken = getActieveItems(huidigThema);
+  const item = _itemsKijken[kijkenIndex];
+  document.getElementById('kijken-beeld').innerHTML = Picto.html(item);
   document.getElementById('kijken-woord').textContent = item.tekst;
   document.getElementById('kijken-zin').textContent = item.zin;
   document.getElementById('kijken-huidig').textContent = kijkenIndex + 1;
-  document.getElementById('kijken-totaal').textContent = huidigThema.items.length;
+  document.getElementById('kijken-totaal').textContent = _itemsKijken.length;
 
   // Registreer gezien
   Voortgang.registreerGezien(huidigThema.id, item.id);
@@ -593,22 +634,23 @@ function rendererKijken() {
 }
 
 function hoorWoord() {
-  AudioEngine.spreek(huidigThema.items[kijkenIndex].tekst);
+  AudioEngine.spreek(getActieveItems(huidigThema)[kijkenIndex].tekst);
 }
 
 function hoorZin() {
-  AudioEngine.spreek(huidigThema.items[kijkenIndex].zin);
+  AudioEngine.spreek(getActieveItems(huidigThema)[kijkenIndex].zin);
 }
 
 function kijkenVolgende() {
-  kijkenIndex = (kijkenIndex + 1) % huidigThema.items.length;
+  kijkenIndex = (kijkenIndex + 1) % getActieveItems(huidigThema).length;
   rendererKijken();
   // Bewaar elke 3 stappen
   if (kijkenIndex % 3 === 0) Voortgang.bewaar(Auth.getCode());
 }
 
 function kijkenVorige() {
-  kijkenIndex = (kijkenIndex - 1 + huidigThema.items.length) % huidigThema.items.length;
+  const _t = getActieveItems(huidigThema).length;
+  kijkenIndex = (kijkenIndex - 1 + _t) % _t;
   rendererKijken();
 }
 
@@ -618,7 +660,7 @@ function kijkenVorige() {
 function rendererLezen() {
   const grid = document.getElementById('lezen-grid');
   grid.innerHTML = '';
-  huidigThema.items.forEach(item => {
+  getActieveItems(huidigThema).forEach(item => {
     const stats = Voortgang.getCache()[huidigThema.id]?.[item.id];
     const sterren = stats?.sterren || 0;
     const sterrenStr = '⭐'.repeat(sterren);
@@ -627,7 +669,7 @@ function rendererLezen() {
     kaart.className = 'lees-kaart';
     kaart.innerHTML = `
       ${sterren > 0 ? `<div class="lees-sterren">${sterrenStr}</div>` : ''}
-      <div class="lees-beeld">${item.beeld}</div>
+      <div class="lees-beeld">${Picto.html(item)}</div>
       <div class="lees-woord">${item.tekst}</div>
     `;
     kaart.onclick = () => {
@@ -646,7 +688,7 @@ function rendererLezen() {
 //  MODUS: OEFENEN (zonder einde, vrije oefening)
 // =================================================================
 function volgendeOefenVraag() {
-  const items = huidigThema.items;
+  const items = getActieveItems(huidigThema);
   if (gebruikteOefenIndices.length >= items.length) gebruikteOefenIndices = [];
 
   let kandidaten = [];
@@ -666,7 +708,7 @@ function volgendeOefenVraag() {
   }
   const opties = [oefenItem, ...afl].sort(() => Math.random() - 0.5);
 
-  document.getElementById('oefen-beeld').textContent = oefenItem.beeld;
+  document.getElementById('oefen-beeld').innerHTML = Picto.html(oefenItem);
   document.getElementById('oefen-feedback').textContent = '';
   document.getElementById('oefen-feedback').className = 'oefen-feedback';
 
@@ -720,7 +762,7 @@ function kiesOefenAntwoord(knop, gekozen) {
 // =================================================================
 function startToets() {
   // Schud thema-items, neem eerste TOETS_AANTAL (of alles als minder)
-  const items = [...huidigThema.items].sort(() => Math.random() - 0.5);
+  const items = [...getActieveItems(huidigThema)].sort(() => Math.random() - 0.5);
   toetsVragen = items.slice(0, Math.min(TOETS_AANTAL, items.length));
   toetsHuidig = 0;
   toetsJuist = 0;
@@ -732,7 +774,7 @@ function startToets() {
 function toonToetsVraag() {
   toetsItem = toetsVragen[toetsHuidig];
   document.getElementById('toets-huidig').textContent = toetsHuidig + 1;
-  document.getElementById('toets-beeld').textContent = toetsItem.beeld;
+  document.getElementById('toets-beeld').innerHTML = Picto.html(toetsItem);
 
   // Voortgangsbalk
   const pct = (toetsHuidig / toetsVragen.length) * 100;
@@ -740,7 +782,7 @@ function toonToetsVraag() {
 
   // 3 afleiders
   const afl = [];
-  const beschikb = huidigThema.items.filter(x => x.id !== toetsItem.id);
+  const beschikb = getActieveItems(huidigThema).filter(x => x.id !== toetsItem.id);
   while (afl.length < 3 && beschikb.length > afl.length) {
     const k = beschikb[Math.floor(Math.random() * beschikb.length)];
     if (!afl.includes(k)) afl.push(k);
@@ -866,6 +908,7 @@ let klikStreak = 0;
 let klikGebruikt = []; // ids van items die deze sessie al voorgekomen zijn
 
 function startKlikspel() {
+  if (getActieveItems(huidigThema).length === 0) { alert("Er zijn nog geen woorden voor jou in dit thema."); return; }
   klikStreak = 0;
   klikGebruikt = [];
   document.getElementById('klik-streak').textContent = '0';
@@ -874,7 +917,7 @@ function startKlikspel() {
 }
 
 function volgendeKlikVraag() {
-  const items = huidigThema.items;
+  const items = getActieveItems(huidigThema);
   // Reset als alle items getoond zijn
   if (klikGebruikt.length >= items.length) klikGebruikt = [];
 
@@ -886,7 +929,7 @@ function volgendeKlikVraag() {
   const afleiders = schudArray(items.filter(it => it.id !== klikItem.id)).slice(0, 3);
   const opties = schudArray([klikItem, ...afleiders]);
 
-  document.getElementById('klik-beeld').textContent = klikItem.beeld;
+  document.getElementById('klik-beeld').innerHTML = Picto.html(klikItem);
   document.getElementById('klik-feedback').textContent = '';
   document.getElementById('klik-feedback').className = 'klikspel-feedback';
 
@@ -948,17 +991,18 @@ let memoryBezig = false; // tijdens animatie kan kind niet klikken
 let memoryGevonden = 0;
 
 function startMemory() {
+  if (getActieveItems(huidigThema).length < 3) { alert("Te weinig woorden voor memory. Vraag aan je juf om meer categorieën aan te zetten."); return; }
   memoryEersteKaart = null;
   memoryBezig = false;
   memoryGevonden = 0;
 
   // Kies N items uit het thema
-  const items = schudArray(huidigThema.items).slice(0, MEMORY_PAREN_AANTAL);
+  const items = schudArray(getActieveItems(huidigThema)).slice(0, MEMORY_PAREN_AANTAL);
 
   // Voor elk item maken we 2 kaarten: een woord-kaart en een beeld-kaart
   memoryKaarten = [];
   items.forEach(item => {
-    memoryKaarten.push({ id: 'b-' + item.id, itemId: item.id, type: 'beeld', inhoud: item.beeld, item });
+    memoryKaarten.push({ id: 'b-' + item.id, itemId: item.id, type: 'beeld', inhoud: Picto.html(item), item });
     memoryKaarten.push({ id: 'w-' + item.id, itemId: item.id, type: 'woord', inhoud: item.tekst, item });
   });
   memoryKaarten = schudArray(memoryKaarten);
@@ -1061,6 +1105,7 @@ let verbindActief = null; // huidig bezig met slepen vanaf
 let verbindGekoppeld = []; // {linksId, rechtsId, juist}
 
 function startVerbinden() {
+  if (getActieveItems(huidigThema).length < 4) { alert("Te weinig woorden om te verbinden. Vraag aan je juf om meer categorieën aan te zetten."); return; }
   verbindGoed = 0;
   verbindGekoppeld = [];
   verbindActief = null;
@@ -1070,7 +1115,7 @@ function startVerbinden() {
 
 function verbindNieuweRonde() {
   // Kies N items
-  verbindItems = schudArray(huidigThema.items).slice(0, VERBIND_AANTAL);
+  verbindItems = schudArray(getActieveItems(huidigThema)).slice(0, VERBIND_AANTAL);
   verbindGoed = 0;
   verbindGekoppeld = [];
   verbindActief = null;
@@ -1087,7 +1132,7 @@ function verbindNieuweRonde() {
     el.className = 'verbind-item verbind-item-beeld';
     el.dataset.itemId = item.id;
     el.dataset.zijde = 'links';
-    el.innerHTML = `<span class="verbind-emoji">${item.beeld}</span>`;
+    el.innerHTML = Picto.html(item, { klasse: 'verbind-emoji' });
     voegVerbindEventsToe(el);
     links.appendChild(el);
   });
@@ -1334,6 +1379,7 @@ let snelTimerInterval = null;
 let snelGebruikt = [];
 
 function startSnelheid() {
+  if (getActieveItems(huidigThema).length < 4) { alert("Te weinig woorden voor het snelheidsspel."); return; }
   snelScore = 0;
   snelGebruikt = [];
   document.getElementById('snel-score').textContent = '0';
@@ -1369,7 +1415,7 @@ function updateSnelTimer() {
 }
 
 function volgendeSnelVraag() {
-  const items = huidigThema.items;
+  const items = getActieveItems(huidigThema);
   if (snelGebruikt.length >= items.length) snelGebruikt = [];
 
   const beschikbaar = items.filter(it => !snelGebruikt.includes(it.id));
@@ -1379,7 +1425,7 @@ function volgendeSnelVraag() {
   const afleiders = schudArray(items.filter(it => it.id !== snelItem.id)).slice(0, 3);
   const opties = schudArray([snelItem, ...afleiders]);
 
-  document.getElementById('snel-beeld').textContent = snelItem.beeld;
+  document.getElementById('snel-beeld').innerHTML = Picto.html(snelItem);
 
   const div = document.getElementById('snel-opties');
   div.innerHTML = '';
