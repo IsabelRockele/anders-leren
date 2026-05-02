@@ -44,6 +44,7 @@ window.THEMA_WOORDEN_KLAS = {
     { id: 'stoel',       niveau: 'basis',       categorie: 'voorwerpen',  tekst: 'de stoel',       kort: 'stoel',       beeld: '🪑', picto: 'klas/stoel.png',       zin: 'Ik zit op een stoel.' },
     { id: 'bord',        niveau: 'basis',       categorie: 'voorwerpen',  tekst: 'het bord',       kort: 'bord',        beeld: '📋', picto: 'klas/bord.png',        zin: 'De juf schrijft op het bord.' },
     { id: 'bel',         niveau: 'basis',       categorie: 'voorwerpen',  tekst: 'de bel',         kort: 'bel',         beeld: '🔔', picto: 'klas/bel.png',         zin: 'De bel rinkelt om tien uur.' },
+    { id: 'vuilbak',        niveau: 'basis',       categorie: 'voorwerpen',  tekst: 'de vuilbak',        kort: 'bank',        beeld: '🪑', picto: 'klas/vuilbak.png',        zin: 'Gooi het in de vuilbak.' },
 
     // ========== VOORWERPEN — schrijfgerei ==========
     { id: 'pen',         niveau: 'basis',       categorie: 'voorwerpen',  tekst: 'de pen',         kort: 'pen',         beeld: '🖊️', picto: 'klas/pen.png',         zin: 'Ik schrijf met een pen.' },
