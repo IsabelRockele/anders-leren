@@ -45,12 +45,25 @@ async function lkInit() {
       window.firebase.initializeApp(window.FIREBASE_CONFIG);
     } catch (e) { /* al geinit */ }
     Voortgang.init();
+    if (window.Woordenbeheer) {
+      Woordenbeheer.init();
+      try { await Woordenbeheer.laad(); } catch (e) { console.warn('Woordenbeheer kon niet laden:', e); }
+    }
     await lkLaadKinderen();
   } else {
     document.getElementById('lk-vak-firebase-niet-ingesteld').style.display = 'block';
     document.getElementById('lk-tabel-wrap').innerHTML = '<p style="opacity:0.6">Configureer eerst Firebase.</p>';
     document.getElementById('lk-overzicht').innerHTML = '<p style="opacity:0.6">Configureer eerst Firebase.</p>';
   }
+}
+
+// Helper: pas Woordenbeheer toe op een basispakket-thema (zelfde als verrijkThema in app.js)
+function lkVerrijkThema(thema) {
+  if (!thema) return thema;
+  if (window.Woordenbeheer && Woordenbeheer.pasToeOpThema) {
+    return Woordenbeheer.pasToeOpThema(thema);
+  }
+  return thema;
 }
 
 // =================================================================
@@ -63,6 +76,7 @@ function lkKiesTab(tab) {
   document.getElementById('lk-tab-' + tab).classList.add('actief');
 
   if (tab === 'overzicht') lkRendererOverzicht();
+  if (tab === 'woorden') wbInitTab();
   if (tab === 'werkbladen') initWerkbladTab();
 }
 
@@ -91,15 +105,15 @@ function lkRendererTabel() {
   html += '</tr></thead><tbody>';
 
   lkKinderen.forEach(kind => {
-    const totaalGekend = berekenTotaalGekend(kind);
-    const totaalItems = ALLE_THEMAS_LK.reduce((s, t) => s + t.items.length, 0);
+    const { gekend, totaal } = berekenVoortgangVoorKind(kind);
     html += `<tr>
       <td>${kind.naam || '<em style="opacity:0.5">geen naam</em>'}</td>
       <td><span class="lk-code">${kind.code}</span></td>
-      <td>${totaalGekend} / ${totaalItems}</td>
+      <td>${gekend} / ${totaal}</td>
       <td>
         <button class="lk-knop-mini" onclick="lkToonQR('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')">📱 QR</button>
         <button class="lk-knop-mini" onclick="lkBekijkKind('${kind.code}')">👁️</button>
+        <button class="lk-knop-mini" onclick="lkBeheerCategorieen('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')" title="Categorieën per thema">🏷️</button>
         <button class="lk-knop-mini gevaar" onclick="lkVerwijder('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')">🗑️</button>
       </td>
     </tr>`;
@@ -109,16 +123,34 @@ function lkRendererTabel() {
   wrap.innerHTML = html;
 }
 
-function berekenTotaalGekend(kind) {
+// Filter de items van een thema op de actieve categorieën voor dit kind.
+// Past eerst Woordenbeheer toe (overrides + eigen items + verbergen),
+// dan filtert op de categorieën van het kind.
+function _filterItemsVoorKind(thema, kind) {
+  const verrijkt = lkVerrijkThema(thema);
+  const ingesteld = (kind.categorieen || {})[verrijkt.id];
+  if (!verrijkt.categorieen || verrijkt.categorieen.length === 0) return verrijkt.items;
+  if (!Array.isArray(ingesteld) || ingesteld.length === 0) {
+    // null/undefined = default: alles aan. Lege lijst = letterlijk niets aan.
+    if (ingesteld === undefined || ingesteld === null) return verrijkt.items;
+    return [];
+  }
+  return verrijkt.items.filter(it => !it.categorie || ingesteld.includes(it.categorie));
+}
+
+function berekenVoortgangVoorKind(kind) {
   const v = kind.voortgang || {};
-  let totaal = 0;
+  let gekend = 0, totaal = 0;
   ALLE_THEMAS_LK.forEach(thema => {
+    const actieveItems = _filterItemsVoorKind(thema, kind);
+    totaal += actieveItems.length;
     const themaData = v[thema.id] || {};
-    Object.values(themaData).forEach(item => {
-      if ((item.sterren || 0) >= 3) totaal++;
+    actieveItems.forEach(item => {
+      const it = themaData[item.id];
+      if (it && (it.sterren || 0) >= 3) gekend++;
     });
   });
-  return totaal;
+  return { gekend, totaal };
 }
 
 // =================================================================
@@ -258,16 +290,20 @@ function lkRendererOverzicht() {
     let cellen = '';
     ALLE_THEMAS_LK.forEach(thema => {
       const themaData = v[thema.id] || {};
+      const actieveItems = _filterItemsVoorKind(thema, kind);
       let gekend = 0;
-      thema.items.forEach(it => {
+      actieveItems.forEach(it => {
         const x = themaData[it.id];
         if (x && (x.sterren || 0) >= 3) gekend++;
       });
       totGekend += gekend;
-      totItems += thema.items.length;
-      const pct = thema.items.length > 0 ? Math.round((gekend / thema.items.length) * 100) : 0;
+      totItems += actieveItems.length;
+      const totaalThema = actieveItems.length;
+      const pct = totaalThema > 0 ? Math.round((gekend / totaalThema) * 100) : 0;
       const kleur = pct >= 80 ? '#06A77D' : pct >= 40 ? '#FFB627' : pct > 0 ? '#FF8C42' : '#DDD';
-      cellen += `<td style="text-align:center; background: ${kleur}22; color: ${kleur}; font-weight: 700">${gekend}/${thema.items.length}</td>`;
+      // Toon "—" als geen items in dit thema voor dit kind (alle categorieën uit)
+      const cellInhoud = totaalThema === 0 ? '—' : `${gekend}/${totaalThema}`;
+      cellen += `<td style="text-align:center; background: ${kleur}22; color: ${kleur}; font-weight: 700">${cellInhoud}</td>`;
     });
     html += `<tr>
       <td><a href="javascript:lkBekijkKind('${kind.code}')" style="color:var(--kleur-zwart); font-weight:600">${kind.naam || kind.code}</a></td>
@@ -298,15 +334,20 @@ function lkBekijkKind(code) {
 
   ALLE_THEMAS_LK.forEach(thema => {
     const themaData = v[thema.id] || {};
+    const actieveItems = _filterItemsVoorKind(thema, kind);
+    if (actieveItems.length === 0 && thema.categorieen && thema.categorieen.length > 0) {
+      // Volledig uit voor dit kind → niet tonen in detail
+      return;
+    }
     let gekend = 0;
-    thema.items.forEach(it => {
+    actieveItems.forEach(it => {
       const x = themaData[it.id];
       if (x && (x.sterren || 0) >= 3) gekend++;
     });
 
-    html += `<h3 style="margin: 20px 0 10px; font-size:18px">${thema.emoji} ${thema.naam} (${gekend}/${thema.items.length})</h3>`;
+    html += `<h3 style="margin: 20px 0 10px; font-size:18px">${thema.emoji} ${thema.naam} (${gekend}/${actieveItems.length})</h3>`;
 
-    thema.items.forEach(it => {
+    actieveItems.forEach(it => {
       const data = themaData[it.id];
       const sterren = data?.sterren || 0;
       const sterStr = '⭐'.repeat(sterren) + '☆'.repeat(3 - sterren);
@@ -506,6 +547,555 @@ function lkPrintAlleQR() {
 
 
 // =================================================================
+//  CATEGORIEËN PER LEERLING — modal
+// =================================================================
+
+// State tijdens modal: { themaId: Set<categorie> }
+let _catModalState = null;
+let _catModalKindCode = null;
+
+async function lkBeheerCategorieen(code, naam) {
+  _catModalKindCode = code;
+
+  // Eerst huidige instellingen ophalen
+  let huidig = {};
+  try {
+    huidig = await Voortgang.haalCategorieenOpVoorKind(code);
+  } catch (e) {
+    console.warn('Kon categorieën niet ophalen, start vanaf default', e);
+  }
+
+  // Bouw state: per thema een Set met actieve categorieën.
+  // Default (geen instelling) = ALLE categorieën van het thema aan.
+  _catModalState = {};
+  ALLE_THEMAS_LK.forEach(thema => {
+    if (!thema.categorieen || thema.categorieen.length === 0) return;
+    const ingesteld = huidig[thema.id];
+    if (Array.isArray(ingesteld) && ingesteld.length > 0) {
+      _catModalState[thema.id] = new Set(ingesteld.filter(c => thema.categorieen.includes(c)));
+    } else {
+      _catModalState[thema.id] = new Set(thema.categorieen);
+    }
+  });
+
+  rendererCatModal(naam || code);
+}
+
+function rendererCatModal(naamOfCode) {
+  // Verwijder eventueel bestaande modal eerst
+  const oud = document.getElementById('lk-cat-modal-bg');
+  if (oud) oud.remove();
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-cat-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) lkSluitCatModal(); };
+
+  let html = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()">
+      <h2>🏷️ Categorieën voor ${naamOfCode}</h2>
+      <p class="modal-uitleg">Vink aan welke categorieën deze leerling oefent. Niet aangevinkt = niet getoond in app of toetsen. Standaard staat alles aan.</p>
+  `;
+
+  ALLE_THEMAS_LK.forEach(thema => {
+    if (!thema.categorieen || thema.categorieen.length === 0) return;
+    const setActief = _catModalState[thema.id];
+    html += `<div class="lk-cat-thema-blok">
+      <div class="lk-cat-thema-naam">${thema.emoji} ${thema.naam}</div>
+      <div class="categorie-chips">`;
+    thema.categorieen.forEach(cat => {
+      const aan = setActief.has(cat);
+      const lab = CATEGORIE_LABELS[cat] || { label: cat, emoji: '•' };
+      html += `
+        <label class="categorie-chip ${aan ? 'aan' : ''}">
+          <input type="checkbox" ${aan ? 'checked' : ''} onchange="lkToggleCatModal('${thema.id}', '${cat}')">
+          <span>${lab.emoji} ${lab.label}</span>
+        </label>
+      `;
+    });
+    html += `</div></div>`;
+  });
+
+  html += `
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini" onclick="lkAllesAanCatModal()">Alles aan</button>
+        <button class="lk-knop-mini" onclick="lkSluitCatModal()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarCatModal()">💾 Bewaren</button>
+      </div>
+    </div>
+  `;
+
+  bg.innerHTML = html;
+  document.body.appendChild(bg);
+}
+
+function lkToggleCatModal(themaId, cat) {
+  if (!_catModalState || !_catModalState[themaId]) return;
+  const s = _catModalState[themaId];
+  if (s.has(cat)) s.delete(cat); else s.add(cat);
+  // Update enkel de chip in plaats van alles te herrenderen
+  const chips = document.querySelectorAll('.lk-cat-modal .categorie-chip');
+  chips.forEach(chip => {
+    const inp = chip.querySelector('input');
+    if (inp && inp.getAttribute('onchange') && inp.getAttribute('onchange').includes(`'${themaId}', '${cat}'`)) {
+      chip.classList.toggle('aan', s.has(cat));
+      inp.checked = s.has(cat);
+    }
+  });
+}
+
+function lkAllesAanCatModal() {
+  Object.keys(_catModalState).forEach(themaId => {
+    const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+    if (thema) _catModalState[themaId] = new Set(thema.categorieen);
+  });
+  // Vind de naam terug uit de header
+  const koppen = document.querySelectorAll('.lk-cat-modal h2');
+  let naam = _catModalKindCode;
+  if (koppen[0]) naam = koppen[0].textContent.replace(/^🏷️ Categorieën voor /, '');
+  rendererCatModal(naam);
+}
+
+async function lkBewaarCatModal() {
+  if (!_catModalKindCode || !_catModalState) return;
+
+  const knop = document.querySelector('.lk-cat-modal-knoppen button:last-child');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+
+  try {
+    // Bewaar één thema tegelijk. Lege set = niets aan = blokkade voor het kind,
+    // dus dat slaan we op als lege array (≠ 'verwijderen' wat → alles aan zou betekenen).
+    // Volle set (alles aan) → expliciet verwijderen, zodat kind altijd alles ziet
+    // ook als het thema later uitgebreid wordt met nieuwe categorieën.
+    for (const themaId of Object.keys(_catModalState)) {
+      const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+      if (!thema) continue;
+      const setActief = _catModalState[themaId];
+      const lijst = Array.from(setActief);
+      const isAlles = lijst.length === thema.categorieen.length;
+      // 'isAlles' → null doorgeven (= verwijderen, default = alles)
+      // anders → de lijst doorgeven (ook als hij leeg is)
+      await Voortgang.zetCategorieenVoorKind(_catModalKindCode, themaId, isAlles ? null : lijst);
+    }
+    lkSluitCatModal();
+  } catch (e) {
+    console.error('Bewaren mislukt:', e);
+    alert('Kon de categorieën niet bewaren. Probeer opnieuw.');
+    if (knop) { knop.disabled = false; knop.textContent = '💾 Bewaren'; }
+  }
+}
+
+function lkSluitCatModal() {
+  const bg = document.getElementById('lk-cat-modal-bg');
+  if (bg) bg.remove();
+  _catModalState = null;
+  _catModalKindCode = null;
+}
+
+// =================================================================
+//  WOORDENBEHEER-TAB — overzicht, bewerken, foto's
+// =================================================================
+
+let wbHuidigThemaId = null;
+
+function wbInitTab() {
+  // Vul de thema-keuzelijst (eenmalig)
+  const sel = document.getElementById('wb-thema-select');
+  if (sel.children.length === 0) {
+    let opties = '<option value="">-- Kies een thema --</option>';
+    ALLE_THEMAS_LK.forEach(t => {
+      opties += `<option value="${t.id}">${t.emoji}  ${t.naam}</option>`;
+    });
+    sel.innerHTML = opties;
+  }
+  // Als er al een thema gekozen was, herrender
+  if (wbHuidigThemaId) {
+    sel.value = wbHuidigThemaId;
+    wbKiesThema(wbHuidigThemaId);
+  }
+}
+
+function wbKiesThema(themaId) {
+  wbHuidigThemaId = themaId || null;
+  const inhoud = document.getElementById('wb-inhoud');
+  if (!themaId) {
+    inhoud.innerHTML = '<p style="opacity:0.6">Kies een thema om de woordenlijst te bekijken.</p>';
+    return;
+  }
+  wbRender();
+}
+
+function wbRender() {
+  const inhoud = document.getElementById('wb-inhoud');
+  const basis = ALLE_THEMAS_LK.find(t => t.id === wbHuidigThemaId);
+  if (!basis) return;
+
+  const lijst = Woordenbeheer.geefVolledigOverzicht(basis);
+
+  // Groeperen per categorie. Items zonder categorie krijgen een eigen "groep".
+  const groepen = new Map();
+  const cats = basis.categorieen && basis.categorieen.length > 0
+    ? [...basis.categorieen, 'overig']
+    : ['alle'];
+  cats.forEach(c => groepen.set(c, []));
+
+  lijst.forEach(item => {
+    const c = item.categorie || (basis.categorieen ? 'overig' : 'alle');
+    if (!groepen.has(c)) groepen.set(c, []);
+    groepen.get(c).push(item);
+  });
+
+  // HTML
+  let html = `
+    <div class="wb-thema-kop">
+      <div class="wb-thema-titel">
+        <span style="font-size:32px">${basis.emoji}</span>
+        <h3 style="margin:0">${basis.naam}</h3>
+        <span class="wb-thema-aantal">${lijst.filter(i => i._bron !== 'verborgen').length} woorden</span>
+      </div>
+      <p class="wb-thema-uitleg">
+        🟢 basis · 🟠 aangepast · 🔵 eigen woord · ⚪ verborgen
+      </p>
+    </div>
+  `;
+
+  groepen.forEach((items, cat) => {
+    if (items.length === 0 && cat !== 'overig' && cat !== 'alle') {
+      // Lege standaardcategorie — toon toch met "eigen toevoegen"-knop
+    }
+    const catLabel = (CATEGORIE_LABELS[cat] || { label: cat, emoji: '•' });
+    html += `
+      <div class="wb-categorie-blok">
+        <div class="wb-categorie-kop">
+          <span class="wb-categorie-naam">${catLabel.emoji} ${catLabel.label}</span>
+          <span class="wb-categorie-aantal">${items.filter(i => i._bron !== 'verborgen').length}</span>
+          <button class="lk-knop-mini" style="margin-left:auto" onclick="wbNieuwItem('${cat}')">➕ Nieuw woord</button>
+        </div>
+        <div class="wb-grid">
+    `;
+    if (items.length === 0) {
+      html += '<p class="wb-leeg">Geen woorden in deze categorie.</p>';
+    }
+    items.forEach(item => {
+      html += wbRenderKaart(item);
+    });
+    html += `</div></div>`;
+  });
+
+  inhoud.innerHTML = html;
+}
+
+function wbRenderKaart(item) {
+  const bron = item._bron || 'basis';
+  const bronKleur = {
+    basis:     'wb-bron-basis',
+    override:  'wb-bron-override',
+    eigen:     'wb-bron-eigen',
+    verborgen: 'wb-bron-verborgen'
+  }[bron];
+
+  // Voor verborgen items tonen we het origineel doorstreept met een "terug zichtbaar"-knop
+  if (bron === 'verborgen') {
+    const orig = item._origineel || item;
+    return `
+      <div class="wb-kaart ${bronKleur}">
+        <div class="wb-kaart-beeld">${Picto.html(orig, { grootte: 64 })}</div>
+        <div class="wb-kaart-tekst" style="text-decoration: line-through; opacity: 0.5">${orig.tekst}</div>
+        <div class="wb-kaart-acties">
+          <button class="lk-knop-mini" onclick="wbToonItem('${item.id}')" title="Terug zichtbaar maken">👁️ Tonen</button>
+        </div>
+      </div>
+    `;
+  }
+
+  const kanVerwijderen = (bron === 'eigen');
+  const kanVerbergen = (bron === 'basis' || bron === 'override');
+
+  return `
+    <div class="wb-kaart ${bronKleur}">
+      <div class="wb-kaart-beeld">${Picto.html(item, { grootte: 64 })}</div>
+      <div class="wb-kaart-tekst">${item.tekst || '<em>(zonder tekst)</em>'}</div>
+      ${item.zin ? `<div class="wb-kaart-zin">${item.zin}</div>` : ''}
+      <div class="wb-kaart-bron">${({basis:'basis',override:'aangepast',eigen:'eigen woord'})[bron]}</div>
+      <div class="wb-kaart-acties">
+        <button class="lk-knop-mini" onclick="wbBewerk('${item.id}')" title="Bewerken">✏️</button>
+        ${kanVerbergen ? `<button class="lk-knop-mini" onclick="wbVerberg('${item.id}')" title="Verbergen voor de klas">🙈</button>` : ''}
+        ${kanVerwijderen ? `<button class="lk-knop-mini gevaar" onclick="wbVerwijderEigen('${item.id}')" title="Echt verwijderen">🗑️</button>` : ''}
+        ${bron === 'override' ? `<button class="lk-knop-mini" onclick="wbHerstel('${item.id}')" title="Terug naar basisversie">↺</button>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+async function wbVerberg(itemId) {
+  if (!confirm('Dit woord wordt verborgen voor je leerlingen. Voortgang blijft bewaard. Doorgaan?')) return;
+  try {
+    await Woordenbeheer.verbergItem(wbHuidigThemaId, itemId);
+    wbRender();
+  } catch (e) { alert('Verbergen mislukt: ' + e.message); }
+}
+
+async function wbToonItem(itemId) {
+  try {
+    await Woordenbeheer.toonItem(wbHuidigThemaId, itemId);
+    wbRender();
+  } catch (e) { alert('Tonen mislukt: ' + e.message); }
+}
+
+async function wbHerstel(itemId) {
+  if (!confirm('Alle aanpassingen aan dit woord wissen en terug naar de basisversie?')) return;
+  try {
+    await Woordenbeheer.verwijderOverride(wbHuidigThemaId, itemId);
+    wbRender();
+  } catch (e) { alert('Herstellen mislukt: ' + e.message); }
+}
+
+async function wbVerwijderEigen(itemId) {
+  if (!confirm('Dit eigen woord echt verwijderen? Voortgang van leerlingen op dit woord gaat verloren.')) return;
+  try {
+    await Woordenbeheer.verwijderEigenItem(wbHuidigThemaId, itemId);
+    wbRender();
+  } catch (e) { alert('Verwijderen mislukt: ' + e.message); }
+}
+
+// ----------------- BEWERKEN / TOEVOEGEN — modal -----------------
+
+let _wbModalState = null; // { themaId, item, bron, isNieuw, nieuweFotoBlob? }
+
+function wbBewerk(itemId) {
+  const basis = ALLE_THEMAS_LK.find(t => t.id === wbHuidigThemaId);
+  const lijst = Woordenbeheer.geefVolledigOverzicht(basis);
+  const item = lijst.find(i => i.id === itemId);
+  if (!item) return;
+  _wbModalState = {
+    themaId: wbHuidigThemaId,
+    item: { ...item },
+    bron: item._bron,
+    isNieuw: false
+  };
+  wbRenderModal();
+}
+
+function wbNieuwItem(categorieDefault) {
+  const basis = ALLE_THEMAS_LK.find(t => t.id === wbHuidigThemaId);
+  _wbModalState = {
+    themaId: wbHuidigThemaId,
+    item: {
+      tekst: '',
+      kort: '',
+      zin: '',
+      categorie: (categorieDefault && categorieDefault !== 'overig' && categorieDefault !== 'alle') ? categorieDefault : (basis.categorieen ? basis.categorieen[0] : ''),
+      niveau: (basis.niveaus && basis.niveaus[0]) || 'basis',
+      beeld: '🆕'
+    },
+    bron: 'eigen',
+    isNieuw: true
+  };
+  wbRenderModal();
+}
+
+function wbRenderModal() {
+  const oud = document.getElementById('wb-modal-bg');
+  if (oud) oud.remove();
+
+  const basis = ALLE_THEMAS_LK.find(t => t.id === _wbModalState.themaId);
+  const it = _wbModalState.item;
+  const bron = _wbModalState.bron;
+
+  const bg = document.createElement('div');
+  bg.id = 'wb-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) wbSluitModal(); };
+
+  // Categorie-opties
+  let catOpties = '';
+  if (basis.categorieen && basis.categorieen.length > 0) {
+    basis.categorieen.forEach(c => {
+      const lab = CATEGORIE_LABELS[c] || { emoji: '•', label: c };
+      catOpties += `<option value="${c}" ${it.categorie === c ? 'selected' : ''}>${lab.emoji} ${lab.label}</option>`;
+    });
+  } else {
+    catOpties = `<option value="">(geen categorieën)</option>`;
+  }
+
+  // Niveau-opties
+  let nivOpties = '';
+  const niveaus = basis.niveaus || ['basis', 'uitbreiding', 'verdieping'];
+  niveaus.forEach(n => {
+    nivOpties += `<option value="${n}" ${it.niveau === n ? 'selected' : ''}>${n}</option>`;
+  });
+
+  // Huidige afbeelding
+  const huidigBeeldHtml = Picto.html(it, { grootte: 100 });
+
+  bg.innerHTML = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()" style="max-width:560px">
+      <h2>${_wbModalState.isNieuw ? '➕ Nieuw woord toevoegen' : '✏️ Woord bewerken'}</h2>
+      <p class="modal-uitleg">${basis.emoji} ${basis.naam} ${bron !== 'eigen' && !_wbModalState.isNieuw ? '· bewerken zet een aanpassing op het basiswoord (kan altijd hersteld worden)' : ''}</p>
+
+      <div class="wb-modal-row">
+        <div class="wb-modal-foto-wrap">
+          <div id="wb-modal-foto-preview" class="wb-modal-foto-preview">${huidigBeeldHtml}</div>
+          <input type="file" id="wb-foto-input" accept="image/*" capture="environment" style="display:none" onchange="wbFotoGekozen(this.files[0])">
+          <button class="lk-knop-mini" onclick="document.getElementById('wb-foto-input').click()">📷 Foto kiezen</button>
+          ${it.foto ? '<button class="lk-knop-mini gevaar" onclick="wbFotoWissen()">✗ Foto wissen</button>' : ''}
+          <p class="wb-modal-foto-hint">Of laat leeg en de emoji wordt getoond.</p>
+        </div>
+        <div class="wb-modal-velden">
+          <label class="wb-veld">
+            <span>Woord (zoals het kind het ziet)</span>
+            <input type="text" id="wb-tekst" value="${(it.tekst || '').replace(/"/g,'&quot;')}" placeholder="bv. de juf">
+          </label>
+          <label class="wb-veld">
+            <span>Kort (zonder lidwoord)</span>
+            <input type="text" id="wb-kort" value="${(it.kort || '').replace(/"/g,'&quot;')}" placeholder="bv. juf">
+          </label>
+          <label class="wb-veld">
+            <span>Voorbeeldzin</span>
+            <input type="text" id="wb-zin" value="${(it.zin || '').replace(/"/g,'&quot;')}" placeholder="bv. De juf helpt mij.">
+          </label>
+          <label class="wb-veld">
+            <span>Emoji (fallback als foto ontbreekt)</span>
+            <input type="text" id="wb-beeld" value="${(it.beeld || '').replace(/"/g,'&quot;')}" placeholder="bv. 👩‍🏫" maxlength="4">
+          </label>
+          <div class="wb-veld-rij">
+            <label class="wb-veld">
+              <span>Categorie</span>
+              <select id="wb-cat">${catOpties}</select>
+            </label>
+            <label class="wb-veld">
+              <span>Niveau</span>
+              <select id="wb-niveau">${nivOpties}</select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="wb-modal-status" class="wb-modal-status"></div>
+
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini" onclick="wbSluitModal()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="wbBewaarModal()">💾 Bewaren</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(bg);
+  // Foto-input ook reageren op keuze (capture/galerij keuze toont in mobile)
+  document.getElementById('wb-tekst').focus();
+}
+
+function wbFotoGekozen(file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    alert('Dit is geen afbeelding. Kies een foto (jpg, png, ...).');
+    return;
+  }
+  // Toon directe preview (van de orig-file, niet gecomprimeerd — alleen voorvertoning)
+  _wbModalState.nieuweFoto = file;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('wb-modal-foto-preview').innerHTML =
+      `<img src="${e.target.result}" class="picto-img" style="height:100px;width:auto">`;
+  };
+  reader.readAsDataURL(file);
+  setStatus('Nieuwe foto klaar voor upload bij bewaren.', 'info');
+}
+
+function wbFotoWissen() {
+  _wbModalState.item.foto = null;
+  _wbModalState.fotoVerwijderen = true;
+  _wbModalState.nieuweFoto = null;
+  document.getElementById('wb-modal-foto-preview').innerHTML =
+    Picto.html({ ..._wbModalState.item, foto: null }, { grootte: 100 });
+  setStatus('Foto wordt verwijderd bij bewaren.', 'info');
+}
+
+function setStatus(tekst, type) {
+  const el = document.getElementById('wb-modal-status');
+  if (!el) return;
+  el.textContent = tekst || '';
+  el.className = 'wb-modal-status ' + (type || '');
+}
+
+async function wbBewaarModal() {
+  if (!_wbModalState) return;
+  const it = _wbModalState.item;
+
+  // Velden uitlezen
+  const tekst = document.getElementById('wb-tekst').value.trim();
+  const kort = document.getElementById('wb-kort').value.trim();
+  const zin = document.getElementById('wb-zin').value.trim();
+  const beeld = document.getElementById('wb-beeld').value.trim();
+  const cat = document.getElementById('wb-cat').value;
+  const niveau = document.getElementById('wb-niveau').value;
+
+  if (!tekst) {
+    setStatus('Vul minstens een woord in.', 'fout');
+    return;
+  }
+
+  const knop = document.querySelector('#wb-modal-bg .lk-cat-modal-knoppen button:last-child');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+
+  try {
+    // Stap 1: foto uploaden indien er een nieuwe is
+    let nieuweFotoUrl = null;
+    if (_wbModalState.nieuweFoto) {
+      setStatus('Foto wordt geupload...', 'info');
+      // Voor eigen items: gebruik bestaand id of genereer er één
+      const itemIdVoorPad = it.id || 'tijdelijk-' + Date.now();
+      const upload = await AfbeeldingUpload.uploadFoto(_wbModalState.nieuweFoto, _wbModalState.themaId, itemIdVoorPad);
+      nieuweFotoUrl = upload.url;
+    }
+
+    // Stap 2: oude foto verwijderen indien aangevraagd OF vervangen
+    const oudeFotoUrl = it.foto;
+    if ((nieuweFotoUrl || _wbModalState.fotoVerwijderen) && oudeFotoUrl && oudeFotoUrl.startsWith('http')) {
+      // Niet awaiten — zelfs bij faal mag bewaring doorgaan
+      AfbeeldingUpload.verwijderFoto(oudeFotoUrl).catch(() => {});
+    }
+
+    // Stap 3: nieuwe data samenstellen
+    const nieuweVelden = {
+      tekst, kort, zin, beeld, categorie: cat, niveau
+    };
+    if (nieuweFotoUrl) {
+      nieuweVelden.foto = nieuweFotoUrl;
+    } else if (_wbModalState.fotoVerwijderen) {
+      nieuweVelden.foto = null;
+    } else if (it.foto) {
+      // Foto blijft zoals ze was
+      nieuweVelden.foto = it.foto;
+    }
+
+    // Stap 4: bewaren — afhankelijk van bron
+    if (_wbModalState.isNieuw) {
+      await Woordenbeheer.voegEigenItemToe(_wbModalState.themaId, nieuweVelden);
+    } else if (_wbModalState.bron === 'eigen') {
+      await Woordenbeheer.wijzigEigenItem(_wbModalState.themaId, it.id, nieuweVelden);
+    } else {
+      // basis of override → schrijf override (alleen velden die afwijken van basis bewaren)
+      // Voor de eenvoud: bewaar alle velden die ingevuld zijn (override leest gewoon over basis heen)
+      await Woordenbeheer.zetOverride(_wbModalState.themaId, it.id, nieuweVelden);
+    }
+
+    wbSluitModal();
+    wbRender();
+  } catch (e) {
+    console.error('Bewaren mislukt:', e);
+    setStatus('❌ ' + (e.message || 'Bewaren mislukt'), 'fout');
+    if (knop) { knop.disabled = false; knop.textContent = '💾 Bewaren'; }
+  }
+}
+
+function wbSluitModal() {
+  const bg = document.getElementById('wb-modal-bg');
+  if (bg) bg.remove();
+  _wbModalState = null;
+}
+
+// =================================================================
 //  WERKBLADEN
 // =================================================================
 
@@ -548,14 +1138,26 @@ const WB_OEFENING_LABELS = {
   kaartjes: '🃏 Woordkaartjes'
 };
 
+// Labels voor categorieën — gebruikt in chips
+const CATEGORIE_LABELS = {
+  voorwerpen:  { label: 'voorwerpen',  emoji: '📦' },
+  werkwoorden: { label: 'werkwoorden', emoji: '🏃' },
+  personen:    { label: 'personen',    emoji: '👤' },
+  plaatsen:    { label: 'plaatsen',    emoji: '📍' },
+  situaties:   { label: 'situaties',   emoji: '🕒' }
+};
+
 let werkbladPerThema = new Map();
 let werkbladThemaIds = [];
 let werkbladTabAlGetoond = false;
 
-function nieuwThemaConfig() {
+function nieuwThemaConfig(thema) {
+  // Default: alle categorieën die in dit thema bestaan zijn aan
+  const cats = (thema && thema.categorieen) ? new Set(thema.categorieen) : new Set();
   return {
     niveau: 'basis',
-    oefeningen: new Set(WB_NIVEAU_BUNDELS.basis.oefeningen)
+    oefeningen: new Set(WB_NIVEAU_BUNDELS.basis.oefeningen),
+    categorieen: cats
   };
 }
 
@@ -584,6 +1186,14 @@ function toggleThemaOefening(themaId, oefKey) {
   rendererThemaPaneel(themaId);
 }
 
+function toggleThemaCategorie(themaId, cat) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  if (cfg.categorieen.has(cat)) cfg.categorieen.delete(cat);
+  else cfg.categorieen.add(cat);
+  rendererThemaPaneel(themaId);
+}
+
 function rendererWerkbladThemas() {
   const lijst = document.getElementById('werkblad-themas-lijst');
   if (!lijst) return;
@@ -603,7 +1213,7 @@ function rendererWerkbladThemas() {
       if (e.target.checked) {
         if (!werkbladThemaIds.includes(thema.id)) {
           werkbladThemaIds.push(thema.id);
-          werkbladPerThema.set(thema.id, nieuwThemaConfig());
+          werkbladPerThema.set(thema.id, nieuwThemaConfig(thema));
         }
         chip.classList.add('aan');
       } else {
@@ -668,6 +1278,26 @@ function rendererThemaPaneel(themaId) {
   });
   html += `</div>`;
 
+  // ===== Categorieën-chips (alleen tonen als thema categorieën heeft) =====
+  if (thema.categorieen && thema.categorieen.length > 0) {
+    html += `
+      <div class="categorieen-paneel">
+        <div class="categorieen-paneel-kop">🏷️ Categorieën in dit werkblad</div>
+        <div class="categorie-chips">
+    `;
+    thema.categorieen.forEach(cat => {
+      const aan = cfg.categorieen.has(cat);
+      const lab = CATEGORIE_LABELS[cat] || { label: cat, emoji: '•' };
+      html += `
+        <label class="categorie-chip ${aan ? 'aan' : ''}">
+          <input type="checkbox" ${aan ? 'checked' : ''} onchange="toggleThemaCategorie('${themaId}', '${cat}')">
+          <span>${lab.emoji} ${lab.label}</span>
+        </label>
+      `;
+    });
+    html += `</div></div>`;
+  }
+
   let tonen = cfg.niveau === 'vrij' ? WB_OEFENING_KEYS : WB_NIVEAU_BUNDELS[cfg.niveau].oefeningen;
   // Filter ongeschikte oefeningen voor zinnen-thema's
   if (isZinnenThema) {
@@ -695,16 +1325,25 @@ function rendererThemaPaneel(themaId) {
   paneel.innerHTML = html;
 }
 
-function genereerWerkblad() {
+async function genereerWerkblad() {
   if (werkbladThemaIds.length === 0) {
     alert('Kies minstens één thema.');
     return;
   }
 
+  // Belangrijk: pas Woordenbeheer toe vóór we naar de PDF-engine gaan,
+  // anders zou het werkblad alleen het basispakket gebruiken zonder
+  // overrides of eigen woorden.
   const themaConfigs = werkbladThemaIds.map(id => {
-    const thema = ALLE_THEMAS_LK.find(t => t.id === id);
+    const basis = ALLE_THEMAS_LK.find(t => t.id === id);
+    const verrijkt = lkVerrijkThema(basis);
     const cfg = werkbladPerThema.get(id);
-    return { thema, oefeningen: Array.from(cfg.oefeningen), niveau: cfg.niveau };
+    return {
+      thema: verrijkt,
+      oefeningen: Array.from(cfg.oefeningen),
+      niveau: cfg.niveau,
+      categorieen: Array.from(cfg.categorieen)
+    };
   });
 
   const totaalOef = themaConfigs.reduce((acc, tc) => acc + tc.oefeningen.length, 0);
@@ -713,25 +1352,53 @@ function genereerWerkblad() {
     return;
   }
 
-  PDFEngine.maakWerkblad(themaConfigs, { verdeling: 'per-thema' });
+  // Controleer per thema dat er nog items overblijven na categorie-filter
+  const leegThema = themaConfigs.find(tc => {
+    if (!tc.thema.categorieen || tc.thema.categorieen.length === 0) return false;
+    if (tc.categorieen.length === 0) return true;
+    const overig = tc.thema.items.filter(it => !it.categorie || tc.categorieen.includes(it.categorie));
+    return overig.length === 0;
+  });
+  if (leegThema) {
+    alert(`In "${leegThema.thema.naam}" zijn er geen woorden geselecteerd. Vink minstens één categorie aan.`);
+    return;
+  }
+
+  try {
+    await PDFEngine.maakWerkblad(themaConfigs, { verdeling: 'per-thema' });
+  } catch (e) {
+    console.error('Werkblad genereren mislukt:', e);
+    alert('Het werkblad kon niet gemaakt worden. Probeer opnieuw.');
+  }
 }
 
-function genereerOplossingssleutel() {
+async function genereerOplossingssleutel() {
   if (werkbladThemaIds.length === 0) {
     alert('Kies minstens één thema voor de oplossingssleutel.');
     return;
   }
   const themaConfigs = werkbladThemaIds.map(id => {
-    const thema = ALLE_THEMAS_LK.find(t => t.id === id);
+    const basis = ALLE_THEMAS_LK.find(t => t.id === id);
+    const verrijkt = lkVerrijkThema(basis);
     const cfg = werkbladPerThema.get(id);
-    return { thema, oefeningen: Array.from(cfg.oefeningen), niveau: cfg.niveau };
+    return {
+      thema: verrijkt,
+      oefeningen: Array.from(cfg.oefeningen),
+      niveau: cfg.niveau,
+      categorieen: Array.from(cfg.categorieen)
+    };
   });
   const totaalOef = themaConfigs.reduce((acc, tc) => acc + tc.oefeningen.length, 0);
   if (totaalOef === 0) {
     alert('Vink minstens één oefening aan in een van de thema-panelen.');
     return;
   }
-  PDFEngine.maakOplossingssleutel(themaConfigs, { verdeling: 'per-thema' });
+  try {
+    await PDFEngine.maakOplossingssleutel(themaConfigs, { verdeling: 'per-thema' });
+  } catch (e) {
+    console.error('Oplossingssleutel mislukt:', e);
+    alert('De oplossingssleutel kon niet gemaakt worden. Probeer opnieuw.');
+  }
 }
 
 // =================================================================
