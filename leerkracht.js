@@ -68,6 +68,8 @@ async function lkInit() {
       try { await Woordenbeheer.laad(); } catch (e) { console.warn('Woordenbeheer kon niet laden:', e); }
     }
     await lkLaadKinderen();
+    // Vul welkom-stats meteen na het laden van de leerlingen.
+    lkVulWelkomStats();
   } else {
     document.getElementById('lk-vak-firebase-niet-ingesteld').style.display = 'block';
     document.getElementById('lk-tabel-wrap').innerHTML = '<p style="opacity:0.6">Configureer eerst Firebase.</p>';
@@ -85,17 +87,75 @@ function lkVerrijkThema(thema) {
 }
 
 // =================================================================
-//  TABS
+//  TABS + ZIJBALK
 // =================================================================
 function lkKiesTab(tab) {
   document.querySelectorAll('.lk-tab').forEach(k => k.classList.remove('actief'));
   document.querySelectorAll('.lk-tab-inhoud').forEach(t => t.classList.remove('actief'));
-  document.querySelector(`.lk-tab[data-tab="${tab}"]`).classList.add('actief');
-  document.getElementById('lk-tab-' + tab).classList.add('actief');
+  const navKnop = document.querySelector(`.lk-tab[data-tab="${tab}"]`);
+  if (navKnop) navKnop.classList.add('actief');
+  const inhoud = document.getElementById('lk-tab-' + tab);
+  if (inhoud) inhoud.classList.add('actief');
 
+  if (tab === 'welkom') lkVulWelkomStats();
   if (tab === 'overzicht') lkRendererOverzicht();
   if (tab === 'woorden') wbInitTab();
   if (tab === 'werkbladen') initWerkbladTab();
+
+  // Sluit zijbalk op mobiel na keuze
+  lkSluitMenu();
+
+  // Scroll naar boven zodat nieuwe tab vanaf bovenaan zichtbaar is
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function lkToggleMenu() {
+  const zijbalk = document.getElementById('lk-zijbalk');
+  if (zijbalk) zijbalk.classList.toggle('open');
+}
+
+function lkSluitMenu() {
+  const zijbalk = document.getElementById('lk-zijbalk');
+  if (zijbalk) zijbalk.classList.remove('open');
+}
+
+// Vult de stats-tegels op de welkom-pagina
+function lkVulWelkomStats() {
+  const wrap = document.getElementById('welkom-stats');
+  if (!wrap) return;
+
+  const aantalKinderen = lkKinderen.length;
+
+  // Tel hoeveel woorden er actief zijn over alle leerlingen heen
+  let totaalActieveWoorden = 0;
+  let kinderenMetThemas = 0;
+  lkKinderen.forEach(kind => {
+    let actiefDitKind = 0;
+    ALLE_THEMAS_LK.forEach(thema => {
+      const items = _filterItemsVoorKind(thema, kind);
+      actiefDitKind += items.length;
+    });
+    totaalActieveWoorden += actiefDitKind;
+    if (actiefDitKind > 0) kinderenMetThemas++;
+  });
+
+  // Totaal woorden in basispakket (over alle thema's)
+  const totaalInPakket = ALLE_THEMAS_LK.reduce((s, t) => s + lkVerrijkThema(t).items.length, 0);
+
+  wrap.innerHTML = `
+    <div class="welkom-stat">
+      <span class="welkom-stat-getal">${aantalKinderen}</span>
+      <span class="welkom-stat-label">${aantalKinderen === 1 ? 'leerling' : 'leerlingen'}</span>
+    </div>
+    <div class="welkom-stat">
+      <span class="welkom-stat-getal">${kinderenMetThemas}</span>
+      <span class="welkom-stat-label">${kinderenMetThemas === 1 ? 'leerling oefent' : 'leerlingen oefenen'}</span>
+    </div>
+    <div class="welkom-stat">
+      <span class="welkom-stat-getal">${totaalInPakket}</span>
+      <span class="welkom-stat-label">woorden in pakket</span>
+    </div>
+  `;
 }
 
 // =================================================================
@@ -119,42 +179,219 @@ function lkRendererTabel() {
   }
 
   let html = '<table class="lk-tabel"><thead><tr>';
-  html += '<th>Naam</th><th>Code</th><th>Voortgang</th><th>Acties</th>';
+  html += '<th></th><th>Naam</th><th>📋 Taak</th><th>🏷️ Vrij oefenen</th><th>Acties</th>';
   html += '</tr></thead><tbody>';
 
   lkKinderen.forEach(kind => {
-    const { gekend, totaal } = berekenVoortgangVoorKind(kind);
-    html += `<tr>
-      <td>${kind.naam || '<em style="opacity:0.5">geen naam</em>'}</td>
-      <td><span class="lk-code">${kind.code}</span></td>
-      <td>${gekend} / ${totaal}</td>
-      <td>
-        <button class="lk-knop-mini" onclick="lkToonQR('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')" title="QR-code voor inloggen">📱 QR</button>
-        <button class="lk-knop-mini" onclick="lkBekijkKind('${kind.code}')" title="Bekijk gedetailleerde voortgang">📊</button>
-        <button class="lk-knop-mini" onclick="lkBekijkKindApp('${kind.code}')" title="Open de kind-app als deze leerling (in nieuw tabblad)">👁️</button>
-        <button class="lk-knop-mini" onclick="lkBeheerCategorieen('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')" title="Categorieën per thema">🏷️</button>
-        <button class="lk-knop-mini gevaar" onclick="lkVerwijder('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')" title="Leerling verwijderen">🗑️</button>
+    const naamSafe = (kind.naam || '').replace(/'/g, "\\'");
+    const code = kind.code;
+    const isOpen = lkUitgeklapt.has(code);
+
+    // === Taak-status compact ===
+    let taakCel = '<span class="lk-taak-leeg">— Geen taak —</span>';
+    if (kind.taak && kind.taak.themaId && Array.isArray(kind.taak.woordIds) && kind.taak.woordIds.length > 0) {
+      const t = kind.taak;
+      const thema = ALLE_THEMAS_LK.find(x => x.id === t.themaId);
+      const themaTekst = thema ? `${thema.emoji} ${thema.naam}` : t.themaId;
+      const aantalW = t.woordIds.length;
+      let statusBadge = '';
+      if (t.status === 'voltooid') {
+        statusBadge = '<span class="lk-status-badge voltooid">🏆 voltooid</span>';
+      } else if (t.status === 'moeilijk' || t.status === 'haperde') {
+        statusBadge = '<span class="lk-status-badge moeilijk">⚠️ moeilijk</span>';
+      } else {
+        const fase = t.huidigeFase || 'leren';
+        const faseTekst = (fase === 'leren') ? 'leren' :
+                          (fase === 'luisteren-oef') ? 'oefenen' :
+                          (fase === 'luisteren-toets') ? 'toets' :
+                          (fase === 'klaar') ? 'klaar' : fase;
+        statusBadge = `<span class="lk-status-badge bezig">🔄 ${faseTekst}</span>`;
+      }
+      taakCel = `
+        <div class="lk-taak-cel">
+          <div class="lk-taak-cel-thema">${themaTekst} <small>(${aantalW} w.)</small></div>
+          ${statusBadge}
+        </div>
+      `;
+    }
+
+    // === Vrij oefenen compact ===
+    let vrijTekst = '— niets —';
+    if (kind.thema_actief === undefined) {
+      vrijTekst = 'alle thema\'s';
+    } else if (Array.isArray(kind.thema_actief)) {
+      const n = kind.thema_actief.length;
+      vrijTekst = (n === 0) ? '— niets —' :
+                  (n === 1) ? '1 thema' :
+                  `${n} thema's`;
+    }
+
+    // Hoofdrij
+    html += `<tr class="lk-tabel-rij ${isOpen ? 'open' : ''}" data-code="${code}">
+      <td class="lk-rij-pijl-cel" onclick="lkRijToggle('${code}')"><span class="lk-rij-pijl">${isOpen ? '▼' : '▶'}</span></td>
+      <td onclick="lkRijToggle('${code}')">${kind.naam || '<em style="opacity:0.5">geen naam</em>'}<br><small class="lk-code-mini">${code}</small></td>
+      <td onclick="lkRijToggle('${code}')">${taakCel}</td>
+      <td onclick="lkRijToggle('${code}')"><span class="lk-vrij-tekst">${vrijTekst}</span></td>
+      <td class="lk-acties-cel">
+        <button class="lk-knop-mini lk-taak-knop" onclick="lkBeheerTaak('${code}', '${naamSafe}')" title="Taak voor deze leerling">📋</button>
+        <button class="lk-knop-mini" onclick="lkBeheerCategorieen('${code}', '${naamSafe}')" title="Welke thema's mag de leerling vrij oefenen?">🏷️</button>
+        <button class="lk-knop-mini" onclick="lkToonQR('${code}', '${naamSafe}')" title="QR-code voor inloggen">📱</button>
+        <button class="lk-knop-mini" onclick="lkBekijkKindApp('${code}')" title="Open de kind-app als deze leerling">👁️</button>
+        <button class="lk-knop-mini gevaar" onclick="lkVerwijder('${code}', '${naamSafe}')" title="Leerling verwijderen">🗑️</button>
       </td>
     </tr>`;
+
+    // Uitklapbare detailrij
+    if (isOpen) {
+      html += `<tr class="lk-tabel-detailrij"><td colspan="5">${_lkRendererDetail(kind)}</td></tr>`;
+    }
   });
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
 }
 
-// Filter de items van een thema op de actieve categorieën voor dit kind.
-// Past eerst Woordenbeheer toe (overrides + eigen items + verbergen),
-// dan filtert op de categorieën van het kind.
+// Set met codes van uitgeklapte rijen — globale state
+let lkUitgeklapt = new Set();
+
+function lkRijToggle(code) {
+  if (lkUitgeklapt.has(code)) lkUitgeklapt.delete(code);
+  else lkUitgeklapt.add(code);
+  lkRendererTabel();
+}
+
+// Detail-render voor uitgeklapte rij
+function _lkRendererDetail(kind) {
+  let html = '<div class="lk-detail">';
+
+  // === Taak-detail ===
+  if (kind.taak && kind.taak.themaId && Array.isArray(kind.taak.woordIds)) {
+    const t = kind.taak;
+    const thema = ALLE_THEMAS_LK.find(x => x.id === t.themaId);
+    const themaNaam = thema ? `${thema.emoji} ${thema.naam}` : t.themaId;
+
+    html += '<div class="lk-detail-blok">';
+    html += `<h4>📋 Taak — ${themaNaam}</h4>`;
+
+    // Vaardigheden + oefenvormen
+    if (Array.isArray(t.vaardigheden) && t.vaardigheden.length > 0) {
+      const vaardigIcoon = { 'luisteren': '👂', 'lezen': '👁️', 'schrijven': '✍️' };
+      const vlist = t.vaardigheden.map(v => `${vaardigIcoon[v] || ''} ${v}`).join(' · ');
+      html += `<p class="lk-detail-rij"><strong>Vaardigheden:</strong> ${vlist}</p>`;
+    }
+
+    // Toets-resultaat samengevat (op basis van foutWoorden + aantal woorden)
+    const aantalW = t.woordIds.length;
+    if (t.foutWoordenLaatsteToets && t.foutWoordenLaatsteToets.length > 0) {
+      const juistAantal = aantalW - t.foutWoordenLaatsteToets.length;
+      // Vind de tekst-namen op
+      const foutNamen = [];
+      if (thema) {
+        const verrijkt = lkVerrijkThema(thema);
+        verrijkt.items.forEach(it => {
+          if (t.foutWoordenLaatsteToets.includes(it.id)) foutNamen.push(it.tekst);
+        });
+      }
+      html += `<p class="lk-detail-rij"><strong>Laatste toets:</strong> ${juistAantal}/${aantalW} juist</p>`;
+      if (foutNamen.length > 0) {
+        html += `<p class="lk-detail-rij"><strong>Foute woorden:</strong> ${foutNamen.join(', ')}</p>`;
+      }
+    } else if (t.status === 'voltooid') {
+      html += `<p class="lk-detail-rij"><strong>Laatste toets:</strong> ${aantalW}/${aantalW} juist 🏆</p>`;
+    }
+
+    // Geoefende woorden + status per woord
+    if (t.perWoord && Object.keys(t.perWoord).length > 0) {
+      html += '<p class="lk-detail-rij"><strong>Voortgang per woord:</strong></p>';
+      html += '<div class="lk-detail-woorden">';
+      const verrijkt = thema ? lkVerrijkThema(thema) : null;
+      t.woordIds.forEach(id => {
+        const data = t.perWoord[id] || {};
+        const luist = data.luisteren_juist || 0;
+        let woordTekst = id;
+        if (verrijkt) {
+          const item = verrijkt.items.find(x => x.id === id);
+          if (item) woordTekst = item.tekst;
+        }
+        const bolletjes = '●'.repeat(luist) + '○'.repeat(3 - luist);
+        const klaarKlas = (luist >= 3) ? 'klaar' : '';
+        html += `<span class="lk-detail-woord ${klaarKlas}">${woordTekst} <span class="lk-bolletjes">${bolletjes}</span></span>`;
+      });
+      html += '</div>';
+    }
+
+    html += '</div>';
+  } else {
+    html += '<div class="lk-detail-blok"><h4>📋 Taak</h4><p class="lk-detail-leeg">Nog geen taak ingesteld voor deze leerling.</p></div>';
+  }
+
+  // === Vrij oefenen detail ===
+  html += '<div class="lk-detail-blok">';
+  html += '<h4>🏷️ Vrij oefenen</h4>';
+  if (kind.thema_actief === undefined) {
+    html += '<p class="lk-detail-leeg">Alle thema\'s staan open (standaard).</p>';
+  } else if (!Array.isArray(kind.thema_actief) || kind.thema_actief.length === 0) {
+    html += '<p class="lk-detail-leeg">Geen thema\'s aangevinkt.</p>';
+  } else {
+    html += '<p class="lk-detail-rij">';
+    kind.thema_actief.forEach(themaId => {
+      const thema = ALLE_THEMAS_LK.find(x => x.id === themaId);
+      if (thema) {
+        html += `<span class="lk-detail-tag">${thema.emoji} ${thema.naam}</span>`;
+      }
+    });
+    html += '</p>';
+  }
+  html += '</div>';
+
+  // === Algemene voortgang (sterren) ===
+  const { gekend, totaal } = berekenVoortgangVoorKind(kind);
+  html += `<div class="lk-detail-blok"><h4>⭐ Algemene voortgang</h4><p class="lk-detail-rij">${gekend} van ${totaal} woorden gekend (in vrij oefenen)</p></div>`;
+
+  html += '</div>';
+  return html;
+}
+
+
+// Filter de items van een thema voor dit kind. Volgorde:
+//   1. Thema actief? Zo niet → leeg.
+//   2. Woordenbeheer toepassen (overrides + eigen items + verbergen)
+//   3. Categorieën-filter
+//   4. Uitsluitingsfilter (specifieke woorden uitgezet voor dit kind)
 function _filterItemsVoorKind(thema, kind) {
+  // Thema-niveau: thema_actief afwezig = backward compat (alles aan).
+  // Aanwezig = enkel als thema-id in de array zit.
+  if (Array.isArray(kind.thema_actief)) {
+    if (kind.thema_actief.indexOf(thema.id) === -1) return [];
+  }
+
   const verrijkt = lkVerrijkThema(thema);
   const ingesteld = (kind.categorieen || {})[verrijkt.id];
-  if (!verrijkt.categorieen || verrijkt.categorieen.length === 0) return verrijkt.items;
-  if (!Array.isArray(ingesteld) || ingesteld.length === 0) {
-    // null/undefined = default: alles aan. Lege lijst = letterlijk niets aan.
-    if (ingesteld === undefined || ingesteld === null) return verrijkt.items;
-    return [];
+  const uitgesloten = (kind.uitgesloten || {})[verrijkt.id] || [];
+
+  // Geen categorieën in dit thema? Alleen uitsluiting toepassen.
+  if (!verrijkt.categorieen || verrijkt.categorieen.length === 0) {
+    if (uitgesloten.length === 0) return verrijkt.items;
+    return verrijkt.items.filter(it => !uitgesloten.includes(it.id));
   }
-  return verrijkt.items.filter(it => !it.categorie || ingesteld.includes(it.categorie));
+
+  // Categorieën-bepaling
+  let actieveCats;
+  if (!Array.isArray(ingesteld) || ingesteld.length === 0) {
+    if (ingesteld === undefined || ingesteld === null) {
+      actieveCats = verrijkt.categorieen;  // default = alles
+    } else {
+      actieveCats = [];  // expliciet leeg
+    }
+  } else {
+    actieveCats = ingesteld;
+  }
+
+  return verrijkt.items.filter(it => {
+    if (it.categorie && !actieveCats.includes(it.categorie)) return false;
+    if (uitgesloten.includes(it.id)) return false;
+    return true;
+  });
 }
 
 function berekenVoortgangVoorKind(kind) {
@@ -562,80 +799,90 @@ function lkPrintAlleQR() {
 
 
 // =================================================================
-//  CATEGORIEËN PER LEERLING — modal
+//  VRIJ OEFENEN — welke thema's zijn open voor dit kind?
 // =================================================================
+//
+// Heel eenvoudig: vink aan welke thema's het kind vrij mag oefenen.
+// Voor de gerichte oefening van specifieke woorden: gebruik de Taak-modal.
 
-// State tijdens modal: { themaId: Set<categorie> }
-let _catModalState = null;
-let _catModalKindCode = null;
+let _vrijModalKindCode = null;
+let _vrijModalNaam = '';
+let _vrijModalThemaActief = null; // Set<themaId>
 
 async function lkBeheerCategorieen(code, naam) {
-  _catModalKindCode = code;
+  _vrijModalKindCode = code;
+  _vrijModalNaam = naam || code;
 
-  // Eerst huidige instellingen ophalen
-  let huidig = {};
+  let huidigeActief = null;
   try {
-    huidig = await Voortgang.haalCategorieenOpVoorKind(code);
-  } catch (e) {
-    console.warn('Kon categorieën niet ophalen, start vanaf default', e);
+    huidigeActief = await Voortgang.haalThemaActiefOpVoorKind(code);
+  } catch (e) { console.warn('Thema-actief ophalen mislukt:', e); }
+
+  // null vanuit Firestore = backward-compat: alles aan.
+  // [] = expliciet niets aan.
+  if (huidigeActief === null) {
+    _vrijModalThemaActief = new Set(ALLE_THEMAS_LK.map(t => t.id));
+  } else {
+    _vrijModalThemaActief = new Set(huidigeActief);
   }
 
-  // Bouw state: per thema een Set met actieve categorieën.
-  // Default (geen instelling) = ALLE categorieën van het thema aan.
-  _catModalState = {};
-  ALLE_THEMAS_LK.forEach(thema => {
-    if (!thema.categorieen || thema.categorieen.length === 0) return;
-    const ingesteld = huidig[thema.id];
-    if (Array.isArray(ingesteld) && ingesteld.length > 0) {
-      _catModalState[thema.id] = new Set(ingesteld.filter(c => thema.categorieen.includes(c)));
-    } else {
-      _catModalState[thema.id] = new Set(thema.categorieen);
-    }
-  });
-
-  rendererCatModal(naam || code);
+  rendererVrijModal();
 }
 
-function rendererCatModal(naamOfCode) {
-  // Verwijder eventueel bestaande modal eerst
-  const oud = document.getElementById('lk-cat-modal-bg');
+function rendererVrijModal() {
+  const oud = document.getElementById('lk-vrij-modal-bg');
   if (oud) oud.remove();
 
   const bg = document.createElement('div');
-  bg.id = 'lk-cat-modal-bg';
+  bg.id = 'lk-vrij-modal-bg';
   bg.className = 'lk-cat-modal-bg';
-  bg.onclick = (e) => { if (e.target === bg) lkSluitCatModal(); };
+  bg.onclick = (e) => { if (e.target === bg) lkSluitVrijModal(); };
+
+  const groepen = [
+    { titel: 'Survival-thema\u2019s — eerste week', emoji: '🚨', themas: ALLE_THEMAS_LK.filter(t => t.categorie === 'survival') },
+    { titel: 'Woorden-thema\u2019s', emoji: '📚', themas: ALLE_THEMAS_LK.filter(t => t.type === 'woorden') },
+    { titel: 'Zinnen-thema\u2019s', emoji: '💬', themas: ALLE_THEMAS_LK.filter(t => t.type === 'zinnen') }
+  ];
 
   let html = `
     <div class="lk-cat-modal" onclick="event.stopPropagation()">
-      <h2>🏷️ Categorieën voor ${naamOfCode}</h2>
-      <p class="modal-uitleg">Vink aan welke categorieën deze leerling oefent. Niet aangevinkt = niet getoond in app of toetsen. Standaard staat alles aan.</p>
+      <h2>🏷️ Vrij oefenen voor ${_vrijModalNaam}</h2>
+      <p class="modal-uitleg">
+        Vink hieronder de thema\u2019s aan die deze leerling vrij mag oefenen.
+        Voor een gerichte oefenopdracht met specifieke woorden: gebruik het 📋-knopje.
+      </p>
+
+      <div class="lk-cat-snelacties">
+        <button class="lk-knop-mini" onclick="lkVrijSnelactie('alles')">✓ Alles aan</button>
+        <button class="lk-knop-mini" onclick="lkVrijSnelactie('niets')">✗ Alles uit</button>
+        <button class="lk-knop-mini" onclick="lkVrijSnelactie('survival')" title="Alleen de drie survival-thema's aanzetten">🏫 Enkel survival</button>
+      </div>
   `;
 
-  ALLE_THEMAS_LK.forEach(thema => {
-    if (!thema.categorieen || thema.categorieen.length === 0) return;
-    const setActief = _catModalState[thema.id];
-    html += `<div class="lk-cat-thema-blok">
-      <div class="lk-cat-thema-naam">${thema.emoji} ${thema.naam}</div>
-      <div class="categorie-chips">`;
-    thema.categorieen.forEach(cat => {
-      const aan = setActief.has(cat);
-      const lab = CATEGORIE_LABELS[cat] || { label: cat, emoji: '•' };
+  groepen.forEach(groep => {
+    if (groep.themas.length === 0) return;
+    html += `<h3 class="lk-cat-groep-titel">${groep.emoji} ${groep.titel}</h3>`;
+    html += `<div class="lk-vrij-themalijst">`;
+    groep.themas.forEach(thema => {
+      const aan = _vrijModalThemaActief.has(thema.id);
+      const verrijkt = lkVerrijkThema(thema);
+      const aantal = verrijkt.items.length;
       html += `
-        <label class="categorie-chip ${aan ? 'aan' : ''}">
-          <input type="checkbox" ${aan ? 'checked' : ''} onchange="lkToggleCatModal('${thema.id}', '${cat}')">
-          <span>${lab.emoji} ${lab.label}</span>
+        <label class="lk-vrij-themarij ${aan ? 'aan' : ''}">
+          <input type="checkbox" ${aan ? 'checked' : ''} onchange="lkVrijToggleThema('${thema.id}')">
+          <span class="lk-vrij-thema-emoji">${thema.emoji}</span>
+          <span class="lk-vrij-thema-naam">${thema.naam}</span>
+          <span class="lk-vrij-thema-teller">${aantal} woorden</span>
         </label>
       `;
     });
-    html += `</div></div>`;
+    html += `</div>`;
   });
 
   html += `
       <div class="lk-cat-modal-knoppen">
-        <button class="lk-knop-mini" onclick="lkAllesAanCatModal()">Alles aan</button>
-        <button class="lk-knop-mini" onclick="lkSluitCatModal()">Annuleren</button>
-        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarCatModal()">💾 Bewaren</button>
+        <button class="lk-knop-mini" onclick="lkSluitVrijModal()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarVrijModal()">💾 Bewaren</button>
       </div>
     </div>
   `;
@@ -644,67 +891,441 @@ function rendererCatModal(naamOfCode) {
   document.body.appendChild(bg);
 }
 
-function lkToggleCatModal(themaId, cat) {
-  if (!_catModalState || !_catModalState[themaId]) return;
-  const s = _catModalState[themaId];
-  if (s.has(cat)) s.delete(cat); else s.add(cat);
-  // Update enkel de chip in plaats van alles te herrenderen
-  const chips = document.querySelectorAll('.lk-cat-modal .categorie-chip');
-  chips.forEach(chip => {
-    const inp = chip.querySelector('input');
-    if (inp && inp.getAttribute('onchange') && inp.getAttribute('onchange').includes(`'${themaId}', '${cat}'`)) {
-      chip.classList.toggle('aan', s.has(cat));
-      inp.checked = s.has(cat);
-    }
-  });
+function lkVrijToggleThema(themaId) {
+  if (!_vrijModalThemaActief) return;
+  if (_vrijModalThemaActief.has(themaId)) _vrijModalThemaActief.delete(themaId);
+  else _vrijModalThemaActief.add(themaId);
+  rendererVrijModal();
 }
 
-function lkAllesAanCatModal() {
-  Object.keys(_catModalState).forEach(themaId => {
-    const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
-    if (thema) _catModalState[themaId] = new Set(thema.categorieen);
-  });
-  // Vind de naam terug uit de header
-  const koppen = document.querySelectorAll('.lk-cat-modal h2');
-  let naam = _catModalKindCode;
-  if (koppen[0]) naam = koppen[0].textContent.replace(/^🏷️ Categorieën voor /, '');
-  rendererCatModal(naam);
+function lkVrijSnelactie(soort) {
+  if (soort === 'alles') {
+    _vrijModalThemaActief = new Set(ALLE_THEMAS_LK.map(t => t.id));
+  } else if (soort === 'niets') {
+    _vrijModalThemaActief = new Set();
+  } else if (soort === 'survival') {
+    _vrijModalThemaActief = new Set(ALLE_THEMAS_LK.filter(t => t.categorie === 'survival').map(t => t.id));
+  }
+  rendererVrijModal();
 }
 
-async function lkBewaarCatModal() {
-  if (!_catModalKindCode || !_catModalState) return;
-
-  const knop = document.querySelector('.lk-cat-modal-knoppen button:last-child');
+async function lkBewaarVrijModal() {
+  if (!_vrijModalKindCode) return;
+  const knop = document.querySelector('#lk-vrij-modal-bg .lk-cat-modal-knoppen button:last-child');
   if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
-
   try {
-    // Bewaar één thema tegelijk. Lege set = niets aan = blokkade voor het kind,
-    // dus dat slaan we op als lege array (≠ 'verwijderen' wat → alles aan zou betekenen).
-    // Volle set (alles aan) → expliciet verwijderen, zodat kind altijd alles ziet
-    // ook als het thema later uitgebreid wordt met nieuwe categorieën.
-    for (const themaId of Object.keys(_catModalState)) {
-      const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
-      if (!thema) continue;
-      const setActief = _catModalState[themaId];
-      const lijst = Array.from(setActief);
-      const isAlles = lijst.length === thema.categorieen.length;
-      // 'isAlles' → null doorgeven (= verwijderen, default = alles)
-      // anders → de lijst doorgeven (ook als hij leeg is)
-      await Voortgang.zetCategorieenVoorKind(_catModalKindCode, themaId, isAlles ? null : lijst);
-    }
-    lkSluitCatModal();
+    const lijst = Array.from(_vrijModalThemaActief);
+    await Voortgang.zetThemaActiefVoorKind(_vrijModalKindCode, lijst);
+    const kind = lkKinderen.find(k => k.code === _vrijModalKindCode);
+    if (kind) kind.thema_actief = lijst;
+    lkSluitVrijModal();
+    if (typeof lkRendererTabel === 'function') lkRendererTabel();
   } catch (e) {
     console.error('Bewaren mislukt:', e);
-    alert('Kon de categorieën niet bewaren. Probeer opnieuw.');
+    alert('Kon de instellingen niet bewaren. Probeer opnieuw.');
     if (knop) { knop.disabled = false; knop.textContent = '💾 Bewaren'; }
   }
 }
 
-function lkSluitCatModal() {
-  const bg = document.getElementById('lk-cat-modal-bg');
+function lkSluitVrijModal() {
+  const bg = document.getElementById('lk-vrij-modal-bg');
   if (bg) bg.remove();
-  _catModalState = null;
-  _catModalKindCode = null;
+  _vrijModalKindCode = null;
+  _vrijModalThemaActief = null;
+}
+
+// Backward-compat: oudere code roept misschien lkSluitCatModal
+function lkSluitCatModal() {
+  lkSluitVrijModal();
+}
+
+// =================================================================
+//  TAAK PER LEERLING — modal
+// =================================================================
+//
+// Schema:
+//   - Bovenaan: status van huidige taak (als er een is): voltooid / haperde / bezig
+//   - Thema-dropdown: kies welke thema voor de taak
+//   - Woord-checkboxes: kies welke woorden in de taak komen
+//   - Bewaren = nieuwe taak (overschrijft eventuele oude)
+
+let _taakModalKindCode = null;
+let _taakModalNaam = '';
+let _taakModalThemaId = null;
+let _taakModalWoordIds = new Set();
+// Nieuwe state voor v1:
+let _taakModalVaardigheden = new Set(['luisteren']); // 'luisteren', 'lezen', 'schrijven'
+let _taakModalOefenvormenLuisteren = new Set(['klikspel']); // 'klikspel', 'verbinden', 'verslepen'
+let _taakModalOefenvormenSchrijven = new Set(['slepen']); // 'slepen', 'typen'
+let _taakModalZinscontext = false;
+
+async function lkBeheerTaak(code, naam) {
+  _taakModalKindCode = code;
+  _taakModalNaam = naam || code;
+
+  // Huidige taak ophalen (kan null zijn)
+  let huidigeTaak = null;
+  try {
+    huidigeTaak = await Voortgang.haalTaakOpVoorKind(code);
+  } catch (e) {
+    console.warn('Taak ophalen mislukt:', e);
+  }
+
+  // Voorinstelling: als er een taak is, hetzelfde thema/woorden/instellingen,
+  // anders defaults
+  if (huidigeTaak && huidigeTaak.themaId) {
+    _taakModalThemaId = huidigeTaak.themaId;
+    _taakModalWoordIds = new Set(huidigeTaak.woordIds || []);
+    _taakModalVaardigheden = new Set(huidigeTaak.vaardigheden || ['luisteren']);
+    _taakModalOefenvormenLuisteren = new Set(huidigeTaak.oefenvormen_luisteren || ['klikspel']);
+    _taakModalOefenvormenSchrijven = new Set(huidigeTaak.oefenvormen_schrijven || ['slepen']);
+    _taakModalZinscontext = huidigeTaak.zinscontext === true;
+  } else {
+    // Pak eerste thema dat actief is voor dit kind, anders eerste van de lijst
+    const kind = lkKinderen.find(k => k.code === code);
+    let themaIds = [];
+    if (kind && Array.isArray(kind.thema_actief) && kind.thema_actief.length > 0) {
+      themaIds = kind.thema_actief;
+    } else {
+      themaIds = ALLE_THEMAS_LK.map(t => t.id);
+    }
+    _taakModalThemaId = themaIds[0] || (ALLE_THEMAS_LK[0] && ALLE_THEMAS_LK[0].id);
+    _taakModalWoordIds = new Set();
+    _taakModalVaardigheden = new Set(['luisteren']);
+    _taakModalOefenvormenLuisteren = new Set(['klikspel']);
+    _taakModalOefenvormenSchrijven = new Set(['slepen']);
+    _taakModalZinscontext = false;
+  }
+
+  rendererTaakModal(huidigeTaak);
+}
+
+function rendererTaakModal(huidigeTaak) {
+  // Verwijder evt bestaande modal
+  const oud = document.getElementById('lk-taak-modal-bg');
+  if (oud) oud.remove();
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-taak-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) lkSluitTaakModal(); };
+
+  // Bepaal beschikbare thema's voor dit kind
+  const kind = lkKinderen.find(k => k.code === _taakModalKindCode);
+  let beschikbareThemaIds;
+  if (kind && Array.isArray(kind.thema_actief) && kind.thema_actief.length > 0) {
+    beschikbareThemaIds = kind.thema_actief;
+  } else {
+    beschikbareThemaIds = ALLE_THEMAS_LK.map(t => t.id);
+  }
+  const beschikbareThemas = ALLE_THEMAS_LK.filter(t => beschikbareThemaIds.indexOf(t.id) !== -1);
+
+  // Status-strook van vorige taak (als er een is)
+  let statusBlok = '';
+  if (huidigeTaak) {
+    const thema = ALLE_THEMAS_LK.find(t => t.id === huidigeTaak.themaId);
+    const themaNaam = thema ? `${thema.emoji} ${thema.naam}` : huidigeTaak.themaId;
+    let statusEmoji, statusTekst, statusKleur;
+    if (huidigeTaak.status === 'voltooid') {
+      statusEmoji = '🏆'; statusTekst = 'Vorige taak: voltooid'; statusKleur = '#d4edda';
+    } else if (huidigeTaak.status === 'moeilijk' || huidigeTaak.status === 'haperde') {
+      statusEmoji = '⚠️';
+      statusTekst = 'Was moeilijk' + (huidigeTaak.huidigeFase ? ` (fase ${huidigeTaak.huidigeFase})` : '');
+      statusKleur = '#fff3cd';
+    } else {
+      statusEmoji = '🔄';
+      statusTekst = 'Bezig' + (huidigeTaak.huidigeFase ? ` (fase ${huidigeTaak.huidigeFase})` : '');
+      statusKleur = '#e3f2fd';
+    }
+    let foutLijst = '';
+    if (huidigeTaak.foutWoordenLaatsteToets && huidigeTaak.foutWoordenLaatsteToets.length > 0) {
+      const naamLijst = [];
+      ALLE_THEMAS_LK.forEach(t => {
+        if (t.id !== huidigeTaak.themaId) return;
+        const verrijkt = lkVerrijkThema(t);
+        verrijkt.items.forEach(it => {
+          if (huidigeTaak.foutWoordenLaatsteToets.indexOf(it.id) !== -1) naamLijst.push(it.tekst);
+        });
+      });
+      if (naamLijst.length > 0) {
+        foutLijst = `<div class="lk-taak-fouten">Foute woorden: <strong>${naamLijst.join(', ')}</strong></div>`;
+      }
+    }
+    statusBlok = `
+      <div class="lk-taak-status" style="background:${statusKleur}">
+        <div class="lk-taak-status-kop">${statusEmoji} ${statusTekst} <small>(${themaNaam})</small></div>
+        ${foutLijst}
+      </div>
+    `;
+  }
+
+  let html = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()">
+      <h2>📋 Taak voor ${_taakModalNaam}</h2>
+      <p class="modal-uitleg">
+        Stel een taak samen: kies thema, woorden, en welke vaardigheden de leerling moet oefenen.
+      </p>
+
+      ${statusBlok}
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">Thema</label>
+        <select class="lk-taak-select" onchange="lkTaakKiesThema(this.value)">
+  `;
+
+  if (beschikbareThemas.length === 0) {
+    html += `<option value="">⚠️ Geen actieve thema's</option>`;
+  } else {
+    beschikbareThemas.forEach(t => {
+      const sel = (t.id === _taakModalThemaId) ? 'selected' : '';
+      html += `<option value="${t.id}" ${sel}>${t.emoji} ${t.naam}</option>`;
+    });
+  }
+
+  html += `
+        </select>
+        <p class="lk-taak-tip">💡 Enkel thema's die jij hebt aangevinkt voor "vrij oefenen" verschijnen hier.</p>
+      </div>
+  `;
+
+  // Woordlijst van het gekozen thema (zonder niveau-groepering)
+  if (_taakModalThemaId) {
+    const thema = ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId);
+    if (thema) {
+      const verrijkt = lkVerrijkThema(thema);
+      const items = verrijkt.items;
+      const aantalAangevinkt = _taakModalWoordIds.size;
+
+      html += `
+        <div class="lk-taak-veld">
+          <label class="lk-taak-label">Welke woorden in de taak? <span class="lk-taak-teller">(${aantalAangevinkt} gekozen)</span></label>
+          <div class="lk-taak-snelacties">
+            <button class="lk-knop-mini" onclick="lkTaakAllesAan()">Alle aanvinken</button>
+            <button class="lk-knop-mini" onclick="lkTaakNietsAan()">Alles uit</button>
+          </div>
+          <div class="lk-taak-woorden">
+      `;
+      items.forEach(item => {
+        const aan = _taakModalWoordIds.has(item.id);
+        html += `
+          <label class="cat-item-rij ${aan ? 'aan' : ''}">
+            <input type="checkbox" ${aan ? 'checked' : ''} onchange="lkTaakToggleWoord('${item.id}')">
+            <span class="cat-item-beeld">${Picto.html(item, { grootte: 28 })}</span>
+            <span class="cat-item-tekst">${item.tekst}</span>
+          </label>
+        `;
+      });
+      html += `</div></div>`;
+    }
+  }
+
+  // Vaardigheden + oefenvormen + zinscontext
+  const luisterenAan = _taakModalVaardigheden.has('luisteren');
+  const lezenAan = _taakModalVaardigheden.has('lezen');
+  const schrijvenAan = _taakModalVaardigheden.has('schrijven');
+
+  html += `
+    <div class="lk-taak-veld">
+      <label class="lk-taak-label">Welke vaardigheden moet de leerling oefenen?</label>
+      <div class="lk-taak-vaardigheden">
+        <label class="lk-taak-vaardigheid ${luisterenAan ? 'aan' : ''}">
+          <input type="checkbox" ${luisterenAan ? 'checked' : ''} onchange="lkTaakToggleVaardigheid('luisteren')">
+          <span class="lk-vaardigheid-icoon">👂</span>
+          <span class="lk-vaardigheid-naam">Luisteren</span>
+        </label>
+        <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
+          <input type="checkbox" disabled>
+          <span class="lk-vaardigheid-icoon">👁️</span>
+          <span class="lk-vaardigheid-naam">Lezen <small>(binnenkort)</small></span>
+        </label>
+        <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
+          <input type="checkbox" disabled>
+          <span class="lk-vaardigheid-icoon">✍️</span>
+          <span class="lk-vaardigheid-naam">Schrijven <small>(binnenkort)</small></span>
+        </label>
+      </div>
+    </div>
+  `;
+
+  // Oefenvormen — alleen tonen als luisteren aan staat
+  if (luisterenAan) {
+    const klikspelAan = _taakModalOefenvormenLuisteren.has('klikspel');
+    const verbindenAan = _taakModalOefenvormenLuisteren.has('verbinden');
+    const verslepenAan = _taakModalOefenvormenLuisteren.has('verslepen');
+    html += `
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">Oefenvormen voor luisteren</label>
+        <div class="lk-taak-vaardigheden">
+          <label class="lk-taak-vaardigheid ${klikspelAan ? 'aan' : ''}">
+            <input type="checkbox" ${klikspelAan ? 'checked' : ''} onchange="lkTaakToggleOefenvorm('luisteren', 'klikspel')">
+            <span class="lk-vaardigheid-icoon">🎯</span>
+            <span class="lk-vaardigheid-naam">Klikspel</span>
+          </label>
+          <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
+            <input type="checkbox" disabled>
+            <span class="lk-vaardigheid-icoon">🔗</span>
+            <span class="lk-vaardigheid-naam">Verbinden <small>(binnenkort)</small></span>
+          </label>
+          <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
+            <input type="checkbox" disabled>
+            <span class="lk-vaardigheid-icoon">🤚</span>
+            <span class="lk-vaardigheid-naam">Verslepen <small>(binnenkort)</small></span>
+          </label>
+        </div>
+      </div>
+    `;
+  }
+
+  // Zinscontext
+  html += `
+    <div class="lk-taak-veld">
+      <label class="lk-taak-zinscontext ${_taakModalZinscontext ? 'aan' : ''}">
+        <input type="checkbox" ${_taakModalZinscontext ? 'checked' : ''} onchange="lkTaakToggleZinscontext()">
+        <span class="lk-vaardigheid-icoon">💬</span>
+        <span class="lk-vaardigheid-naam">Zin laten zien bij elk woord (in leren-fase)</span>
+      </label>
+      <p class="lk-taak-tip">Aanvinken als je wil dat het kind ook de zin bij elk woord ziet en hoort tijdens de leren-fase.</p>
+    </div>
+  `;
+
+  html += `
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini gevaar" onclick="lkTaakWissen()">🗑️ Taak wissen</button>
+        <button class="lk-knop-mini" onclick="lkSluitTaakModal()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarTaak()">💾 Bewaren</button>
+      </div>
+    </div>
+  `;
+
+  bg.innerHTML = html;
+  document.body.appendChild(bg);
+}
+
+function lkTaakKiesThema(themaId) {
+  _taakModalThemaId = themaId;
+  // Bij thema-wissel: huidige selectie behouden NIET, want IDs verschillen per thema
+  _taakModalWoordIds = new Set();
+  // We hebben de huidige taak niet nodig om opnieuw te tekenen; tweede arg null
+  rendererTaakModal(null);
+}
+
+function lkTaakToggleWoord(itemId) {
+  if (_taakModalWoordIds.has(itemId)) _taakModalWoordIds.delete(itemId);
+  else _taakModalWoordIds.add(itemId);
+  rendererTaakModal(null);
+}
+
+function lkTaakAllesAan() {
+  if (!_taakModalThemaId) return;
+  const thema = ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId);
+  if (!thema) return;
+  const verrijkt = lkVerrijkThema(thema);
+  _taakModalWoordIds = new Set(verrijkt.items.map(it => it.id));
+  rendererTaakModal(null);
+}
+
+function lkTaakNietsAan() {
+  _taakModalWoordIds = new Set();
+  rendererTaakModal(null);
+}
+
+function lkTaakToggleVaardigheid(vaardigheid) {
+  if (_taakModalVaardigheden.has(vaardigheid)) {
+    // Niet de laatste vaardigheid uitzetten — er moet er minstens één zijn
+    if (_taakModalVaardigheden.size > 1) {
+      _taakModalVaardigheden.delete(vaardigheid);
+    }
+  } else {
+    _taakModalVaardigheden.add(vaardigheid);
+  }
+  rendererTaakModal(null);
+}
+
+function lkTaakToggleOefenvorm(vaardigheid, vorm) {
+  let set;
+  if (vaardigheid === 'luisteren') set = _taakModalOefenvormenLuisteren;
+  else if (vaardigheid === 'schrijven') set = _taakModalOefenvormenSchrijven;
+  else return;
+
+  if (set.has(vorm)) {
+    // Niet de laatste oefenvorm uitzetten
+    if (set.size > 1) set.delete(vorm);
+  } else {
+    set.add(vorm);
+  }
+  rendererTaakModal(null);
+}
+
+function lkTaakToggleZinscontext() {
+  _taakModalZinscontext = !_taakModalZinscontext;
+  rendererTaakModal(null);
+}
+
+async function lkBewaarTaak() {
+  if (!_taakModalKindCode) return;
+  if (!_taakModalThemaId || _taakModalWoordIds.size === 0) {
+    alert('Kies eerst een thema en minstens één woord voor de taak.');
+    return;
+  }
+  if (_taakModalVaardigheden.size === 0) {
+    alert('Vink minstens één vaardigheid aan.');
+    return;
+  }
+  // Check: als luisteren aan staat, moet er minstens één oefenvorm zijn
+  if (_taakModalVaardigheden.has('luisteren') && _taakModalOefenvormenLuisteren.size === 0) {
+    alert('Kies minstens één oefenvorm voor luisteren.');
+    return;
+  }
+  const knop = document.querySelector('#lk-taak-modal-bg .lk-cat-modal-knoppen button:last-child');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+  try {
+    const taak = {
+      themaId: _taakModalThemaId,
+      woordIds: [..._taakModalWoordIds],
+      vaardigheden: [..._taakModalVaardigheden],
+      oefenvormen_luisteren: [..._taakModalOefenvormenLuisteren],
+      oefenvormen_schrijven: [..._taakModalOefenvormenSchrijven],
+      zinscontext: _taakModalZinscontext,
+      huidigeFase: 'leren',
+      status: 'bezig',
+      foutWoordenLaatsteToets: [],
+      aantalPogingen: { luisteren: 0, lezen: 0, schrijven: 0 },
+      gestart: Date.now()
+    };
+    await Voortgang.zetTaakVoorKind(_taakModalKindCode, taak);
+    // Lokale lijst bijwerken
+    const kind = lkKinderen.find(k => k.code === _taakModalKindCode);
+    if (kind) kind.taak = taak;
+    lkSluitTaakModal();
+    if (typeof lkRendererTabel === 'function') lkRendererTabel();
+  } catch (e) {
+    console.error('Bewaren taak mislukt:', e);
+    alert('Kon de taak niet bewaren. Probeer opnieuw.');
+    if (knop) { knop.disabled = false; knop.textContent = '💾 Bewaren'; }
+  }
+}
+
+async function lkTaakWissen() {
+  if (!_taakModalKindCode) return;
+  if (!confirm('Taak wissen? Het kind ziet dan geen taak meer op zijn startpagina.')) return;
+  try {
+    await Voortgang.zetTaakVoorKind(_taakModalKindCode, null);
+    const kind = lkKinderen.find(k => k.code === _taakModalKindCode);
+    if (kind) kind.taak = null;
+    lkSluitTaakModal();
+    if (typeof lkRendererTabel === 'function') lkRendererTabel();
+  } catch (e) {
+    console.error('Wissen taak mislukt:', e);
+    alert('Kon de taak niet wissen. Probeer opnieuw.');
+  }
+}
+
+function lkSluitTaakModal() {
+  const bg = document.getElementById('lk-taak-modal-bg');
+  if (bg) bg.remove();
+  _taakModalKindCode = null;
+  _taakModalThemaId = null;
+  _taakModalWoordIds = new Set();
 }
 
 // =================================================================
