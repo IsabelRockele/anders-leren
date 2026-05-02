@@ -496,7 +496,8 @@ window.Voortgang = (function() {
       foutWoordenLaatsteToets: taakObj.foutWoordenLaatsteToets || [],
       aantalPogingen: taakObj.aantalPogingen || { luisteren: 0, lezen: 0, schrijven: 0 },
       gestart: taakObj.gestart || Date.now(),
-      klassikaalId: taakObj.klassikaalId || null
+      klassikaalId: taakObj.klassikaalId || null,
+      rapportperiodeId: taakObj.rapportperiodeId || null
     };
     // Initialiseer perWoord-data voor elk woord dat nog geen entry heeft
     taak.woordIds.forEach(id => {
@@ -606,7 +607,10 @@ window.Voortgang = (function() {
       vaardigheden: [...taakCache.vaardigheden],
       voltooidOp: Date.now(),
       status: taakCache.status,
-      perWoord: JSON.parse(JSON.stringify(taakCache.perWoord || {}))
+      perWoord: JSON.parse(JSON.stringify(taakCache.perWoord || {})),
+      foutWoordenLaatsteToets: [...(taakCache.foutWoordenLaatsteToets || [])],
+      rapportperiodeId: taakCache.rapportperiodeId || null,
+      gestart: taakCache.gestart || null
     };
     taakgeschiedenisCache.push(archief);
     // Beperk geschiedenis tot laatste 50 taken om Firestore-grootte beheersbaar te houden
@@ -663,10 +667,12 @@ window.Voortgang = (function() {
               woordIds: [...oudeData.taak.woordIds],
               vaardigheden: Array.isArray(oudeData.taak.vaardigheden) ? [...oudeData.taak.vaardigheden] : ['luisteren'],
               voltooidOp: Date.now(),
+              gestart: oudeData.taak.gestart || null,
               status: oudeData.taak.status || 'bezig',
               perWoord: JSON.parse(JSON.stringify(oudeData.taak.perWoord || {})),
               foutWoordenLaatsteToets: Array.isArray(oudeData.taak.foutWoordenLaatsteToets)
-                                          ? [...oudeData.taak.foutWoordenLaatsteToets] : []
+                                          ? [...oudeData.taak.foutWoordenLaatsteToets] : [],
+              rapportperiodeId: oudeData.taak.rapportperiodeId || null
             };
             const huidigeGeschiedenis = Array.isArray(oudeData.taakgeschiedenis) ? oudeData.taakgeschiedenis : [];
             huidigeGeschiedenis.push(archief);
@@ -808,6 +814,163 @@ window.Voortgang = (function() {
     }
   }
 
+  // ------------------- School-instellingen ------------------
+  // Eenmalig instelbaar door de leerkracht: schoolnaam, klas, leerkracht-naam,
+  // logo (als data-URL). Wordt gebruikt in PDF-rapporten.
+  async function haalSchoolinstellingenOp() {
+    if (!db) return null;
+    try {
+      const doc = await db.collection('instellingen').doc('school').get();
+      if (!doc.exists) return null;
+      return doc.data();
+    } catch (e) {
+      console.warn('Ophalen schoolinstellingen mislukt:', e);
+      return null;
+    }
+  }
+
+  async function bewaarSchoolinstellingen(data) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    // data = { schoolnaam, klas, leerkrachtnaam, logoDataUrl }
+    await db.collection('instellingen').doc('school').set(data, { merge: true });
+  }
+
+  // ------------------- Rapportperiodes ------------------
+  // Een rapportperiode = een tijdsvenster waarbinnen taken en spreektoetsen
+  // worden uitgevoerd. Eén periode is "actief" (status: 'actief'); de rest
+  // is afgesloten (status: 'afgesloten'). Nieuwe taken/toetsen krijgen
+  // automatisch de ID van de actieve periode.
+  //
+  // Doc-structuur in /rapportperiodes/{periodeId}:
+  //   { id, naam, startDatum (ts), eindDatum (ts), status, gemaakt (ts) }
+
+  async function alleRapportperiodes() {
+    if (!db) return [];
+    try {
+      const snap = await db.collection('rapportperiodes').orderBy('startDatum', 'desc').get();
+      const lijst = [];
+      snap.forEach(doc => {
+        lijst.push({ id: doc.id, ...doc.data() });
+      });
+      return lijst;
+    } catch (e) {
+      console.warn('Ophalen rapportperiodes mislukt:', e);
+      return [];
+    }
+  }
+
+  async function actieveRapportperiode() {
+    const lijst = await alleRapportperiodes();
+    return lijst.find(p => p.status === 'actief') || null;
+  }
+
+  async function maakRapportperiode(naam, startDatum, eindDatum) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!naam || !naam.trim()) throw new Error('Naam is verplicht.');
+    if (!startDatum || !eindDatum) throw new Error('Start- en einddatum zijn verplicht.');
+    if (eindDatum <= startDatum) throw new Error('Einddatum moet na startdatum liggen.');
+
+    // Genereer ID op basis van startdatum + naam (slug)
+    const startD = new Date(startDatum);
+    const slug = naam.trim().toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 30);
+    const periodeId = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-${slug || 'periode'}`;
+
+    const data = {
+      naam: naam.trim(),
+      startDatum: startDatum,
+      eindDatum: eindDatum,
+      status: 'actief',
+      gemaakt: Date.now()
+    };
+    await db.collection('rapportperiodes').doc(periodeId).set(data);
+    return { id: periodeId, ...data };
+  }
+
+  async function sluitRapportperiode(periodeId) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    await db.collection('rapportperiodes').doc(periodeId).update({
+      status: 'afgesloten',
+      afgeslotenOp: Date.now()
+    });
+  }
+
+  async function heropenRapportperiode(periodeId) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    // Check of er al een actieve is — die moet eerst gesloten worden
+    const actieve = await actieveRapportperiode();
+    if (actieve && actieve.id !== periodeId) {
+      throw new Error(`Er is al een actieve periode ("${actieve.naam}"). Sluit die eerst af.`);
+    }
+    await db.collection('rapportperiodes').doc(periodeId).update({
+      status: 'actief',
+      heropendOp: Date.now()
+    });
+  }
+
+  async function verwijderRapportperiode(periodeId) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    await db.collection('rapportperiodes').doc(periodeId).delete();
+  }
+
+  // Migratie: zorg dat er minstens één periode bestaat. Als er geen is,
+  // maak een default-periode aan en wijs alle bestaande taken/toetsen toe.
+  async function migreerNaarRapportperiodes() {
+    if (!db) return null;
+    const bestaande = await alleRapportperiodes();
+    if (bestaande.length > 0) return null; // al gemigreerd
+
+    // Maak default-periode: huidige schooljaar
+    const nu = new Date();
+    let startJaar = nu.getFullYear();
+    let eindJaar = startJaar + 1;
+    // Schooljaar loopt van september tot juni; bepaal welk schooljaar nu loopt
+    if (nu.getMonth() < 8) { // jan-aug → vorig schooljaar
+      startJaar = nu.getFullYear() - 1;
+      eindJaar = nu.getFullYear();
+    }
+    const start = new Date(startJaar, 8, 1).getTime(); // 1 september
+    const eind = new Date(eindJaar, 5, 30).getTime();  // 30 juni
+
+    const periode = await maakRapportperiode(
+      `Schooljaar ${startJaar}-${eindJaar}`,
+      start,
+      eind
+    );
+
+    // Bestaande taken & spreektoetsen krijgen deze periode-ID toegewezen
+    try {
+      const snap = await db.collection('kinderen').get();
+      const updates = [];
+      snap.forEach(doc => {
+        const data = doc.data();
+        const update = {};
+        if (data.taak && !data.taak.rapportperiodeId) {
+          update['taak.rapportperiodeId'] = periode.id;
+        }
+        // Taakgeschiedenis: array, vereist hele array opnieuw zetten
+        if (Array.isArray(data.taakgeschiedenis) && data.taakgeschiedenis.length > 0) {
+          const nieuwGesch = data.taakgeschiedenis.map(t => ({ ...t, rapportperiodeId: t.rapportperiodeId || periode.id }));
+          update.taakgeschiedenis = nieuwGesch;
+        }
+        if (Array.isArray(data.spreektoetsen) && data.spreektoetsen.length > 0) {
+          const nieuwSpr = data.spreektoetsen.map(t => ({ ...t, rapportperiodeId: t.rapportperiodeId || periode.id }));
+          update.spreektoetsen = nieuwSpr;
+        }
+        if (Object.keys(update).length > 0) {
+          updates.push(doc.ref.update(update));
+        }
+      });
+      await Promise.all(updates);
+    } catch (e) {
+      console.warn('Migratie van bestaande data faalde (nieuwe periode wel aangemaakt):', e);
+    }
+
+    return periode;
+  }
+
 
   async function alleKinderen() {
     if (!db) return [];
@@ -838,6 +1001,14 @@ window.Voortgang = (function() {
     await db.collection('kinderen').doc(code).delete();
   }
 
+  async function wijzigNaamVanKind(code, nieuweNaam) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!code) throw new Error('Code is verplicht.');
+    await db.collection('kinderen').doc(code).update({
+      naam: (nieuweNaam || '').trim()
+    });
+  }
+
   return {
     init,
     codeBestaat,
@@ -853,6 +1024,7 @@ window.Voortgang = (function() {
     alleKinderen,
     maakKind,
     verwijderKind,
+    wijzigNaamVanKind,
     // Categorieën
     getCategorieenVoorThema,
     filterItemsOpCategorieen,
@@ -887,6 +1059,17 @@ window.Voortgang = (function() {
     // Rapport-notities
     getRapportNotities,
     zetRapportNotities,
-    zetRapportNotitiesVoorKind
+    zetRapportNotitiesVoorKind,
+    // School-instellingen
+    haalSchoolinstellingenOp,
+    bewaarSchoolinstellingen,
+    // Rapportperiodes
+    alleRapportperiodes,
+    actieveRapportperiode,
+    maakRapportperiode,
+    sluitRapportperiode,
+    heropenRapportperiode,
+    verwijderRapportperiode,
+    migreerNaarRapportperiodes
   };
 })();
