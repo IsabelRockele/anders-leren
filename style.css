@@ -4670,3 +4670,133 @@ h1, h2, h3 {
     padding: 12px 14px;
   }
 }
+
+/* =================================================================
+   TAAK-MODAL — kleurcodering woorden op basis van geschiedenis
+   ================================================================= */
+
+/* Legende boven de woordenlijst */
+.lk-taak-legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 12px;
+  background: #fafaf5;
+  border-radius: 8px;
+  border: 1px solid #ece6d2;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.lk-legende-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #555;
+}
+
+.lk-legende-bol {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid #aaa;
+  flex-shrink: 0;
+}
+
+.lk-legende-bol.groen {
+  background: #C8E6C9;
+  border-color: #A5D6A7;
+}
+
+.lk-legende-bol.geel {
+  background: #FFE0B2;
+  border-color: #FFCC80;
+}
+
+.lk-legende-bol.wit {
+  background: white;
+  border-color: #c5c5b8;
+}
+
+/* Kleur op woordrijen in de modal */
+.cat-item-rij.geschiedenis-groen {
+  background: #E8F5E9;
+  border-color: #A5D6A7;
+}
+
+.cat-item-rij.geschiedenis-groen.aan {
+  background: #C8E6C9;
+  border-color: #66BB6A;
+}
+
+.cat-item-rij.geschiedenis-geel {
+  background: #FFF8E1;
+  border-color: #FFCC80;
+}
+
+.cat-item-rij.geschiedenis-geel.aan {
+  background: #FFE0B2;
+  border-color: #FB8C00;
+}
+
+/* =================================================================
+   AANDACHTSSTROOK — bovenaan Mijn klas, leerlingen die aandacht vragen
+   ================================================================= */
+
+.lk-aandacht-blok {
+  margin: 0 0 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lk-aandacht-rij {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  border: 1.5px solid;
+}
+
+.lk-aandacht-rij.voltooid {
+  background: #E8F5E9;
+  border-color: #A5D6A7;
+  color: #2E7D32;
+}
+
+.lk-aandacht-rij.moeilijk {
+  background: #FFF8E1;
+  border-color: #FFCC80;
+  color: #5D4037;
+}
+
+.lk-aandacht-emoji {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.lk-aandacht-tekst {
+  flex: 1;
+  line-height: 1.45;
+}
+
+.lk-aandacht-naam {
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.lk-aandacht-naam:hover {
+  text-decoration: none;
+  opacity: 0.75;
+}
+
+@media (max-width: 600px) {
+  .lk-aandacht-rij {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+}
