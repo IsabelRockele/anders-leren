@@ -25,6 +25,8 @@
 window.Voortgang = (function() {
   let db = null;
   let lokaalCache = {};
+  let categorieCache = {}; // { themaId: ['voorwerpen','personen',...] } per kind
+  let huidigKindCode = null; // welke kind is geladen — voor categorie-bewaring
 
   function init() {
     if (window.FIREBASE_INGESTELD && window.firebase) {
@@ -46,16 +48,20 @@ window.Voortgang = (function() {
   }
 
   async function laad(code) {
+    huidigKindCode = code;
     if (db) {
       try {
         const doc = await db.collection('kinderen').doc(code).get();
         if (doc.exists) {
           const data = doc.data();
           lokaalCache = data.voortgang || {};
+          categorieCache = data.categorieen || {};
           // Update laatst-actief
           db.collection('kinderen').doc(code).update({
             laatstActief: window.firebase.firestore.FieldValue.serverTimestamp()
           }).catch(() => {});
+          // Lokale spiegel ook bewaren (voor offline)
+          localStorage.setItem('andersleren_categorieen_' + code, JSON.stringify(categorieCache));
           return lokaalCache;
         }
       } catch (e) {
@@ -65,6 +71,8 @@ window.Voortgang = (function() {
     // Lokale fallback
     const lokaal = localStorage.getItem('andersleren_voortgang_' + code);
     lokaalCache = lokaal ? JSON.parse(lokaal) : {};
+    const lokaleCat = localStorage.getItem('andersleren_categorieen_' + code);
+    categorieCache = lokaleCat ? JSON.parse(lokaleCat) : {};
     return lokaalCache;
   }
 
@@ -127,7 +135,8 @@ window.Voortgang = (function() {
 
     themas.forEach(thema => {
       const themaData = lokaalCache[thema.id] || {};
-      thema.items.forEach(item => {
+      const actieveItems = filterItemsOpCategorieen(thema);
+      actieveItems.forEach(item => {
         if (opties.niveau && item.niveau && item.niveau !== opties.niveau) return;
 
         const data = themaData[item.id] || {};
@@ -174,10 +183,11 @@ window.Voortgang = (function() {
   // ------------------- Statistieken -------------------
   function statsThema(thema) {
     const themaData = lokaalCache[thema.id] || {};
-    const totaal = thema.items.length;
+    const actieveItems = filterItemsOpCategorieen(thema);
+    const totaal = actieveItems.length;
     let gezien = 0, gekend = 0, geleerd = 0, sterrenTotaal = 0;
 
-    thema.items.forEach(item => {
+    actieveItems.forEach(item => {
       const it = themaData[item.id];
       if (it) {
         if (it.gezien > 0) gezien++;
@@ -202,7 +212,80 @@ window.Voortgang = (function() {
     return lokaalCache;
   }
 
-  // ------------------- Voor leerkracht-paneel -------------------
+  // ------------------- Categorieën per kind ------------------
+  // Bewaarstructuur:
+  //   /kinderen/{code}.categorieen = { 'w-klas': ['voorwerpen','personen'], ... }
+  // Conventie: leeg of ontbrekend = ALLE categorieën van het thema actief.
+
+  // Geef de actieve categorieën voor een thema terug.
+  // Als er niets ingesteld is voor dit kind, krijg je alle thema-categorieën.
+  function getCategorieenVoorThema(thema) {
+    const ingesteld = categorieCache[thema.id];
+    if (!ingesteld || !Array.isArray(ingesteld) || ingesteld.length === 0) {
+      return thema.categorieen ? [...thema.categorieen] : [];
+    }
+    // Filter: alleen categorieën die ook echt in dit thema voorkomen
+    const themaCats = thema.categorieen || [];
+    return ingesteld.filter(c => themaCats.includes(c));
+  }
+
+  // Filter de items van een thema op de actieve categorieën voor dit kind.
+  // Items zonder categorie-veld (oude thema's) blijven altijd zichtbaar.
+  function filterItemsOpCategorieen(thema) {
+    const actief = getCategorieenVoorThema(thema);
+    // Als het thema geen categorieën definieert → alles tonen (backward-compat).
+    if (!thema.categorieen || thema.categorieen.length === 0) return thema.items;
+    return thema.items.filter(it => !it.categorie || actief.includes(it.categorie));
+  }
+
+  // Sla categorieën op voor een specifiek kind én thema.
+  // Bedoeld voor gebruik in het leerkracht-paneel.
+  async function zetCategorieenVoorKind(code, themaId, categorieenLijst) {
+    if (!code) return;
+    // Lokale cache bijwerken — ALLEEN als dit het huidige kind is.
+    if (code === huidigKindCode) {
+      if (!categorieenLijst || categorieenLijst.length === 0) {
+        delete categorieCache[themaId];
+      } else {
+        categorieCache[themaId] = [...categorieenLijst];
+      }
+      // localStorage spiegelen
+      localStorage.setItem('andersleren_categorieen_' + code, JSON.stringify(categorieCache));
+    }
+    // Firestore-update — onafhankelijk van huidig kind (leerkracht beheert vanop afstand)
+    if (db) {
+      try {
+        const veld = `categorieen.${themaId}`;
+        const update = {};
+        if (!categorieenLijst || categorieenLijst.length === 0) {
+          // Helemaal verwijderen → terug naar default (alles aan)
+          update[veld] = window.firebase.firestore.FieldValue.delete();
+        } else {
+          update[veld] = [...categorieenLijst];
+        }
+        await db.collection('kinderen').doc(code).update(update);
+      } catch (e) {
+        console.warn('Bewaren categorieën in Firestore mislukt:', e);
+        throw e;
+      }
+    }
+  }
+
+  // Haal alle categorieën-instellingen voor een specifiek kind op (vanop afstand,
+  // d.w.z. zonder dat dit kind nu "ingelogd" hoeft te zijn). Voor leerkracht-paneel.
+  async function haalCategorieenOpVoorKind(code) {
+    if (!db) return {};
+    try {
+      const doc = await db.collection('kinderen').doc(code).get();
+      if (!doc.exists) return {};
+      return doc.data().categorieen || {};
+    } catch (e) {
+      console.warn('Ophalen categorieën mislukt:', e);
+      return {};
+    }
+  }
+
+
   async function alleKinderen() {
     if (!db) return [];
     const snap = await db.collection('kinderen').orderBy('gemaakt', 'desc').get();
@@ -243,6 +326,11 @@ window.Voortgang = (function() {
     getCache,
     alleKinderen,
     maakKind,
-    verwijderKind
+    verwijderKind,
+    // Categorieën
+    getCategorieenVoorThema,
+    filterItemsOpCategorieen,
+    zetCategorieenVoorKind,
+    haalCategorieenOpVoorKind
   };
 })();
