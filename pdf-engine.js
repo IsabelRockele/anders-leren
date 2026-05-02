@@ -141,17 +141,23 @@ window.PDFEngine = (function() {
       if (it.foto) bronnen.add(it.foto);
       else if (it.picto) bronnen.add(it.picto);
     });
+    console.log('[prefetchPictos] items:', items.length, 'bronnen:', [...bronnen]);
     await Promise.all([...bronnen].map(b => _pictoLaden(b)));
+    console.log('[prefetchPictos] klaar. Cache-status:', [...bronnen].map(b => b + '=' + (_pictoCache[b] ? 'OK' : 'NULL')).join(', '));
   }
 
   // Plaatst het beeld van een item op de PDF.
   // Gebruikt foto-URL/PNG als die in de cache zit, anders fallback naar emoji.
   // x, y is het MIDDEN.
   function plaatsItemBeeld(doc, item, xMm, yMm, grootteMm) {
-    if (!item) return;
+    if (!item) {
+      console.warn('[plaatsItemBeeld] geen item meegegeven');
+      return;
+    }
     grootteMm = grootteMm || 12;
     // Foto- of picto-bron beschikbaar?
     const bron = item.foto || item.picto;
+    console.log('[plaatsItemBeeld]', item.id, 'bron:', bron, 'in cache:', bron ? (bron in _pictoCache ? (_pictoCache[bron] ? 'JA' : 'null') : 'niet geladen') : '—', 'beeld:', item.beeld);
     if (bron && _pictoCache[bron]) {
       try {
         doc.addImage(
@@ -168,7 +174,15 @@ window.PDFEngine = (function() {
       }
     }
     // Fallback: emoji
-    if (item.beeld) plaatsEmoji(doc, item.beeld, xMm, yMm, grootteMm);
+    if (item.beeld) {
+      try {
+        plaatsEmoji(doc, item.beeld, xMm, yMm, grootteMm);
+      } catch (e) {
+        console.warn('[plaatsItemBeeld] emoji mislukt voor', item.id, item.beeld, e);
+      }
+    } else {
+      console.warn('[plaatsItemBeeld] geen beeld voor item', item.id, item.tekst);
+    }
   }
 
   function tekenKop(doc, thema, oefenTitel) {
@@ -1335,5 +1349,5 @@ window.PDFEngine = (function() {
   // Bewaar laatste gebruikte seed per thema-combinatie
   const _laatsteSeed = {};
 
-  return { maakWerkblad, maakOplossingssleutel };
+  return { maakWerkblad, maakOplossingssleutel, prefetchPictos, plaatsItemBeeld };
 })();
