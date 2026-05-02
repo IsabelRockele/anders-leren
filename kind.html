@@ -42,21 +42,26 @@
       <span class="welkom-zebra">🦓</span>
     </div>
 
-    <!-- ===== SURVIVAL-ZONE — Begin hier ===== -->
-    <div class="survival-zone">
-      <div class="survival-kop">
-        <span class="survival-pijl">👇</span>
-        <span class="survival-titel">Begin hier</span>
-        <span class="survival-pijl">👇</span>
+    <!-- ===== TAAK-ZONE — als er een taak is ===== -->
+    <div id="taak-zone" class="taak-zone" style="display:none">
+      <button class="taak-knop-groot" onclick="startTaak()">
+        <span class="taak-zebra">🦓</span>
+        <div class="taak-tekst">
+          <div class="taak-bovenkop">📋 Mijn taak</div>
+          <div class="taak-thema" id="taak-thema-naam">🎒 Klas</div>
+          <div class="taak-aantal" id="taak-aantal">5 woorden</div>
+        </div>
+        <span class="taak-pijl">▶</span>
+      </button>
+      <div class="taak-status" id="taak-status" style="display:none">
+        <!-- Wordt dynamisch gevuld bij voltooid/haperde -->
       </div>
-      <p class="survival-onder">Wat ik elke dag op school hoor en zeg</p>
-      <div id="survival-grid" class="survival-grid"></div>
     </div>
 
-    <!-- ===== ANDERE THEMA'S ===== -->
+    <!-- ===== ANDERE THEMA'S — vrij oefenen ===== -->
     <div class="andere-scheiding">
       <span class="andere-lijn"></span>
-      <span class="andere-label">📚 Andere thema's om te oefenen</span>
+      <span class="andere-label" id="vrij-label">🎮 Vrij oefenen</span>
       <span class="andere-lijn"></span>
     </div>
 
@@ -64,6 +69,11 @@
       <button class="tab-knop actief" data-tab="woorden" onclick="kiesTab('woorden')">📚 Woorden</button>
       <button class="tab-knop" data-tab="zinnen" onclick="kiesTab('zinnen')">💬 Zinnen</button>
       <button class="tab-knop" data-tab="voortgang" onclick="kiesTab('voortgang')">⭐ Mijn voortgang</button>
+    </div>
+
+    <!-- Survival blijft optioneel zichtbaar in een aparte zone (gefilterd op thema_actief) -->
+    <div id="vrij-survival-zone" class="survival-zone" style="display:none">
+      <div id="survival-grid" class="survival-grid"></div>
     </div>
 
     <div id="tab-woorden" class="tab-inhoud actief">
@@ -116,7 +126,7 @@
   <main class="modi-keuze">
     <div class="thema-statbalk" id="thema-statbalk"></div>
 
-    <h2 class="stappen-kop">Stap voor stap</h2>
+    <h2 class="stappen-kop">Wat ga je doen?</h2>
     <div class="stappen-lijst">
       <button class="stap-kaart" id="stap-1" onclick="startModus('kijken')">
         <div class="stap-nummer">1</div>
@@ -359,8 +369,97 @@
       </div>
       <p id="resultaat-tekst">Je hebt 8 van de 10 vragen juist!</p>
       <div class="resultaat-knoppen">
-        <button class="nav-knop primair" onclick="naarThema()">Terug naar thema</button>
-        <button class="nav-knop" onclick="startModus('toets')">Nog eens proberen</button>
+        <button class="nav-knop primair groot" id="resultaat-verder" onclick="resultaatVerder()">▶ Verder</button>
+        <button class="nav-knop" id="resultaat-menu" onclick="naarThema()" style="display:none">Naar menu</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: TAAK FASE 1 — LEREN ============ -->
+<div id="scherm-taak-leren" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakVerlaten()">← Stop</button>
+    <h1>📋 Mijn taak — leren</h1>
+    <span class="teller"><span id="taak-leer-huidig">1</span>/<span id="taak-leer-totaal">5</span></span>
+  </header>
+  <main class="kijken-main">
+    <div class="kaart-groot">
+      <div class="kaart-beeld" id="taak-leer-beeld">🎒</div>
+      <div class="kaart-woord" id="taak-leer-woord">de boekentas</div>
+      <div class="kaart-zin" id="taak-leer-zin" style="display:none">Ik draag mijn boekentas.</div>
+    </div>
+    <div class="audio-knoppen">
+      <button class="audio-knop hoor" onclick="taakLeerHoorWoord()">
+        <span class="audio-icoon">🔊</span><span>Hoor het woord</span>
+      </button>
+      <button class="audio-knop zin" id="taak-leer-zin-knop" onclick="taakLeerHoorZin()" style="display:none">
+        <span class="audio-icoon">💬</span><span>Hoor de zin</span>
+      </button>
+    </div>
+    <div class="navigatie-knoppen">
+      <button class="nav-knop" id="taak-leer-vorige" onclick="taakLeerVorige()">← Vorige</button>
+      <button class="nav-knop primair" id="taak-leer-volgende" onclick="taakLeerVolgende()">Volgende →</button>
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: TAAK FASE 2 — LUISTEREN-OEFENEN ============ -->
+<div id="scherm-taak-oefenen" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug naar leren</button>
+    <h1>👂 Mijn taak — oefenen</h1>
+    <span class="teller"><span id="taak-oef-klaar">0</span>/<span id="taak-oef-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-oef-balk" style="width:0%"></div>
+    </div>
+    <div class="kaart-groot">
+      <div class="kaart-beeld" id="taak-oef-beeld">🎒</div>
+    </div>
+    <div class="audio-knoppen">
+      <button class="audio-knop hoor groot" onclick="taakOefHoor()">
+        <span class="audio-icoon">🔊</span><span>Hoor het woord</span>
+      </button>
+    </div>
+    <div class="optie-rij" id="taak-oef-opties"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: TAAK FASE 3 — MINI-TOETS ============ -->
+<div id="scherm-taak-toets" class="scherm">
+  <header class="modus-header taak-header taak-toets-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug naar oefenen</button>
+    <h1>🎯 Mijn taak — toets</h1>
+    <span class="teller"><span id="taak-toets-huidig">1</span>/<span id="taak-toets-totaal">5</span></span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-toets-balk" style="width:0%"></div>
+    </div>
+    <div class="kaart-groot">
+      <div class="kaart-beeld" id="taak-toets-beeld">🎒</div>
+    </div>
+    <div class="audio-knoppen">
+      <button class="audio-knop hoor groot" onclick="taakToetsHoor()">
+        <span class="audio-icoon">🔊</span><span>Hoor het woord</span>
+      </button>
+    </div>
+    <div class="optie-rij" id="taak-toets-opties"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: TAAK RESULTAAT ============ -->
+<div id="scherm-taak-resultaat" class="scherm">
+  <main class="resultaat-main">
+    <div class="resultaat-doos">
+      <div class="resultaat-emoji" id="taak-resultaat-emoji">🏆</div>
+      <h2 id="taak-resultaat-titel">Klaar!</h2>
+      <p id="taak-resultaat-tekst">Je taak is af.</p>
+      <div class="taak-resultaat-overzicht" id="taak-resultaat-overzicht"></div>
+      <div class="resultaat-knoppen">
+        <button class="nav-knop primair groot" id="taak-resultaat-knop" onclick="taakVerlaten()">↩️ Naar het menu</button>
       </div>
     </div>
   </main>
