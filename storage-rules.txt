@@ -1,0 +1,33 @@
+// =================================================================
+//  Firebase Storage Security Rules voor Anders Leren
+//  Plaats deze in Firebase Console → Storage → Rules
+// =================================================================
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Map 'woorden' bevat de geuploade afbeeldingen voor woordenbeheer
+    // (foto's die de leerkracht koppelt aan basiswoorden of eigen woorden).
+    match /woorden/{themaId}/{bestand} {
+
+      // Lezen: voor iedereen open. Foto's zijn gekoppeld aan woorden die
+      // de leerlingen toch al via de kind-app zien.
+      allow read: if true;
+
+      // Schrijven: voorlopig open. Bij introductie van leerkracht-auth:
+      // vervang door 'if request.auth != null'.
+      // Beperking: alleen JPG/PNG, max 1 MB per bestand
+      // (compressie in afbeelding-upload.js zorgt al dat ze veel kleiner zijn).
+      allow write: if
+        request.resource == null  // delete
+        || (request.resource.size < 1 * 1024 * 1024
+            && request.resource.contentType.matches('image/.*'));
+    }
+
+    // Alle andere paden geblokkeerd
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
