@@ -26,6 +26,37 @@ window.Voortgang = (function() {
   let db = null;
   let lokaalCache = {};
   let categorieCache = {}; // { themaId: ['voorwerpen','personen',...] } per kind
+  let uitgeslotenCache = {}; // { themaId: ['itemId1', 'itemId2'] } — items expliciet uit voor dit kind
+  // themaActiefCache: array of null. null = "geen instelling" → backward-compat: alles aan.
+  // [] = expliciet niets aan. ['w-klas', ...] = die thema's aan.
+  let themaActiefCache = null;
+  // taakCache: huidige taak voor dit kind, of null. Schema:
+  // {
+  //   themaId, woordIds[],
+  //   vaardigheden: ['luisteren'|'lezen'|'schrijven'],
+  //   oefenvormen_luisteren: ['klikspel'|'verbinden'|'verslepen'],
+  //   oefenvormen_schrijven: ['slepen'|'typen'],
+  //   zinscontext: bool,
+  //   huidigeFase: 'leren'|'luisteren'|'lezen'|'schrijven'|'klaar',
+  //   perWoord: {
+  //     [woordId]: {
+  //       luisteren_juist: 0..3, lezen_juist: 0..3, schrijven_juist: 0..3,
+  //       laatstGeoefend: timestamp
+  //     }
+  //   },
+  //   status: 'bezig'|'voltooid'|'moeilijk',
+  //   foutWoordenLaatsteToets: [],
+  //   aantalPogingen: { luisteren: 0, lezen: 0, schrijven: 0 },
+  //   gestart: timestamp,
+  //   klassikaalId: null|'klas-taak-uuid'
+  // }
+  let taakCache = null;
+  // taakgeschiedenisCache: voor rapport — array van voltooide taken
+  let taakgeschiedenisCache = [];
+  // spreektoetsenCache: array van afgenomen spreektoetsen
+  let spreektoetsenCache = [];
+  // rapportNotitiesCache: tekst die juf invult voor ouders
+  let rapportNotitiesCache = '';
   let huidigKindCode = null; // welke kind is geladen — voor categorie-bewaring
 
   function init() {
@@ -56,12 +87,25 @@ window.Voortgang = (function() {
           const data = doc.data();
           lokaalCache = data.voortgang || {};
           categorieCache = data.categorieen || {};
+          uitgeslotenCache = data.uitgesloten || {};
+          taakCache = data.taak || null;
+          taakgeschiedenisCache = Array.isArray(data.taakgeschiedenis) ? data.taakgeschiedenis : [];
+          spreektoetsenCache = Array.isArray(data.spreektoetsen) ? data.spreektoetsen : [];
+          rapportNotitiesCache = data.rapportNotities || '';
+          // Bewust check op "is het veld aanwezig?" — niet hetzelfde als "is leeg".
+          themaActiefCache = ('thema_actief' in data) ? (Array.isArray(data.thema_actief) ? data.thema_actief : []) : null;
           // Update laatst-actief
           db.collection('kinderen').doc(code).update({
             laatstActief: window.firebase.firestore.FieldValue.serverTimestamp()
           }).catch(() => {});
           // Lokale spiegel ook bewaren (voor offline)
           localStorage.setItem('andersleren_categorieen_' + code, JSON.stringify(categorieCache));
+          localStorage.setItem('andersleren_uitgesloten_' + code, JSON.stringify(uitgeslotenCache));
+          localStorage.setItem('andersleren_thema_actief_' + code, JSON.stringify(themaActiefCache));
+          localStorage.setItem('andersleren_taak_' + code, JSON.stringify(taakCache));
+          localStorage.setItem('andersleren_taakgeschiedenis_' + code, JSON.stringify(taakgeschiedenisCache));
+          localStorage.setItem('andersleren_spreektoetsen_' + code, JSON.stringify(spreektoetsenCache));
+          localStorage.setItem('andersleren_rapportnotities_' + code, rapportNotitiesCache);
           return lokaalCache;
         }
       } catch (e) {
@@ -73,6 +117,17 @@ window.Voortgang = (function() {
     lokaalCache = lokaal ? JSON.parse(lokaal) : {};
     const lokaleCat = localStorage.getItem('andersleren_categorieen_' + code);
     categorieCache = lokaleCat ? JSON.parse(lokaleCat) : {};
+    const lokaalUitgesloten = localStorage.getItem('andersleren_uitgesloten_' + code);
+    uitgeslotenCache = lokaalUitgesloten ? JSON.parse(lokaalUitgesloten) : {};
+    const lokaalActief = localStorage.getItem('andersleren_thema_actief_' + code);
+    themaActiefCache = lokaalActief ? JSON.parse(lokaalActief) : null;
+    const lokaleTaak = localStorage.getItem('andersleren_taak_' + code);
+    taakCache = lokaleTaak ? JSON.parse(lokaleTaak) : null;
+    const lokaleGes = localStorage.getItem('andersleren_taakgeschiedenis_' + code);
+    taakgeschiedenisCache = lokaleGes ? JSON.parse(lokaleGes) : [];
+    const lokaleSpr = localStorage.getItem('andersleren_spreektoetsen_' + code);
+    spreektoetsenCache = lokaleSpr ? JSON.parse(lokaleSpr) : [];
+    rapportNotitiesCache = localStorage.getItem('andersleren_rapportnotities_' + code) || '';
     return lokaalCache;
   }
 
@@ -134,6 +189,8 @@ window.Voortgang = (function() {
     const kandidaten = [];
 
     themas.forEach(thema => {
+      // Thema-niveau filter: als dit thema niet actief is voor het kind, sla over.
+      if (!isThemaActiefVoorKind(thema)) return;
       const themaData = lokaalCache[thema.id] || {};
       const actieveItems = filterItemsOpCategorieen(thema);
       actieveItems.forEach(item => {
@@ -230,12 +287,30 @@ window.Voortgang = (function() {
   }
 
   // Filter de items van een thema op de actieve categorieën voor dit kind.
-  // Items zonder categorie-veld (oude thema's) blijven altijd zichtbaar.
+  // Volgorde:
+  //   1. Categorie-filter (categorie aan?)
+  //   2. Uitsluitings-filter (item expliciet uitgezet voor dit kind?)
+  // Items zonder categorie-veld (oude thema's) blijven door cat-filter heen.
   function filterItemsOpCategorieen(thema) {
     const actief = getCategorieenVoorThema(thema);
-    // Als het thema geen categorieën definieert → alles tonen (backward-compat).
-    if (!thema.categorieen || thema.categorieen.length === 0) return thema.items;
-    return thema.items.filter(it => !it.categorie || actief.includes(it.categorie));
+    const uitgesloten = uitgeslotenCache[thema.id] || [];
+    // Als het thema geen categorieën definieert → alleen uitsluiting toepassen.
+    if (!thema.categorieen || thema.categorieen.length === 0) {
+      if (uitgesloten.length === 0) return thema.items;
+      return thema.items.filter(it => !uitgesloten.includes(it.id));
+    }
+    return thema.items.filter(it => {
+      // Categorie-check
+      if (it.categorie && !actief.includes(it.categorie)) return false;
+      // Uitsluitings-check
+      if (uitgesloten.includes(it.id)) return false;
+      return true;
+    });
+  }
+
+  // Geef de uitgesloten item-id's voor een thema (voor dit kind).
+  function getUitgeslotenVoorThema(thema) {
+    return [...(uitgeslotenCache[thema.id] || [])];
   }
 
   // Sla categorieën op voor een specifiek kind én thema.
@@ -271,6 +346,35 @@ window.Voortgang = (function() {
     }
   }
 
+  // Sla expliciet uitgesloten item-id's op voor een specifiek kind én thema.
+  // Lege lijst (of null) = niets uitgesloten.
+  async function zetUitgeslotenVoorKind(code, themaId, uitgeslotenLijst) {
+    if (!code) return;
+    if (code === huidigKindCode) {
+      if (!uitgeslotenLijst || uitgeslotenLijst.length === 0) {
+        delete uitgeslotenCache[themaId];
+      } else {
+        uitgeslotenCache[themaId] = [...uitgeslotenLijst];
+      }
+      localStorage.setItem('andersleren_uitgesloten_' + code, JSON.stringify(uitgeslotenCache));
+    }
+    if (db) {
+      try {
+        const veld = `uitgesloten.${themaId}`;
+        const update = {};
+        if (!uitgeslotenLijst || uitgeslotenLijst.length === 0) {
+          update[veld] = window.firebase.firestore.FieldValue.delete();
+        } else {
+          update[veld] = [...uitgeslotenLijst];
+        }
+        await db.collection('kinderen').doc(code).update(update);
+      } catch (e) {
+        console.warn('Bewaren uitgesloten in Firestore mislukt:', e);
+        throw e;
+      }
+    }
+  }
+
   // Haal alle categorieën-instellingen voor een specifiek kind op (vanop afstand,
   // d.w.z. zonder dat dit kind nu "ingelogd" hoeft te zijn). Voor leerkracht-paneel.
   async function haalCategorieenOpVoorKind(code) {
@@ -282,6 +386,370 @@ window.Voortgang = (function() {
     } catch (e) {
       console.warn('Ophalen categorieën mislukt:', e);
       return {};
+    }
+  }
+
+  // Haal uitgesloten-instellingen voor een specifiek kind op.
+  async function haalUitgeslotenOpVoorKind(code) {
+    if (!db) return {};
+    try {
+      const doc = await db.collection('kinderen').doc(code).get();
+      if (!doc.exists) return {};
+      return doc.data().uitgesloten || {};
+    } catch (e) {
+      console.warn('Ophalen uitgesloten mislukt:', e);
+      return {};
+    }
+  }
+
+  // ------------------- Thema's aan/uit per kind ------------------
+  // Datastructuur: thema_actief = array van themaId's, OF afwezig.
+  //   afwezig (null) = "geen instelling" → alles aan (backward-compat).
+  //   []             = expliciet niets aan.
+  //   ['w-klas']     = enkel die thema's aan.
+  //
+  // Voor het kind-gedrag in de app gebruik je 'isThemaActiefVoorKind(thema)'.
+  //
+  // Voor het leerkracht-paneel: getThemaActiefRaw() geeft null/array terug
+  // zodat je het verschil ziet tussen "default" en "expliciet leeg".
+
+  function getThemaActiefRaw() {
+    return themaActiefCache;
+  }
+
+  function isThemaActiefVoorKind(themaOfId) {
+    const id = (typeof themaOfId === 'string') ? themaOfId : (themaOfId && themaOfId.id);
+    if (!id) return true;
+    if (themaActiefCache === null || themaActiefCache === undefined) return true; // default = alles aan
+    return themaActiefCache.indexOf(id) !== -1;
+  }
+
+  async function zetThemaActiefVoorKind(code, themaIdsLijst) {
+    if (!code) return;
+    // null = veld verwijderen (backward compat: oude leerlingen → alles aan).
+    // array (ook leeg) = expliciet ingesteld.
+    const nieuweWaarde = (themaIdsLijst === null || themaIdsLijst === undefined)
+      ? null
+      : [...themaIdsLijst];
+
+    if (code === huidigKindCode) {
+      themaActiefCache = nieuweWaarde;
+      if (nieuweWaarde === null) {
+        localStorage.removeItem('andersleren_thema_actief_' + code);
+      } else {
+        localStorage.setItem('andersleren_thema_actief_' + code, JSON.stringify(nieuweWaarde));
+      }
+    }
+    if (db) {
+      try {
+        const update = {};
+        if (nieuweWaarde === null) {
+          update.thema_actief = window.firebase.firestore.FieldValue.delete();
+        } else {
+          update.thema_actief = nieuweWaarde;
+        }
+        await db.collection('kinderen').doc(code).update(update);
+      } catch (e) {
+        console.warn('Bewaren thema_actief in Firestore mislukt:', e);
+        throw e;
+      }
+    }
+  }
+
+  async function haalThemaActiefOpVoorKind(code) {
+    if (!db) return null;
+    try {
+      const doc = await db.collection('kinderen').doc(code).get();
+      if (!doc.exists) return null;
+      const data = doc.data();
+      if (!('thema_actief' in data)) return null;
+      return Array.isArray(data.thema_actief) ? data.thema_actief : [];
+    } catch (e) {
+      console.warn('Ophalen thema_actief mislukt:', e);
+      return null;
+    }
+  }
+
+  // ------------------- Taak-systeem ------------------
+  // Eén actieve taak per kind. Voor het huidige geladen kind in taakCache.
+  // Voor een ander kind: gebruik haalTaakOpVoorKind/zetTaakVoorKind.
+
+  // Bouw een leeg taak-object met defaults op basis van de taakObj.
+  function _bouwTaak(taakObj) {
+    if (taakObj === null) return null;
+    const taak = {
+      themaId: taakObj.themaId,
+      woordIds: [...(taakObj.woordIds || [])],
+      vaardigheden: Array.isArray(taakObj.vaardigheden) && taakObj.vaardigheden.length > 0
+                       ? [...taakObj.vaardigheden]
+                       : ['luisteren'],
+      oefenvormen_luisteren: Array.isArray(taakObj.oefenvormen_luisteren) && taakObj.oefenvormen_luisteren.length > 0
+                       ? [...taakObj.oefenvormen_luisteren]
+                       : ['klikspel'],
+      oefenvormen_schrijven: Array.isArray(taakObj.oefenvormen_schrijven) && taakObj.oefenvormen_schrijven.length > 0
+                       ? [...taakObj.oefenvormen_schrijven]
+                       : ['slepen'],
+      zinscontext: taakObj.zinscontext === true,
+      huidigeFase: taakObj.huidigeFase || 'leren',
+      perWoord: taakObj.perWoord || {},
+      status: taakObj.status || 'bezig',
+      foutWoordenLaatsteToets: taakObj.foutWoordenLaatsteToets || [],
+      aantalPogingen: taakObj.aantalPogingen || { luisteren: 0, lezen: 0, schrijven: 0 },
+      gestart: taakObj.gestart || Date.now(),
+      klassikaalId: taakObj.klassikaalId || null
+    };
+    // Initialiseer perWoord-data voor elk woord dat nog geen entry heeft
+    taak.woordIds.forEach(id => {
+      if (!taak.perWoord[id]) {
+        taak.perWoord[id] = {
+          luisteren_juist: 0,
+          lezen_juist: 0,
+          schrijven_juist: 0,
+          laatstGeoefend: 0
+        };
+      }
+    });
+    return taak;
+  }
+
+  function getTaak() {
+    return taakCache;
+  }
+
+  function heeftTaak() {
+    return !!(taakCache && taakCache.themaId && Array.isArray(taakCache.woordIds) && taakCache.woordIds.length > 0);
+  }
+
+  // Schrijf een nieuwe taak voor het huidige kind.
+  async function zetTaak(taakObj) {
+    taakCache = _bouwTaak(taakObj);
+    if (huidigKindCode) {
+      localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
+      if (db) {
+        try {
+          const update = {};
+          if (taakCache === null) {
+            update.taak = window.firebase.firestore.FieldValue.delete();
+          } else {
+            update.taak = taakCache;
+          }
+          await db.collection('kinderen').doc(huidigKindCode).update(update);
+        } catch (e) {
+          console.warn('Bewaren taak in Firestore mislukt:', e);
+          throw e;
+        }
+      }
+    }
+  }
+
+  // Werk afzonderlijke velden bij (status, fase, ...).
+  async function updateTaak(velden) {
+    if (!taakCache) return;
+    Object.assign(taakCache, velden);
+    if (huidigKindCode) {
+      localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
+      if (db) {
+        try {
+          await db.collection('kinderen').doc(huidigKindCode).update({ taak: taakCache });
+        } catch (e) {
+          console.warn('Update taak in Firestore mislukt:', e);
+        }
+      }
+    }
+  }
+
+  // Verhoog "juist"-teller voor een woord in een vaardigheid (max 3).
+  async function registreerJuistInTaak(woordId, vaardigheid) {
+    if (!taakCache || !taakCache.perWoord || !taakCache.perWoord[woordId]) return;
+    const sleutel = vaardigheid + '_juist';
+    const huidig = taakCache.perWoord[woordId][sleutel] || 0;
+    if (huidig < 3) {
+      taakCache.perWoord[woordId][sleutel] = huidig + 1;
+    }
+    taakCache.perWoord[woordId].laatstGeoefend = Date.now();
+    if (huidigKindCode) {
+      localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
+      if (db) {
+        try {
+          await db.collection('kinderen').doc(huidigKindCode).update({ taak: taakCache });
+        } catch (e) {
+          console.warn('Update taak in Firestore mislukt:', e);
+        }
+      }
+    }
+  }
+
+  // Reset de juist-teller voor een woord in een vaardigheid (bij fout antwoord).
+  async function registreerFoutInTaak(woordId, vaardigheid) {
+    if (!taakCache || !taakCache.perWoord || !taakCache.perWoord[woordId]) return;
+    const sleutel = vaardigheid + '_juist';
+    const huidig = taakCache.perWoord[woordId][sleutel] || 0;
+    // Bij fout: 1 stap terug (3→2, 2→1, 1→0). Niet onder 0.
+    taakCache.perWoord[woordId][sleutel] = Math.max(0, huidig - 1);
+    taakCache.perWoord[woordId].laatstGeoefend = Date.now();
+    if (huidigKindCode) {
+      localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
+      if (db) {
+        try {
+          await db.collection('kinderen').doc(huidigKindCode).update({ taak: taakCache });
+        } catch (e) { console.warn('Update taak in Firestore mislukt:', e); }
+      }
+    }
+  }
+
+  // Verplaats huidige taak naar geschiedenis en wis hem als actieve.
+  async function archiveerHuidigeTaak() {
+    if (!taakCache || !huidigKindCode) return;
+    const archief = {
+      themaId: taakCache.themaId,
+      woordIds: [...taakCache.woordIds],
+      vaardigheden: [...taakCache.vaardigheden],
+      voltooidOp: Date.now(),
+      status: taakCache.status,
+      perWoord: JSON.parse(JSON.stringify(taakCache.perWoord || {}))
+    };
+    taakgeschiedenisCache.push(archief);
+    // Beperk geschiedenis tot laatste 50 taken om Firestore-grootte beheersbaar te houden
+    if (taakgeschiedenisCache.length > 50) {
+      taakgeschiedenisCache = taakgeschiedenisCache.slice(-50);
+    }
+    taakCache = null;
+    localStorage.setItem('andersleren_taak_' + huidigKindCode, 'null');
+    localStorage.setItem('andersleren_taakgeschiedenis_' + huidigKindCode, JSON.stringify(taakgeschiedenisCache));
+    if (db) {
+      try {
+        await db.collection('kinderen').doc(huidigKindCode).update({
+          taak: window.firebase.firestore.FieldValue.delete(),
+          taakgeschiedenis: taakgeschiedenisCache
+        });
+      } catch (e) {
+        console.warn('Archiveren taak in Firestore mislukt:', e);
+      }
+    }
+  }
+
+  function getTaakgeschiedenis() {
+    return taakgeschiedenisCache;
+  }
+
+  // Voor het leerkracht-paneel: vanop afstand de taak van een ander kind ophalen/zetten.
+  async function haalTaakOpVoorKind(code) {
+    if (!db) return null;
+    try {
+      const doc = await db.collection('kinderen').doc(code).get();
+      if (!doc.exists) return null;
+      return doc.data().taak || null;
+    } catch (e) {
+      console.warn('Ophalen taak mislukt:', e);
+      return null;
+    }
+  }
+
+  async function zetTaakVoorKind(code, taakObj) {
+    if (!code) return;
+    const nieuw = _bouwTaak(taakObj);
+    if (code === huidigKindCode) {
+      taakCache = nieuw;
+      localStorage.setItem('andersleren_taak_' + code, JSON.stringify(taakCache));
+    }
+    if (db) {
+      try {
+        const update = {};
+        if (nieuw === null) {
+          update.taak = window.firebase.firestore.FieldValue.delete();
+        } else {
+          update.taak = nieuw;
+        }
+        await db.collection('kinderen').doc(code).update(update);
+      } catch (e) {
+        console.warn('Bewaren taak voor kind in Firestore mislukt:', e);
+        throw e;
+      }
+    }
+  }
+
+  // ------------------- Spreektoetsen ------------------
+  function getSpreektoetsen() {
+    return spreektoetsenCache;
+  }
+
+  async function bewaarSpreektoets(toets) {
+    spreektoetsenCache.push(toets);
+    if (huidigKindCode) {
+      localStorage.setItem('andersleren_spreektoetsen_' + huidigKindCode, JSON.stringify(spreektoetsenCache));
+      if (db) {
+        try {
+          await db.collection('kinderen').doc(huidigKindCode).update({
+            spreektoetsen: spreektoetsenCache
+          });
+        } catch (e) {
+          console.warn('Bewaren spreektoets in Firestore mislukt:', e);
+          throw e;
+        }
+      }
+    }
+  }
+
+  // Voor leerkracht: spreektoetsen van een ander kind.
+  async function haalSpreektoetsenOpVoorKind(code) {
+    if (!db) return [];
+    try {
+      const doc = await db.collection('kinderen').doc(code).get();
+      if (!doc.exists) return [];
+      return Array.isArray(doc.data().spreektoetsen) ? doc.data().spreektoetsen : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  async function bewaarSpreektoetsVoorKind(code, toets) {
+    if (!code || !db) return;
+    const huidige = await haalSpreektoetsenOpVoorKind(code);
+    huidige.push(toets);
+    if (code === huidigKindCode) {
+      spreektoetsenCache = huidige;
+      localStorage.setItem('andersleren_spreektoetsen_' + code, JSON.stringify(huidige));
+    }
+    try {
+      await db.collection('kinderen').doc(code).update({ spreektoetsen: huidige });
+    } catch (e) {
+      console.warn('Bewaren spreektoets voor kind mislukt:', e);
+      throw e;
+    }
+  }
+
+  // ------------------- Rapport-notities ------------------
+  function getRapportNotities() {
+    return rapportNotitiesCache;
+  }
+
+  async function zetRapportNotities(tekst) {
+    rapportNotitiesCache = tekst || '';
+    if (huidigKindCode) {
+      localStorage.setItem('andersleren_rapportnotities_' + huidigKindCode, rapportNotitiesCache);
+      if (db) {
+        try {
+          await db.collection('kinderen').doc(huidigKindCode).update({
+            rapportNotities: rapportNotitiesCache
+          });
+        } catch (e) {
+          console.warn('Bewaren rapport-notities mislukt:', e);
+        }
+      }
+    }
+  }
+
+  async function zetRapportNotitiesVoorKind(code, tekst) {
+    if (!code || !db) return;
+    if (code === huidigKindCode) {
+      rapportNotitiesCache = tekst || '';
+      localStorage.setItem('andersleren_rapportnotities_' + code, rapportNotitiesCache);
+    }
+    try {
+      await db.collection('kinderen').doc(code).update({ rapportNotities: tekst || '' });
+    } catch (e) {
+      console.warn('Bewaren rapport-notities voor kind mislukt:', e);
+      throw e;
     }
   }
 
@@ -302,7 +770,10 @@ window.Voortgang = (function() {
     await db.collection('kinderen').doc(codeNorm).set({
       naam: naam || '',
       gemaakt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      voortgang: {}
+      voortgang: {},
+      // Lege thema_actief = nieuwe leerling start zonder thema's.
+      // Leerkracht moet expliciet thema's aanvinken in het paneel.
+      thema_actief: []
     });
     return codeNorm;
   }
@@ -331,6 +802,35 @@ window.Voortgang = (function() {
     getCategorieenVoorThema,
     filterItemsOpCategorieen,
     zetCategorieenVoorKind,
-    haalCategorieenOpVoorKind
+    haalCategorieenOpVoorKind,
+    // Uitsluiting per item
+    getUitgeslotenVoorThema,
+    zetUitgeslotenVoorKind,
+    haalUitgeslotenOpVoorKind,
+    // Thema's aan/uit per kind (vrij oefenen)
+    isThemaActiefVoorKind,
+    getThemaActiefRaw,
+    zetThemaActiefVoorKind,
+    haalThemaActiefOpVoorKind,
+    // Taak-systeem
+    getTaak,
+    heeftTaak,
+    zetTaak,
+    updateTaak,
+    registreerJuistInTaak,
+    registreerFoutInTaak,
+    archiveerHuidigeTaak,
+    getTaakgeschiedenis,
+    haalTaakOpVoorKind,
+    zetTaakVoorKind,
+    // Spreektoetsen
+    getSpreektoetsen,
+    bewaarSpreektoets,
+    haalSpreektoetsenOpVoorKind,
+    bewaarSpreektoetsVoorKind,
+    // Rapport-notities
+    getRapportNotities,
+    zetRapportNotities,
+    zetRapportNotitiesVoorKind
   };
 })();
