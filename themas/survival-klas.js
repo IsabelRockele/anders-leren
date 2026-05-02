@@ -52,7 +52,7 @@ window.THEMA_SURVIVAL_KLAS = {
     { id: 'sk-opdracht',  niveau: 'verdieping', soort: 'woord',   tekst: 'de opdracht',        kort: 'opdracht',       beeld: '📝', zin: 'Lees de opdracht goed.' },
     { id: 'sk-juist',     niveau: 'verdieping', soort: 'woord',   tekst: 'juist',              kort: 'juist',          beeld: '✅', zin: 'Dat is juist!' },
     { id: 'sk-fout',      niveau: 'verdieping', soort: 'woord',   tekst: 'fout',               kort: 'fout',           beeld: '❌', zin: 'Hier staat een fout.' },
-    { id: 'sk-klaar',     niveau: 'verdieping', soort: 'zin-zeg', tekst: 'Ik ben klaar.',      kort: 'ik ben klaar',   beeld: '✅', zin: 'Juf, ik ben klaar.' },
+    { id: 'sk-klaar',     niveau: 'verdieping', soort: 'zin-zeg', tekst: 'Ik ben klaar.',      kort: 'ik ben klaar',   beeld: '✅', picto: 'klas/ik_ben_klaar.png', zin: 'Juf, ik ben klaar.' },
 
     // ========== VERDIEPING — meer hoor-zinnen ==========
     { id: 'sk-rij',       niveau: 'verdieping', soort: 'zin-hoor', tekst: 'Maak een rij.',                kort: 'maak rij',       beeld: '🚶', picto: 'klas/in_de_rij.png',         zin: 'Maak nu een rij aan de deur.' },
