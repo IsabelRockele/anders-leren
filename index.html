@@ -169,17 +169,19 @@
         <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
           Maak een code voor elk kind. De code is volledig anoniem voor de cloud — de naam is alleen voor jou.
         </p>
-        <div class="lk-form">
-          <input type="text" id="nieuw-naam" placeholder="Naam (bv. Mohammed)" autocomplete="off">
-          <input type="text" id="nieuw-code" placeholder="Code (bv. ZEBRA-1234)" autocomplete="off"
+        <div class="lk-form lk-form-grid">
+          <input type="text" id="nieuw-voornaam"  placeholder="Voornaam"  autocomplete="off">
+          <input type="text" id="nieuw-achternaam" placeholder="Achternaam" autocomplete="off">
+          <input type="text" id="nieuw-klas"       placeholder="Klas (bv. 2A)" autocomplete="off">
+          <input type="text" id="nieuw-code"       placeholder="Code (bv. ZEBRA-1234)" autocomplete="off"
                autocapitalize="characters">
-        <button onclick="lkGenereerCode()">🎲 Code genereren</button>
-        <button onclick="lkVoegToe()" style="background: var(--kleur-zisa); color: var(--kleur-zwart)">
-          ➕ Toevoegen
-        </button>
+          <button onclick="lkGenereerCode()">🎲 Code genereren</button>
+          <button onclick="lkVoegToe()" style="background: var(--kleur-zisa); color: var(--kleur-zwart)">
+            ➕ Toevoegen
+          </button>
+        </div>
+        <div id="lk-fout" style="color: var(--kleur-fout); font-weight:600; margin-top:8px"></div>
       </div>
-      <div id="lk-fout" style="color: var(--kleur-fout); font-weight:600; margin-top:8px"></div>
-    </div>
 
     <div class="lk-vak">
       <div class="lk-vak-kop">
