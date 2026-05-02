@@ -8,6 +8,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
   <!-- QRCode library voor QR-code generatie -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -28,6 +29,7 @@
   <div class="lk-tabs">
     <button class="lk-tab actief" data-tab="kinderen" onclick="lkKiesTab('kinderen')">👥 Mijn klas</button>
     <button class="lk-tab" data-tab="overzicht" onclick="lkKiesTab('overzicht')">📊 Wie kan wat?</button>
+    <button class="lk-tab" data-tab="woorden" onclick="lkKiesTab('woorden')">🏷️ Woorden</button>
     <button class="lk-tab" data-tab="werkbladen" onclick="lkKiesTab('werkbladen')">📄 Werkbladen</button>
     <button class="lk-tab" data-tab="info" onclick="lkKiesTab('info')">ℹ️ Hulp</button>
   </div>
@@ -96,6 +98,26 @@
         </button>
       </div>
       <div id="lk-detail-inhoud"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: WOORDEN ============ -->
+  <div id="lk-tab-woorden" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>🏷️ Woorden in deze klas</h2>
+      <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
+        Bekijk de basislijst van Juf Zisa, pas woorden aan, vervang afbeeldingen door eigen foto's, of voeg eigen woorden toe.
+        Wijzigingen gelden voor al je leerlingen. De basislijst blijft intact en updates uit de basislijst krijg je automatisch.
+      </p>
+
+      <div class="wb-thema-kiezer">
+        <label for="wb-thema-select" style="font-weight:600; margin-right:8px">Thema:</label>
+        <select id="wb-thema-select" onchange="wbKiesThema(this.value)" class="wb-select"></select>
+      </div>
+
+      <div id="wb-inhoud" style="margin-top:20px">
+        <p style="opacity:0.6">Kies een thema om de woordenlijst te bekijken.</p>
+      </div>
     </div>
   </div>
 
@@ -200,6 +222,9 @@
 
 <script src="firebase-config.js"></script>
 <script src="voortgang.js"></script>
+<script src="picto.js"></script>
+<script src="woordenbeheer.js"></script>
+<script src="afbeelding-upload.js"></script>
 <script src="pdf-engine.js"></script>
 <script src="leerkracht.js"></script>
 
