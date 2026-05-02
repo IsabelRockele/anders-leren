@@ -4800,3 +4800,1101 @@ h1, h2, h3 {
     font-size: 13px;
   }
 }
+
+/* =================================================================
+   TAB SCHOOL — instellingen voor PDF-rapporten
+   ================================================================= */
+
+.lk-school-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 600px;
+  margin-top: 14px;
+}
+
+.lk-school-veld {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lk-school-veld label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2D2A32;
+}
+
+.lk-school-veld input[type="text"] {
+  border: 1.5px solid #e5dfd0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 15px;
+  background: white;
+  transition: border-color 0.15s;
+}
+
+.lk-school-veld input[type="text"]:focus {
+  outline: none;
+  border-color: #ffd166;
+  box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.2);
+}
+
+.lk-school-tip {
+  margin: 0;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.4;
+}
+
+.lk-logo-zone {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.lk-logo-preview {
+  width: 160px;
+  height: 100px;
+  background: white;
+  border: 2px dashed #c5c5b8;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.lk-logo-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.lk-logo-placeholder {
+  font-size: 12px;
+  color: #999;
+  text-align: center;
+  padding: 0 8px;
+}
+
+.lk-logo-knoppen {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lk-school-acties {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.lk-school-status {
+  font-size: 13px;
+}
+
+.lk-school-status.ok {
+  color: #2E7D32;
+}
+
+.lk-school-status.fout {
+  color: #C62828;
+}
+
+.lk-school-status.bezig {
+  color: #888;
+}
+
+/* =================================================================
+   SPREEKTOETS-MODAL
+   ================================================================= */
+
+.lk-spr-woorden {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.lk-spr-rij {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: white;
+  border: 1.5px solid #e5dfd0;
+  border-radius: 10px;
+}
+
+.lk-spr-beeld {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.lk-spr-tekst {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.lk-spr-knoppen {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.lk-spr-knop {
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid #e5dfd0;
+  background: white;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lk-spr-knop:hover {
+  border-color: #ffd166;
+  background: #fffbf0;
+}
+
+.lk-spr-knop.aan {
+  background: #4CAF50;
+  color: white;
+  border-color: #2E7D32;
+}
+
+.lk-spr-knop.aarzelt.aan {
+  background: #FFB74D;
+  color: white;
+  border-color: #E65100;
+}
+
+.lk-spr-knop.niet.aan {
+  background: #E57373;
+  color: white;
+  border-color: #C62828;
+}
+
+.lk-spr-notitie {
+  border: 1.5px solid #e5dfd0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  background: white;
+  resize: vertical;
+}
+
+.lk-spr-notitie:focus {
+  outline: none;
+  border-color: #ffd166;
+  box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.2);
+}
+
+/* =================================================================
+   SPREEKTOETS-AFNAMETOOL — groot beeld + beoordelingsknoppen
+   ================================================================= */
+
+.lk-cat-modal.lk-spr-afname {
+  max-width: 720px;
+}
+
+.lk-spr-kop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.lk-spr-kop-naam {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2D2A32;
+}
+
+.lk-spr-kop-teller {
+  font-size: 14px;
+  color: #888;
+  background: #f5f5f0;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.lk-spr-balk-wrap {
+  width: 100%;
+  height: 8px;
+  background: #f0e6d2;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.lk-spr-balk-vul {
+  height: 100%;
+  background: linear-gradient(90deg, #FFD166 0%, #FF8C42 100%);
+  transition: width 0.3s ease;
+  border-radius: 999px;
+}
+
+.lk-spr-afname-paneel {
+  background: white;
+  border: 2px solid #e5dfd0;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 18px;
+  text-align: center;
+}
+
+.lk-spr-beeld-groot {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 14px;
+  min-height: 240px;
+}
+
+.lk-spr-beeld-groot .picto-img {
+  max-height: 240px;
+  width: auto;
+  max-width: 100%;
+}
+
+.lk-spr-beeld-groot .picto-emoji {
+  font-size: 200px;
+}
+
+.lk-spr-juf-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #fff8e0;
+  border: 1.5px solid #ffd166;
+  border-radius: 999px;
+}
+
+.lk-spr-juf-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #8D6E63;
+  letter-spacing: 0.5px;
+}
+
+.lk-spr-juf-woord {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2D2A32;
+}
+
+.lk-spr-hoor {
+  background: white !important;
+  border: 1px solid #e5dfd0;
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+/* Beoordelingsknoppen — drie groot */
+.lk-spr-beoordeel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.lk-spr-bk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 10px;
+  border: 2px solid #e5dfd0;
+  background: white;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.lk-spr-bk:hover:not(.aan) {
+  border-color: #ffd166;
+  background: #fffbf0;
+  transform: translateY(-1px);
+}
+
+.lk-spr-bk-emoji {
+  font-size: 28px;
+}
+
+.lk-spr-bk-tekst {
+  font-weight: 500;
+}
+
+.lk-spr-bk.vlot.aan {
+  background: #4CAF50;
+  color: white;
+  border-color: #2E7D32;
+}
+
+.lk-spr-bk.aarzelt.aan {
+  background: #FFB74D;
+  color: white;
+  border-color: #E65100;
+}
+
+.lk-spr-bk.niet.aan {
+  background: #E57373;
+  color: white;
+  border-color: #C62828;
+}
+
+/* Navigatieknoppen */
+.lk-spr-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.lk-spr-nav .lk-knop-mini {
+  flex: 1;
+}
+
+.lk-spr-stop {
+  text-align: center;
+  font-size: 13px;
+}
+
+.lk-spr-stop a {
+  color: #888;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.lk-spr-stop a:hover {
+  color: #C62828;
+}
+
+/* Samenvatting in fase 'klaar' */
+.lk-spr-samenvatting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.lk-spr-samen-rij {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e5dfd0;
+  background: white;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.lk-spr-samen-rij.vlot {
+  background: #E8F5E9;
+  border-color: #A5D6A7;
+}
+
+.lk-spr-samen-rij.aarzelt {
+  background: #FFF8E1;
+  border-color: #FFCC80;
+}
+
+.lk-spr-samen-rij.niet {
+  background: #FFEBEE;
+  border-color: #EF9A9A;
+}
+
+.lk-spr-samen-rij.leeg {
+  background: #FAFAF5;
+  font-style: italic;
+}
+
+.lk-spr-samen-emoji {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.lk-spr-samen-tekst {
+  flex: 1;
+}
+
+@media (max-width: 600px) {
+  .lk-spr-beeld-groot .picto-emoji {
+    font-size: 140px;
+  }
+  .lk-spr-beeld-groot .picto-img {
+    max-height: 180px;
+  }
+  .lk-spr-bk {
+    padding: 12px 6px;
+  }
+  .lk-spr-bk-emoji {
+    font-size: 22px;
+  }
+  .lk-spr-bk-tekst {
+    font-size: 12px;
+  }
+}
+
+/* Spreektoetsen in detail-uitklap */
+.lk-spr-detail-rij {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: #fafaf5;
+  border-radius: 6px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.lk-spr-detail-datum {
+  font-family: monospace;
+  font-size: 12px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.lk-spr-detail-thema {
+  flex: 1;
+  font-weight: 500;
+}
+
+.lk-spr-detail-cijfers {
+  font-size: 12px;
+  color: #555;
+  white-space: nowrap;
+}
+
+.lk-spr-detail-knop {
+  padding: 2px 8px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* Suggestie-knop in rapport-modal */
+.lk-rap-suggestie-knop {
+  background: #fff8e0;
+  border: 1px solid #ffd166;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: #5D4037;
+  cursor: pointer;
+  margin-left: 8px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.lk-rap-suggestie-knop:hover {
+  background: #ffe9a8;
+  border-color: #FFB74D;
+}
+
+.lk-taak-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* =================================================================
+   SPREEKTOETS — notitievelden in samenvattingsscherm + over-typen-blok
+   ================================================================= */
+
+.lk-spr-overtypen {
+  background: #fff8e1;
+  border: 1.5px solid #ffd166;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.lk-spr-overtypen strong {
+  color: #5D4037;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.lk-spr-overtypen-namen {
+  color: #2D2A32;
+  font-style: italic;
+}
+
+.lk-spr-notities-blok {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.lk-spr-notitie-rij {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: white;
+  border: 1.5px solid #e5dfd0;
+  border-radius: 8px;
+  border-left-width: 4px;
+}
+
+.lk-spr-notitie-rij.aarzelt {
+  border-left-color: #FFB74D;
+  background: #FFFCF6;
+}
+
+.lk-spr-notitie-rij.niet {
+  border-left-color: #E57373;
+  background: #FFFAFA;
+}
+
+.lk-spr-notitie-emoji {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.lk-spr-notitie-woord {
+  font-weight: 500;
+  font-size: 14px;
+  flex-shrink: 0;
+  min-width: 100px;
+  color: #2D2A32;
+}
+
+.lk-spr-notitie-input {
+  flex: 1;
+  border: 1px solid #e5dfd0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: white;
+  font-family: inherit;
+}
+
+.lk-spr-notitie-input:focus {
+  outline: none;
+  border-color: #ffd166;
+  box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.2);
+}
+
+.lk-spr-notitie-input::placeholder {
+  color: #aaa;
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .lk-spr-notitie-rij {
+    flex-wrap: wrap;
+  }
+  .lk-spr-notitie-woord {
+    min-width: 0;
+  }
+  .lk-spr-notitie-input {
+    flex-basis: 100%;
+    margin-top: 4px;
+  }
+}
+
+/* =================================================================
+   RAPPORTPERIODE-BALK — bovenaan leerkracht-pagina
+   ================================================================= */
+
+.lk-periode-balk {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: linear-gradient(90deg, #fff8e0 0%, #ffe9a8 100%);
+  border-radius: 12px;
+  margin-bottom: 18px;
+  border: 1px solid #ffd166;
+  font-size: 14px;
+}
+
+.lk-periode-icoon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.lk-periode-label {
+  color: #5D4037;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.lk-periode-knop {
+  background: white;
+  border: 1.5px solid #ffd166;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  color: #2D2A32;
+  transition: all 0.15s;
+  flex: 1;
+  text-align: left;
+}
+
+.lk-periode-knop:hover {
+  background: #fffbf0;
+  border-color: #FFB74D;
+}
+
+.lk-periode-pijl {
+  font-size: 12px;
+  margin-left: auto;
+  color: #888;
+}
+
+.lk-periode-datums {
+  font-size: 12px;
+  color: #888;
+  font-weight: normal;
+  margin-left: 8px;
+}
+
+.lk-periode-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e5dfd0;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  z-index: 100;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.lk-periode-menu.open {
+  display: block;
+}
+
+.lk-periode-menu-kop {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 0.5px;
+  padding: 6px 10px 4px;
+  margin-top: 4px;
+}
+
+.lk-periode-menu-kop:first-child {
+  margin-top: 0;
+}
+
+.lk-periode-menu-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  background: #fafaf5;
+}
+
+.lk-periode-menu-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.lk-periode-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.lk-periode-badge.actief {
+  background: #4CAF50;
+  color: white;
+}
+
+.lk-periode-badge.archief {
+  background: #BDBDBD;
+  color: white;
+}
+
+.lk-periode-menu-leeg {
+  padding: 12px;
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.lk-periode-menu-acties {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e5dfd0;
+}
+
+.lk-periode-menu-acties .lk-knop-mini {
+  width: 100%;
+  text-align: center;
+}
+
+.lk-periode-waarschuwing {
+  background: #FFF8E1;
+  border: 1px solid #FFD166;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #5D4037;
+}
+
+@media (max-width: 600px) {
+  .lk-periode-balk {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .lk-periode-label {
+    display: none;
+  }
+}
+
+/* =================================================================
+   EERDERE TAKEN in detail-uitklap
+   ================================================================= */
+
+.lk-taakgesch-rij {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: #fafaf5;
+  border-radius: 6px;
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+.lk-taakgesch-datum {
+  font-family: monospace;
+  font-size: 12px;
+  color: #666;
+  flex-shrink: 0;
+  min-width: 60px;
+}
+
+.lk-taakgesch-thema {
+  flex: 1;
+  font-weight: 500;
+}
+
+.lk-taakgesch-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.lk-taakgesch-status.voltooid {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+
+.lk-taakgesch-status.moeilijk {
+  background: #FFF8E1;
+  color: #5D4037;
+}
+
+.lk-taakgesch-status.bezig {
+  background: #E3F2FD;
+  color: #1565C0;
+}
+
+.lk-taakgesch-knop {
+  padding: 2px 8px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* =================================================================
+   SPREEKTOETS — woordkeuze in fase kiezen
+   ================================================================= */
+
+.lk-spr-keuze-lijst {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px;
+  max-height: 35vh;
+  overflow-y: auto;
+  padding: 4px;
+  background: #fafaf5;
+  border: 1px solid #e5dfd0;
+  border-radius: 8px;
+}
+
+.lk-spr-keuze-rij {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid #e5dfd0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.1s;
+  font-size: 13px;
+}
+
+.lk-spr-keuze-rij:hover {
+  border-color: #ffd166;
+}
+
+.lk-spr-keuze-rij.aan {
+  background: #FFF8E1;
+  border-color: #FFD166;
+}
+
+.lk-spr-keuze-rij input[type="checkbox"] {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.lk-spr-keuze-tekst {
+  flex: 1;
+  user-select: none;
+}
+
+/* =================================================================
+   KINDERTABS — gedeeld tussen Taken / Spreken / Rapporten
+   ================================================================= */
+
+.lk-kindtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #e5dfd0;
+  overflow-x: auto;
+}
+
+.lk-kindtab {
+  background: #fafaf5;
+  border: 1px solid #e5dfd0;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  color: #5D4037;
+  transition: all 0.15s;
+  white-space: nowrap;
+  margin-bottom: -2px;
+}
+
+.lk-kindtab:hover {
+  background: #fffbf0;
+}
+
+.lk-kindtab.actief {
+  background: white;
+  border-color: #FFD166;
+  border-bottom: 2px solid white;
+  font-weight: 600;
+  color: #2D2A32;
+}
+
+.lk-kindinhoud {
+  min-height: 200px;
+}
+
+.lk-kind-leeg {
+  text-align: center;
+  padding: 40px 20px;
+  color: #888;
+  font-style: italic;
+  background: #fafaf5;
+  border-radius: 12px;
+}
+
+.lk-kind-acties {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+/* Takenlijst (gedeeld tussen taken en spreektoetsen) */
+.lk-takenlijst {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lk-taakrij {
+  display: grid;
+  grid-template-columns: 70px 1fr auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: white;
+  border: 1px solid #e5dfd0;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.lk-taakrij.huidig {
+  border-color: #FFD166;
+  background: #FFFCF6;
+  border-left: 4px solid #FF8C42;
+}
+
+.lk-taakrij-datum {
+  font-family: monospace;
+  font-size: 12px;
+  color: #666;
+}
+
+.lk-taakrij-thema {
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lk-taakrij-status {
+  display: flex;
+  gap: 4px;
+}
+
+.lk-taakrij-score {
+  font-size: 12px;
+  color: #555;
+  white-space: nowrap;
+}
+
+.lk-taakrij-acties {
+  display: flex;
+  gap: 4px;
+}
+
+.lk-huidig-badge {
+  background: #FF8C42;
+  color: white;
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* Spreektoets-cijfers compact */
+.lk-spr-cijfer {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.lk-spr-cijfer.vlot {
+  background: #E8F5E9;
+  color: #2E7D32;
+}
+
+.lk-spr-cijfer.aarzelt {
+  background: #FFF8E1;
+  color: #5D4037;
+}
+
+.lk-spr-cijfer.niet {
+  background: #FFEBEE;
+  color: #C62828;
+}
+
+/* Rapport-samenvatting */
+.lk-rapport-samenvatting {
+  display: flex;
+  gap: 14px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+}
+
+.lk-rapport-stat {
+  flex: 1;
+  min-width: 120px;
+  background: #FFFCF6;
+  border: 1px solid #FFD166;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.lk-rapport-stat strong {
+  font-size: 26px;
+  color: #FF8C42;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .lk-taakrij {
+    grid-template-columns: 1fr auto;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .lk-taakrij-datum {
+    grid-column: 1;
+  }
+  .lk-taakrij-thema {
+    grid-column: 1 / -1;
+  }
+  .lk-taakrij-status {
+    grid-column: 1;
+  }
+  .lk-taakrij-score {
+    grid-column: 2;
+    text-align: right;
+  }
+  .lk-taakrij-acties {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}
