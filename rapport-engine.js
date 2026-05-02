@@ -47,6 +47,21 @@ window.RapportEngine = (function() {
     return { tekst: 'Bezig', kleur: '#1565C0', emoji: '~' };
   }
 
+  // Volledige naam uit kind-object: "Voornaam Achternaam", val terug op naam
+  function _volledigeNaam(kind) {
+    if (!kind) return 'Leerling';
+    const v = (kind.voornaam || '').trim();
+    const a = (kind.achternaam || '').trim();
+    if (v || a) return [v, a].filter(Boolean).join(' ');
+    return (kind.naam || '').trim() || 'Leerling';
+  }
+
+  // Klas-tekst voor de PDF (lege string als geen klas ingevuld)
+  function _klasTekst(kind) {
+    if (!kind) return '';
+    return (kind.klas || '').trim();
+  }
+
   // Helpers: spreektoets perWoord-waarde kan oud (string) of nieuw (object) zijn
   function _oordeel(waarde) {
     if (!waarde) return null;
@@ -96,11 +111,12 @@ window.RapportEngine = (function() {
 
   // Footer met logo + paginanummer
   function tekenFooter(doc, school, paginaNr, totaal) {
-    // Footer-zone: 20mm onderaan blijft vrij voor printer-marge.
-    // De feitelijke footer-elementen staan vanaf yFoot tot PH - 8.
-    const yFoot = PH - 22;        // bovenkant footer-zone
+    // Footer-zone: vergroot zodat logo goed leesbaar is.
+    // Inhoud-cutoff staat op PH - 30 (zie page-break checks),
+    // dus footer mag van PH - 28 tot PH - 8.
+    const yFoot = PH - 28;        // bovenkant footer-zone (+ 6mm hoger dan voorheen)
     const yLijn = yFoot;          // scheidingslijn
-    const footerHoogte = 14;      // ruimte voor logo + paginanummer
+    const footerHoogte = 20;      // ruimte voor logo + paginanummer (was 14)
 
     // Lijn boven footer
     doc.setDrawColor(K_LICHTGRIJS);
@@ -110,8 +126,8 @@ window.RapportEngine = (function() {
     // Logo links (als beschikbaar) — schaal met behoud van aspect-ratio
     if (school && school.logoDataUrl) {
       try {
-        const maxH = 12; // mm hoog (kleiner dan footer-zone)
-        const maxW = 45; // mm breed
+        const maxH = 18; // mm hoog (was 12 — 50% groter)
+        const maxW = 55; // mm breed (was 45)
         let logoW = school.logoBreedte || 0;
         let logoH = school.logoHoogte || 0;
 
@@ -137,7 +153,7 @@ window.RapportEngine = (function() {
         // Detecteer formaat (PNG vs JPEG) op basis van data-URL prefix
         const formaat = school.logoDataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
 
-        // Verticaal centreren binnen footer-zone (yFoot tot yFoot + footerHoogte)
+        // Verticaal centreren binnen footer-zone
         const yLogo = yFoot + (footerHoogte - eindH) / 2 + 1;
 
         doc.addImage(school.logoDataUrl, formaat, M, yLogo, eindW, eindH, undefined, 'FAST');
@@ -146,15 +162,15 @@ window.RapportEngine = (function() {
       }
     }
 
-    // Paginanummer rechts — ook binnen footer-zone
+    // Paginanummer rechts — verticaal gecentreerd in footer-zone
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(K_GRIJS);
-    doc.text(`Pagina ${paginaNr}${totaal ? ' / ' + totaal : ''}`, PB - M, yFoot + 8, { align: 'right' });
+    doc.text(`Pagina ${paginaNr}${totaal ? ' / ' + totaal : ''}`, PB - M, yFoot + footerHoogte / 2 + 2, { align: 'right' });
   }
 
   // Naam + code blok bovenaan inhoud (na header)
-  function tekenLeerlingTitel(doc, kindnaam, kindcode, y) {
+  function tekenLeerlingTitel(doc, kindnaam, kindcode, y, klas) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     doc.setTextColor(K_HOOFDTITEL);
@@ -163,7 +179,8 @@ window.RapportEngine = (function() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(K_GRIJS);
-    doc.text(`Code: ${kindcode}`, M, y + 12);
+    const codeRegel = klas ? `Code: ${kindcode}  ·  klas ${klas}` : `Code: ${kindcode}`;
+    doc.text(codeRegel, M, y + 12);
 
     return y + 20;
   }
@@ -376,7 +393,7 @@ window.RapportEngine = (function() {
 
     // ===== Pagina 1 =====
     let y = tekenHeader(doc, school, kind.naam, kind.code);
-    y = tekenLeerlingTitel(doc, kind.naam || 'Leerling', kind.code, y);
+    y = tekenLeerlingTitel(doc, _volledigeNaam(kind), kind.code, y, _klasTekst(kind));
 
     // === HUIDIGE / LAATSTE TAAK ===
     if (kind.taak && kind.taak.themaId) {
@@ -503,7 +520,7 @@ window.RapportEngine = (function() {
 
         const sorted = [...spreektoetsen].sort((a, b) => (b.datum || 0) - (a.datum || 0));
         sorted.slice(0, 8).forEach(st => {
-          if (y > PH - 28) {
+          if (y > PH - 32) {
             doc.addPage();
             y = tekenHeader(doc, school, kind.naam, kind.code);
           }
@@ -665,7 +682,7 @@ window.RapportEngine = (function() {
     }
 
     // Download
-    const veiligeNaam = (kind.naam || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
+    const veiligeNaam = (_volledigeNaam(kind) || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
     const datum = vandaagFmt().replace(/\//g, '-');
     doc.save(`rapport-${veiligeNaam}-${datum}.pdf`);
   }
@@ -718,12 +735,15 @@ window.RapportEngine = (function() {
     doc.text('Spreektoets', M, y + 5);
     y += 10;
 
-    // Sub: leerling + thema + datum
+    // Sub: leerling + (klas) + thema + datum
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.setTextColor(K_SUBTITEL);
     const themaNaam = thema ? thema.naam : (toets.themaId || '');
-    doc.text(`${kind.naam || 'Leerling'}  ·  ${themaNaam}  ·  ${datumFmt(toets.datum)}`, M, y + 4);
+    const naamLeerling = _volledigeNaam(kind);
+    const klas = _klasTekst(kind);
+    const naamMetKlas = klas ? `${naamLeerling}  ·  klas ${klas}` : naamLeerling;
+    doc.text(`${naamMetKlas}  ·  ${themaNaam}  ·  ${datumFmt(toets.datum)}`, M, y + 4);
     y += 9;
 
     // Score-strook bovenaan
@@ -807,7 +827,7 @@ window.RapportEngine = (function() {
         const notitie = _notitie(waarde);
 
         // Page break check
-        if (y + celHoogte > PH - 28) {
+        if (y + celHoogte > PH - 32) {
           doc.addPage();
           y = tekenHeader(doc, school, kind.naam, kind.code);
           doc.setFont('helvetica', 'normal');
@@ -888,21 +908,42 @@ window.RapportEngine = (function() {
       }
     }
 
-    // Algemene notitie
+    // Algemene notitie — in eigen kader (geen kleur-vulling, duidelijke rand)
     if (toets.notitie && toets.notitie.trim()) {
-      if (y + 18 > PH - 28) {
+      // Padding binnen kader: 5mm rond
+      const paddingX = 6;
+      const paddingY = 6;
+      const lijnenSchatting = doc.splitTextToSize(toets.notitie, IB - 2 * paddingX);
+      const blokHoogte = paddingY + 6 + lijnenSchatting.length * 5 + paddingY; // titel(6) + tekst + padding
+
+      // Extra witruimte zodat het niet tegen onderste rij woorden plakt
+      y += 14;
+
+      // Page break check
+      if (y + blokHoogte > PH - 32) {
         doc.addPage();
         y = tekenHeader(doc, school, kind.naam, kind.code);
+        y += 4;
       }
-      y += 4;
-      y = tekenSubkop(doc, 'Algemene notitie', y);
-      y += 2;
+
+      // Kader (geen vulling, donkere rand voor zichtbaarheid)
+      doc.setDrawColor('#5D4037'); // K_SUBTITEL — donkerbruin, goed zichtbaar
+      doc.setLineWidth(0.5);
+      doc.roundedRect(M, y, IB, blokHoogte, 3, 3, 'S');
+
+      // Titel binnen kader
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor('#5D4037');
+      doc.text('Algemene notitie', M + paddingX, y + paddingY + 4);
+
+      // Tekst eronder
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(K_HOOFDTITEL);
-      const lijnen = doc.splitTextToSize(toets.notitie, IB - 4);
-      doc.text(lijnen, M + 2, y + 4);
-      y += lijnen.length * 5;
+      doc.text(lijnenSchatting, M + paddingX, y + paddingY + 11);
+
+      y += blokHoogte;
     }
 
     // Footer op alle pagina's
@@ -912,7 +953,7 @@ window.RapportEngine = (function() {
       tekenFooter(doc, school, i, totaalPag);
     }
 
-    const veiligeNaam = (kind.naam || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
+    const veiligeNaam = (_volledigeNaam(kind) || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
     const datum = datumFmt(toets.datum).replace(/\//g, '-');
     const themaSlug = (thema && thema.id) ? thema.id : 'thema';
     doc.save(`spreektoets-${veiligeNaam}-${themaSlug}-${datum}.pdf`);
@@ -1111,7 +1152,7 @@ window.RapportEngine = (function() {
       tekenFooter(doc, school, i, totaalPag);
     }
 
-    const veiligeNaam = (kind.naam || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
+    const veiligeNaam = (_volledigeNaam(kind) || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
     const themaSlug = (thema && thema.id) ? thema.id : 'thema';
     doc.save(`afnameblad-${veiligeNaam}-${themaSlug}.pdf`);
   }
@@ -1164,13 +1205,16 @@ window.RapportEngine = (function() {
     doc.text('Luistertoets', M, y + 5);
     y += 10;
 
-    // Sub: leerling + thema + datum
+    // Sub: leerling + (klas) + thema + datum
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.setTextColor(K_SUBTITEL);
     const themaNaam = thema ? thema.naam : (taak.themaId || '');
     const datumTaak = taak.voltooidOp || taak.gestart || Date.now();
-    doc.text(`${kind.naam || 'Leerling'}  ·  ${themaNaam}  ·  ${datumFmt(datumTaak)}`, M, y + 4);
+    const naamLeerling = _volledigeNaam(kind);
+    const klas = _klasTekst(kind);
+    const naamMetKlas = klas ? `${naamLeerling}  ·  klas ${klas}` : naamLeerling;
+    doc.text(`${naamMetKlas}  ·  ${themaNaam}  ·  ${datumFmt(datumTaak)}`, M, y + 4);
     y += 9;
 
     // Score-strook bovenaan
@@ -1244,7 +1288,7 @@ window.RapportEngine = (function() {
         if (!item) continue;
 
         // Page break: als rij niet meer past, nieuwe pagina
-        if (y + celHoogte > PH - 28) {
+        if (y + celHoogte > PH - 32) {
           doc.addPage();
           y = tekenHeader(doc, school, kind.naam, kind.code);
           // Op vervolgpagina: kort kop
@@ -1318,7 +1362,7 @@ window.RapportEngine = (function() {
       tekenFooter(doc, school, i, totaalPag);
     }
 
-    const veiligeNaam = (kind.naam || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
+    const veiligeNaam = (_volledigeNaam(kind) || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
     const datumStr = datumFmt(datumTaak).replace(/\//g, '-');
     const themaSlug = (thema && thema.id) ? thema.id : 'thema';
     doc.save(`luistertoets-${veiligeNaam}-${themaSlug}-${datumStr}.pdf`);
