@@ -2,6 +2,24 @@
 //  leerkracht.js — Logica voor het leerkracht-paneel
 // =================================================================
 
+// Bouw de URL naar de kind-app, ongeacht hoe het leerkracht-paneel
+// wordt geserveerd. We gaan uit van dezelfde folder + 'kind.html'.
+function lkKindAppUrl(code) {
+  // window.location.pathname bevat het pad zoals "/anders-leren/index.html"
+  // We willen de map ervan en daar 'kind.html' aan plakken.
+  const pad = window.location.pathname;
+  const map = pad.replace(/[^/]*$/, '');  // alles tot en met laatste /
+  const basis = window.location.origin + map + 'kind.html';
+  return code ? `${basis}?code=${encodeURIComponent(code)}` : basis;
+}
+
+// Open de kind-app in een nieuw tabblad. Zonder code → kind ziet eerst het
+// login-scherm. De leerkracht kan dan zelf een testcode invullen, of de
+// functie krijgt een code mee om als specifieke leerling te 'spieken'.
+function lkBekijkKindApp(code) {
+  window.open(lkKindAppUrl(code), '_blank', 'noopener');
+}
+
 // Lijst van alle verwachte thema-globals
 const VERWACHTE_THEMAS_LK = [
   ['THEMA_SURVIVAL_KLAS', 'survival-klas.js'],
@@ -111,10 +129,11 @@ function lkRendererTabel() {
       <td><span class="lk-code">${kind.code}</span></td>
       <td>${gekend} / ${totaal}</td>
       <td>
-        <button class="lk-knop-mini" onclick="lkToonQR('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')">📱 QR</button>
-        <button class="lk-knop-mini" onclick="lkBekijkKind('${kind.code}')">👁️</button>
+        <button class="lk-knop-mini" onclick="lkToonQR('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')" title="QR-code voor inloggen">📱 QR</button>
+        <button class="lk-knop-mini" onclick="lkBekijkKind('${kind.code}')" title="Bekijk gedetailleerde voortgang">📊</button>
+        <button class="lk-knop-mini" onclick="lkBekijkKindApp('${kind.code}')" title="Open de kind-app als deze leerling (in nieuw tabblad)">👁️</button>
         <button class="lk-knop-mini" onclick="lkBeheerCategorieen('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')" title="Categorieën per thema">🏷️</button>
-        <button class="lk-knop-mini gevaar" onclick="lkVerwijder('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')">🗑️</button>
+        <button class="lk-knop-mini gevaar" onclick="lkVerwijder('${kind.code}', '${(kind.naam || '').replace(/'/g, "\\'")}')" title="Leerling verwijderen">🗑️</button>
       </td>
     </tr>`;
   });
@@ -213,8 +232,7 @@ async function lkVerwijder(code, naam) {
 function lkToonQR(code, naam) {
   lkHuidigQRCode = code;
   // Bouw URL naar de kind-app met code in query string
-  const baseUrl = window.location.href.replace(/leerkracht\.html.*/, 'index.html');
-  const qrUrl = `${baseUrl}?code=${code}`;
+  const qrUrl = lkKindAppUrl(code);
 
   document.getElementById('qr-naam').textContent = naam ? `${naam} · ${code}` : code;
   const qrDiv = document.getElementById('qr-canvas');
@@ -462,9 +480,6 @@ function lkPrintAlleQR() {
     return a.naam.localeCompare(b.naam, 'nl');
   });
 
-  // Bouw URL-basis
-  const baseUrl = window.location.href.replace(/leerkracht\.html.*/, 'index.html');
-
   // Genereer QR per kind in een tijdelijke verborgen div, en lees als data-URL
   const tijdelijk = document.createElement('div');
   tijdelijk.style.cssText = 'position:absolute; left:-9999px; top:-9999px;';
@@ -474,7 +489,7 @@ function lkPrintAlleQR() {
     const sub = document.createElement('div');
     tijdelijk.appendChild(sub);
     new QRCode(sub, {
-      text: `${baseUrl}?code=${kind.code}`,
+      text: lkKindAppUrl(kind.code),
       width: 200,
       height: 200,
       colorDark: '#2D2A32',
