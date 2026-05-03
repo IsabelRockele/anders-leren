@@ -413,6 +413,60 @@
   </main>
 </div>
 
+<!-- ============ SCHERM: LUISTEREN-VERBINDEN  (woord ↔ beeld lijntjes) ============ -->
+<div id="scherm-taak-verbinden" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>👂 Mijn taak — verbinden</h1>
+    <span class="teller"><span id="taak-verbinden-klaar">0</span>/<span id="taak-verbinden-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-verbinden-ronde">Ronde 1 van 3</span></div>
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-verbinden-balk" style="width:0%"></div>
+    </div>
+    <p class="taak-oef-vraag">Verbind het juiste woord met het juiste beeld.</p>
+    <div class="verbinden-wrap" id="verbinden-wrap">
+      <svg class="verbinden-lijnen" id="verbinden-lijnen" preserveAspectRatio="none"></svg>
+      <div class="verbinden-kolommen">
+        <div class="verbinden-kolom-woorden" id="verbinden-kolom-woorden"></div>
+        <div class="verbinden-kolom-beelden" id="verbinden-kolom-beelden"></div>
+      </div>
+    </div>
+    <div class="verbinden-acties">
+      <button class="grote-knop" id="verbinden-klaar-knop" onclick="taakVerbindenKlaar()" disabled>✓ Klaar</button>
+    </div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: LUISTEREN-VERSLEPEN  (sleep woord naar leeg vak naast beeld) ============ -->
+<div id="scherm-taak-verslepen" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>👂 Mijn taak — verslepen</h1>
+    <span class="teller"><span id="taak-verslepen-klaar">0</span>/<span id="taak-verslepen-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-verslepen-ronde">Ronde 1 van 3</span></div>
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-verslepen-balk" style="width:0%"></div>
+    </div>
+    <div class="verslepen-rij">
+      <div class="verslepen-beeld" id="verslepen-beeld">🎒</div>
+      <div class="verslepen-dropvak" id="verslepen-dropvak">
+        <span class="verslepen-dropvak-placeholder">sleep het woord hier</span>
+      </div>
+    </div>
+    <div class="audio-knoppen">
+      <button class="audio-knop hoor groot" onclick="taakVerslepenHoor()">
+        <span class="audio-icoon">🔊</span><span>Hoor het woord</span>
+      </button>
+    </div>
+    <p class="taak-oef-vraag">Sleep het juiste woord naar het lege vak.</p>
+    <div class="verslepen-woorden" id="verslepen-woorden"></div>
+  </main>
+</div>
+
 <!-- ============ SCHERM: TAAK FASE 1 — LEREN ============ -->
 <div id="scherm-taak-leren" class="scherm">
   <header class="modus-header taak-header">
