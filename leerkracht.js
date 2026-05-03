@@ -445,34 +445,15 @@ function _lkRendererSpreektoetsen(kind) {
 function _lkRendererRapporten(kind) {
   if (!kind) return '<p class="lk-kind-leeg">Geen leerling geselecteerd.</p>';
 
-  const naamSafe = (kind.naam || '').replace(/'/g, "\\'");
+  // Toon meteen de placeholder; data wordt asynchroon geladen
+  const html = _lkRapInlinePlaceholder(kind);
 
-  // Vooruitkijken naar Sessie C: een rapport-werkomgeving per leerling.
-  // Voor nu: een eenvoudige knop die de bestaande rapport-modal opent.
-  let html = `
-    <div class="lk-kind-acties">
-      <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkOpenRapport('${kind.code}', '${naamSafe}')">📄 Rapport maken</button>
-    </div>
-  `;
-
-  // Toon een samenvatting van wat er bekend is over deze leerling
-  const taakgesch = Array.isArray(kind.taakgeschiedenis) ? kind.taakgeschiedenis : [];
-  const heeftHuidigeTaak = !!(kind.taak && kind.taak.themaId);
-  const aantalTaken = taakgesch.length + (heeftHuidigeTaak ? 1 : 0);
-  const aantalSpreek = (kind.spreektoetsen || []).length;
-
-  html += `
-    <div class="lk-rapport-samenvatting">
-      <div class="lk-rapport-stat"><strong>${aantalTaken}</strong><br><small>taken</small></div>
-      <div class="lk-rapport-stat"><strong>${aantalSpreek}</strong><br><small>spreektoetsen</small></div>
-    </div>
-  `;
-
-  if (aantalTaken === 0 && aantalSpreek === 0) {
-    html += '<p class="lk-kind-leeg">Nog geen toetsen voor deze leerling. Maak eerst een taak of spreektoets aan voor je een rapport genereert.</p>';
-  } else {
-    html += '<p style="margin-top:10px; opacity:0.75; font-size:13px">In de volgende update komt hier een rapport-werkomgeving met automatische voorinvulling per vaardigheid. Voor nu opent <strong>📄 Rapport maken</strong> de bestaande rapport-modal.</p>';
-  }
+  // Trigger de async data-load + render direct na deze sync return
+  setTimeout(() => {
+    if (typeof _lkRapInlineLaden === 'function') {
+      _lkRapInlineLaden(kind);
+    }
+  }, 0);
 
   return html;
 }
@@ -3956,313 +3937,648 @@ async function genereerMixOplossing() {
 }
 
 // =================================================================
-//  RAPPORT-MODAL — kies type, notitie, genereer PDF
+//  RAPPORT — inline werkomgeving in uitklap-paneel per leerling
 // =================================================================
+//
+// Per leerling: sterren-rij + 3 feedback-categorieën, allemaal direct
+// zichtbaar wanneer de juf op de leerling klikt in de rapporten-tab.
+// State wordt per kind+periode bewaard zodat je kan switchen zonder werk
+// te verliezen. Bewaren is manueel (knop) — handgeschreven, geen auto-save.
 
-let _rapModalCode = null;
-let _rapModalNaam = '';
-let _rapModalType = 'kort'; // 'kort' | 'uitgebreid'
-let _rapModalNotitie = '';
-let _rapModalGoed = '';      // Wat ging goed
-let _rapModalGroei = '';     // Groeikansen
-let _rapModalTips = '';      // Tips voor thuis
+// State per kind: _rapState[kindCode] = { periodeId, sterren, sterrenAuto,
+//                                         toetsdata, foutWoorden,
+//                                         feedbackVink, feedbackTekst, aiZinnen,
+//                                         geladenVoorPeriode, geladenVoorKind }
+let _rapState = {};
 
-// Vaste oefen-tips per vaardigheid — bouwstenen voor "Tips voor thuis"
-const _RAP_TIPS = {
-  luisteren: [
-    'Speel "Toon mij..." samen: u zegt een woord, het kind wijst aan op de prent of in huis.',
-    'Lees voor uit eenvoudige prentenboeken — laat het kind herhalen wat het hoort.',
-    'Speel een memorie- of luisterspel met de woorden van het thema.',
-    'Zet Nederlandstalige liedjes op (bv. K3, Bumba) en herhaal samen wat u hoort.'
+// Welke kind+periode is momenteel zichtbaar (voor re-render zonder data verlies)
+let _rapHuidigKindCode = null;
+
+// Standaard-feedback-zinnen per categorie (placeholders voor [Naam])
+const _RAP_STANDAARDZINNEN = {
+  watGaatGoed: [
+    '[Naam] herkent veel woorden bij het luisteren.',
+    '[Naam] leest de aangeleerde woorden vlot.',
+    '[Naam] schrijft de meeste woorden correct.',
+    '[Naam] durft te spreken in het Nederlands.',
+    '[Naam] toont vooruitgang in alle vaardigheden.'
   ],
-  lezen: [
-    'Hang briefjes met woorden bij voorwerpen in huis (deur, raam, stoel...).',
-    'Lees samen pictogrammen en korte zinnen — wijs aan en zeg het samen.',
-    'Lees korte teksten samen in tweetalige boekjes als die er zijn.'
+  groeipunten: [
+    '[Naam] mag nog meer oefenen op het schrijven van woorden.',
+    '[Naam] kan de uitspraak verder verfijnen.',
+    '[Naam] mag woorden actiever gebruiken in zinnen.',
+    '[Naam] heeft nog moeite met sommige klanken.',
+    'Meer herhaling thuis kan helpen om de woorden vast te zetten.'
   ],
-  schrijven: [
-    'Laat het kind zijn naam en korte woorden overschrijven met dikke stift of krijt.',
-    'Schrijf samen woordlijstjes — laat het kind elke letter zelf vormen.',
-    'Plak letters of woorden uit een tijdschrift en laat het kind ze hardop benoemen.'
-  ],
-  spreken: [
-    'Stel u-vragen: "Wat is dit?" "Wie is dat?" — laat het kind antwoorden in volledige zin.',
-    'Speel rollenspel: in de winkel, dokter, klas — kind oefent zinnetjes in context.',
-    'Beschrijf samen foto\'s uit een fotoboek of tijdschrift.',
-    'Laat het kind iets vertellen over zijn dag in eenvoudige zinnen.'
+  werkhouding: [
+    '[Naam] werkt zelfstandig en gemotiveerd.',
+    '[Naam] vraagt hulp wanneer nodig.',
+    '[Naam] heeft nog moeite met focus tijdens het werk.',
+    '[Naam] werkt graag samen met klasgenoten.',
+    '[Naam] kan nog leren om langer geconcentreerd te werken.'
   ]
 };
 
-async function lkOpenRapport(code, naam) {
-  _rapModalCode = code;
-  _rapModalNaam = naam || code;
-  _rapModalType = 'kort';
-  // Voorinvullen met opgeslagen rapport-notitie van het kind (= hoofdcommentaar)
-  try {
-    const kind = lkKinderen.find(k => k.code === code);
-    _rapModalNotitie = (kind && kind.rapportNotities) || '';
-    // Drie feedback-velden starten leeg (worden niet bewaard tussen rapporten)
-    _rapModalGoed = '';
-    _rapModalGroei = '';
-    _rapModalTips = '';
-  } catch (e) {
-    _rapModalNotitie = '';
-    _rapModalGoed = '';
-    _rapModalGroei = '';
-    _rapModalTips = '';
-  }
-
-  _rendererRapportModal();
+// Vervang [Naam] door de voornaam
+function _rapVervangNaam(zin, naam) {
+  if (!naam) return zin;
+  const voornaam = (naam || '').split(' ')[0];
+  return zin.replace(/\[Naam\]/g, voornaam);
 }
 
-// Genereer slimme suggestie voor "Wat ging goed" op basis van data
-function _rapSuggestieGoed() {
-  const kind = lkKinderen.find(k => k.code === _rapModalCode);
-  if (!kind) return '';
-  const stukken = [];
-
-  // Voltooide taak?
-  if (kind.taak && kind.taak.status === 'voltooid') {
-    const thema = ALLE_THEMAS_LK.find(t => t.id === kind.taak.themaId);
-    const themaNaam = thema ? thema.naam.toLowerCase() : 'het thema';
-    stukken.push(`${_rapModalNaam} heeft de taak rond ${themaNaam} succesvol afgerond.`);
-  }
-
-  // Spreektoetsen — algemene indruk
-  const sprT = Array.isArray(kind.spreektoetsen) ? kind.spreektoetsen : [];
-  if (sprT.length > 0) {
-    let v = 0, t = 0;
-    sprT.forEach(st => {
-      Object.values(st.perWoord || {}).forEach(r => {
-        t++;
-        if (r === 'vlot') v++;
-      });
-    });
-    if (t > 0) {
-      const pct = Math.round(v / t * 100);
-      if (pct >= 70) {
-        stukken.push(`Bij het mondeling spreken benoemt het kind woorden vlot (${pct}% van de getoetste woorden zonder aarzeling).`);
-      } else if (pct >= 40) {
-        stukken.push(`${_rapModalNaam} durft te spreken en doet vooruitgang in het mondeling benoemen van woorden.`);
-      }
-    }
-  }
-
-  // Eerdere taken
-  const gesch = Array.isArray(kind.taakgeschiedenis) ? kind.taakgeschiedenis : [];
-  const voltooid = gesch.filter(t => t.status === 'voltooid').length;
-  if (voltooid > 0) {
-    stukken.push(voltooid === 1
-      ? `Het kind voltooide al een eerdere taak.`
-      : `Het kind voltooide al ${voltooid} eerdere taken.`);
-  }
-
-  if (stukken.length === 0) {
-    stukken.push(`${_rapModalNaam} doet zijn/haar best en oefent regelmatig.`);
-  }
-
-  return stukken.join(' ');
+// Initialiseer state voor een kind als die nog niet bestaat
+function _rapInitState(kindCode) {
+  if (_rapState[kindCode]) return _rapState[kindCode];
+  _rapState[kindCode] = {
+    periodeId: null,
+    sterren: { luisteren: null, lezen: null, schrijven: null, spreken: null, werkhouding: 3 },
+    sterrenAuto: {},
+    toetsdata: {},
+    foutWoorden: {},
+    feedbackVink: { watGaatGoed: [], groeipunten: [], werkhouding: [] },
+    feedbackTekst: { watGaatGoed: {}, groeipunten: {}, werkhouding: {} },
+    aiZinnen: { watGaatGoed: [], groeipunten: [], werkhouding: [] },
+    geladen: false,
+    bezigMetLaden: false
+  };
+  return _rapState[kindCode];
 }
 
-function _rapSuggestieGroei() {
-  const kind = lkKinderen.find(k => k.code === _rapModalCode);
-  if (!kind) return '';
-  const stukken = [];
-
-  // Foute woorden in laatste toets
-  if (kind.taak && kind.taak.foutWoordenLaatsteToets && kind.taak.foutWoordenLaatsteToets.length > 0) {
-    const thema = ALLE_THEMAS_LK.find(t => t.id === kind.taak.themaId);
-    if (thema) {
-      const verrijkt = lkVerrijkThema(thema);
-      const namen = kind.taak.foutWoordenLaatsteToets.map(id => {
-        const it = (verrijkt.items || []).find(x => x.id === id);
-        return it ? it.tekst : id;
-      });
-      stukken.push(`We blijven oefenen op de woorden waar het nog moeilijk gaat: ${namen.join(', ')}.`);
-    }
-  }
-
-  // Spreektoetsen — woorden die "niet" of "aarzelt" waren
-  const sprT = Array.isArray(kind.spreektoetsen) ? kind.spreektoetsen : [];
-  if (sprT.length > 0) {
-    const laatste = [...sprT].sort((a, b) => (b.datum || 0) - (a.datum || 0))[0];
-    if (laatste && laatste.themaId) {
-      const moeilijk = Object.keys(laatste.perWoord || {}).filter(id => laatste.perWoord[id] === 'niet');
-      if (moeilijk.length > 0) {
-        const thema = ALLE_THEMAS_LK.find(t => t.id === laatste.themaId);
-        if (thema) {
-          const verrijkt = lkVerrijkThema(thema);
-          const namen = moeilijk.slice(0, 4).map(id => {
-            const it = (verrijkt.items || []).find(x => x.id === id);
-            return it ? it.tekst : id;
-          });
-          stukken.push(`Bij het spreken zijn deze woorden nog onbekend: ${namen.join(', ')}.`);
-        }
-      }
-    }
-  }
-
-  if (stukken.length === 0) {
-    stukken.push(`We blijven werken aan woordenschat en luistervaardigheid.`);
-  }
-
-  return stukken.join(' ');
+// Reset state-velden voor een kind (bij periode-wissel)
+function _rapResetStateVoorPeriode(kindCode) {
+  const s = _rapState[kindCode];
+  if (!s) return;
+  s.feedbackVink = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
+  s.feedbackTekst = { watGaatGoed: {}, groeipunten: {}, werkhouding: {} };
+  s.aiZinnen = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
+  s.geladen = false;
 }
 
-function _rapSuggestieTips() {
-  // Twee tips uit luisteren + één uit spreken
-  const tips = [];
-  const luist = _RAP_TIPS.luisteren;
-  const spreek = _RAP_TIPS.spreken;
-  // Pseudo-random op basis van kindcode (zelfde tip elke keer voor dezelfde kind)
-  const seed = (_rapModalCode || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  tips.push(luist[seed % luist.length]);
-  tips.push(luist[(seed + 1) % luist.length]);
-  tips.push(spreek[seed % spreek.length]);
-  return tips.map(t => '• ' + t).join('\n');
-}
+// =================================================================
+//  Inline rendering — wordt aangeroepen vanuit _lkRendererRapporten
+// =================================================================
 
-function _rendererRapportModal() {
-  const oud = document.getElementById('lk-rap-modal-bg');
-  if (oud) oud.remove();
-
-  const bg = document.createElement('div');
-  bg.id = 'lk-rap-modal-bg';
-  bg.className = 'lk-cat-modal-bg';
-  bg.onclick = (e) => { if (e.target === bg) lkSluitRapportModal(); };
-
-  const html = `
-    <div class="lk-cat-modal" onclick="event.stopPropagation()">
-      <h2>📄 Rapport voor ${_rapModalNaam}</h2>
-      <p class="modal-uitleg">
-        Genereer een PDF-rapport. Schoolinfo en logo komen uit tabblad <strong>Mijn school</strong>.
-      </p>
-
-      <div class="lk-taak-veld">
-        <label class="lk-taak-label">Type rapport</label>
-        <div class="lk-taak-vaardigheden">
-          <label class="lk-taak-vaardigheid ${_rapModalType === 'kort' ? 'aan' : ''}">
-            <input type="radio" name="rap-type" ${_rapModalType === 'kort' ? 'checked' : ''} onclick="lkRapKiesType('kort')">
-            <span class="lk-vaardigheid-icoon">📄</span>
-            <span class="lk-vaardigheid-naam">Kort <small>(1 p.)</small></span>
-          </label>
-          <label class="lk-taak-vaardigheid ${_rapModalType === 'uitgebreid' ? 'aan' : ''}">
-            <input type="radio" name="rap-type" ${_rapModalType === 'uitgebreid' ? 'checked' : ''} onclick="lkRapKiesType('uitgebreid')">
-            <span class="lk-vaardigheid-icoon">📚</span>
-            <span class="lk-vaardigheid-naam">Uitgebreid <small>(2-3 p.)</small></span>
-          </label>
-        </div>
-      </div>
-
-      <div class="lk-taak-veld">
-        <label class="lk-taak-label">
-          ✓ Wat ging goed
-          <button class="lk-rap-suggestie-knop" onclick="lkRapVulSuggestie('goed')" title="Vul automatisch een suggestie in op basis van de data">💡 Suggestie</button>
-        </label>
-        <textarea class="lk-spr-notitie" rows="3" placeholder="Bv. ${_rapModalNaam} kent zijn klasspullen al goed en durft te spreken." oninput="lkRapVeld('goed', this.value)">${(_rapModalGoed || '').replace(/</g, '&lt;')}</textarea>
-      </div>
-
-      <div class="lk-taak-veld">
-        <label class="lk-taak-label">
-          ↗ Groeikansen
-          <button class="lk-rap-suggestie-knop" onclick="lkRapVulSuggestie('groei')" title="Vul automatisch een suggestie in op basis van de data">💡 Suggestie</button>
-        </label>
-        <textarea class="lk-spr-notitie" rows="3" placeholder="Bv. We oefenen nog op de woorden waar het moeilijker ging." oninput="lkRapVeld('groei', this.value)">${(_rapModalGroei || '').replace(/</g, '&lt;')}</textarea>
-      </div>
-
-      <div class="lk-taak-veld">
-        <label class="lk-taak-label">
-          🏠 Tips voor thuis
-          <button class="lk-rap-suggestie-knop" onclick="lkRapVulSuggestie('tips')" title="Vul automatisch een paar oefen-tips in">💡 Suggestie</button>
-        </label>
-        <textarea class="lk-spr-notitie" rows="4" placeholder="Bv. • Speel samen 'Toon mij...' met voorwerpen in huis. • Lees voor uit een eenvoudig prentenboek." oninput="lkRapVeld('tips', this.value)">${(_rapModalTips || '').replace(/</g, '&lt;')}</textarea>
-      </div>
-
-      <div class="lk-taak-veld">
-        <label class="lk-taak-label">Bericht voor de ouders (optioneel)</label>
-        <textarea class="lk-spr-notitie" rows="3" placeholder="Bv. Mohammed werkt hard. Goed zo!" oninput="lkRapVeld('notitie', this.value)">${(_rapModalNotitie || '').replace(/</g, '&lt;')}</textarea>
-        <p class="lk-school-tip">Wordt automatisch bewaard zodat je het later kan hergebruiken.</p>
-      </div>
-
-      <div class="lk-cat-modal-knoppen">
-        <button class="lk-knop-mini" onclick="lkSluitRapportModal()">Annuleren</button>
-        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkRapGenereer()">📄 PDF genereren</button>
+// Sync placeholder die meteen wordt teruggegeven aan _lkRendererRapporten.
+// Daarna start _lkRapInlineLaden() asynchroon de echte render.
+function _lkRapInlinePlaceholder(kind) {
+  const naamSafe = (kind.naam || '').replace(/'/g, "\\'");
+  return `
+    <div id="lk-rap-inline" class="lk-rap-inline" data-code="${kind.code}">
+      <div class="lk-rap-inline-laden">
+        <p>⏳ Bezig met laden…</p>
       </div>
     </div>
   `;
-
-  bg.innerHTML = html;
-  document.body.appendChild(bg);
 }
 
-function lkRapKiesType(type) {
-  _rapModalType = type;
-  _rendererRapportModal();
-}
+// Async data-loader — wordt aangeroepen vanuit _lkRendererRapporten
+async function _lkRapInlineLaden(kind) {
+  if (!kind || !kind.code) return;
+  _rapHuidigKindCode = kind.code;
+  const s = _rapInitState(kind.code);
 
-// Eén handler voor alle textarea-velden (oninput, niet onchange — bewaar bij elke toets)
-function lkRapVeld(naam, tekst) {
-  if (naam === 'goed') _rapModalGoed = tekst;
-  else if (naam === 'groei') _rapModalGroei = tekst;
-  else if (naam === 'tips') _rapModalTips = tekst;
-  else if (naam === 'notitie') _rapModalNotitie = tekst;
-}
-
-// Vul een veld met een automatisch gegenereerde suggestie (overschrijft bestaande tekst)
-function lkRapVulSuggestie(welk) {
-  if (welk === 'goed') {
-    _rapModalGoed = _rapSuggestieGoed();
-  } else if (welk === 'groei') {
-    _rapModalGroei = _rapSuggestieGroei();
-  } else if (welk === 'tips') {
-    _rapModalTips = _rapSuggestieTips();
+  // Welke periode? Default = actieve, anders meest recente
+  if (!s.periodeId) {
+    if (_actievePeriode) {
+      s.periodeId = _actievePeriode.id;
+    } else if (_periodes && _periodes.length > 0) {
+      s.periodeId = _periodes[0].id;
+    } else {
+      _lkRapInlineRenderError(kind, 'Geen rapportperiode aangemaakt. Maak eerst een periode aan in de balk bovenaan.');
+      return;
+    }
   }
-  _rendererRapportModal();
+
+  // Al geladen voor deze periode? Direct renderen.
+  if (s.geladen) {
+    _lkRapInlineRender(kind);
+    return;
+  }
+
+  // Geen periodes? Toon foutmelding
+  if (!_periodes || _periodes.length === 0) {
+    _lkRapInlineRenderError(kind, 'Geen rapportperiode aangemaakt. Maak eerst een periode aan in de balk bovenaan.');
+    return;
+  }
+
+  if (s.bezigMetLaden) return; // dubbele triggers vermijden
+  s.bezigMetLaden = true;
+
+  await _rapLaadDataVoorKindPeriode(kind.code, s.periodeId, kind.naam);
+
+  s.bezigMetLaden = false;
+  s.geladen = true;
+
+  // Alleen renderen als de juf nog op deze leerling staat
+  if (_rapHuidigKindCode === kind.code) {
+    _lkRapInlineRender(kind);
+  }
 }
 
-// Achterwaartse compat — oude functienaam
-function lkRapNotitie(tekst) {
-  _rapModalNotitie = tekst;
+function _lkRapInlineRenderError(kind, melding) {
+  const cont = document.getElementById('lk-rap-inline');
+  if (!cont || cont.getAttribute('data-code') !== kind.code) return;
+  cont.innerHTML = `<p class="lk-kind-leeg">${melding}</p>`;
 }
 
-function lkSluitRapportModal() {
-  const bg = document.getElementById('lk-rap-modal-bg');
-  if (bg) bg.remove();
-  _rapModalCode = null;
+// Laad sterren-data + opgeslagen rapport voor een kind+periode
+async function _rapLaadDataVoorKindPeriode(kindCode, periodeId, kindNaam) {
+  const s = _rapInitState(kindCode);
+  const periode = (_periodes || []).find(p => p.id === periodeId);
+
+  // 1) Sterren berekenen
+  let berekend = null;
+  try {
+    berekend = await Voortgang.berekenRapportSterren(kindCode, periodeId, periode);
+  } catch (e) {
+    console.warn('Sterren berekenen mislukt:', e);
+    berekend = { sterren: {}, toetsdata: {}, foutWoorden: {} };
+  }
+  s.sterrenAuto = berekend.sterren || {};
+  s.toetsdata = berekend.toetsdata || {};
+  s.foutWoorden = berekend.foutWoorden || {};
+
+  // 2) Opgeslagen rapport ophalen
+  let opgeslagen = null;
+  try {
+    opgeslagen = await Voortgang.haalRapportOpVoorKind(kindCode, periodeId);
+  } catch (e) { opgeslagen = null; }
+
+  if (opgeslagen) {
+    s.sterren = {
+      luisteren:   (opgeslagen.sterren && opgeslagen.sterren.luisteren !== undefined) ? opgeslagen.sterren.luisteren : s.sterrenAuto.luisteren,
+      lezen:       (opgeslagen.sterren && opgeslagen.sterren.lezen !== undefined)     ? opgeslagen.sterren.lezen     : s.sterrenAuto.lezen,
+      schrijven:   (opgeslagen.sterren && opgeslagen.sterren.schrijven !== undefined) ? opgeslagen.sterren.schrijven : s.sterrenAuto.schrijven,
+      spreken:     (opgeslagen.sterren && opgeslagen.sterren.spreken !== undefined)   ? opgeslagen.sterren.spreken   : s.sterrenAuto.spreken,
+      werkhouding: (opgeslagen.sterren && opgeslagen.sterren.werkhouding !== undefined) ? opgeslagen.sterren.werkhouding : 3
+    };
+    if (opgeslagen.feedback) {
+      ['watGaatGoed', 'groeipunten', 'werkhouding'].forEach(cat => {
+        const opgeslagenZinnen = Array.isArray(opgeslagen.feedback[cat]) ? opgeslagen.feedback[cat] : [];
+        const standaarden = (_RAP_STANDAARDZINNEN[cat] || []).map(z => _rapVervangNaam(z, kindNaam));
+        opgeslagenZinnen.forEach(zin => {
+          const stIdx = standaarden.indexOf(zin);
+          if (stIdx >= 0) {
+            s.feedbackVink[cat].push('std-' + stIdx);
+          } else {
+            // Bewerkte standaardzin? Probeer fuzzy via voorvoegsel
+            const bewerkteVan = standaarden.findIndex(st => zin.startsWith(st.slice(0, 15)));
+            if (bewerkteVan >= 0 && !s.feedbackVink[cat].includes('std-' + bewerkteVan)) {
+              s.feedbackVink[cat].push('std-' + bewerkteVan);
+              s.feedbackTekst[cat]['std-' + bewerkteVan] = zin;
+            } else {
+              const aiIdx = s.aiZinnen[cat].length;
+              s.aiZinnen[cat].push(zin);
+              s.feedbackVink[cat].push('ai-' + aiIdx);
+            }
+          }
+        });
+      });
+    }
+  } else {
+    s.sterren = {
+      luisteren: s.sterrenAuto.luisteren !== undefined ? s.sterrenAuto.luisteren : null,
+      lezen:     s.sterrenAuto.lezen !== undefined     ? s.sterrenAuto.lezen     : null,
+      schrijven: s.sterrenAuto.schrijven !== undefined ? s.sterrenAuto.schrijven : null,
+      spreken:   s.sterrenAuto.spreken !== undefined   ? s.sterrenAuto.spreken   : null,
+      werkhouding: 3
+    };
+  }
 }
 
-async function lkRapGenereer() {
-  if (!_rapModalCode) return;
-  const kind = lkKinderen.find(k => k.code === _rapModalCode);
+// =================================================================
+//  Renderer voor inline werkomgeving
+// =================================================================
+
+function _lkRapInlineRender(kind) {
+  const cont = document.getElementById('lk-rap-inline');
+  // Container kan weg zijn als juf naar andere tab/leerling is gegaan
+  if (!cont || cont.getAttribute('data-code') !== kind.code) return;
+
+  const s = _rapInitState(kind.code);
+  const periodes = _periodes || [];
+  const naam = kind.naam || kind.code;
+
+  // Periode-dropdown
+  const periodeOpties = periodes.map(p => {
+    const sel = (p.id === s.periodeId) ? 'selected' : '';
+    return `<option value="${p.id}" ${sel}>${p.naam}</option>`;
+  }).join('');
+
+  // Sterren-rijen
+  const sterrenRijen = [
+    { sl: 'luisteren',   icoon: '👂', naam: 'Luisteren',   manueel: false },
+    { sl: 'lezen',       icoon: '👁️', naam: 'Lezen',       manueel: false },
+    { sl: 'schrijven',   icoon: '✍️', naam: 'Schrijven',   manueel: false },
+    { sl: 'spreken',     icoon: '🗣️', naam: 'Spreken',     manueel: false },
+    { sl: 'werkhouding', icoon: '🎯', naam: 'Werkhouding', manueel: true  }
+  ].map(v => _rapRenderSterRij(kind.code, v.sl, v.icoon, v.naam, v.manueel)).join('');
+
+  // 3 feedback-categorieën
+  const catGoed  = _rapRenderCategorie(kind.code, naam, 'watGaatGoed', '✨ Wat gaat goed', '#4CAF50');
+  const catGroei = _rapRenderCategorie(kind.code, naam, 'groeipunten', '🌱 Groeipunten', '#FFB74D');
+  const catWerk  = _rapRenderCategorie(kind.code, naam, 'werkhouding', '💪 Werkhouding & zelfstandigheid', '#FF8C42');
+
+  cont.innerHTML = `
+    <div class="lk-rap-inline-kop">
+      <h3>📋 Rapport voor ${naam}</h3>
+      <div class="lk-rap-inline-periode">
+        <label>Periode:</label>
+        <select class="lk-rap-periode-select" onchange="lkRapInlineWisselPeriode('${kind.code}', this.value)">
+          ${periodeOpties}
+        </select>
+      </div>
+    </div>
+
+    <p class="lk-rap-inline-uitleg">
+      Pas de sterren aan en vink feedback-zinnen aan. Klik op <strong>💾 Bewaar</strong> om je voortgang te bewaren — je kan over meerdere dagen blijven werken aan dit rapport.
+    </p>
+
+    <div class="lk-rap-sterren-blok">
+      <div class="lk-rap-sterren-titel">Sterren <small>(klik op de sterren om aan te passen)</small></div>
+      ${sterrenRijen}
+    </div>
+
+    ${catGoed}
+    ${catGroei}
+    ${catWerk}
+
+    <div class="lk-rap-inline-knoppen">
+      <button class="lk-knop-mini" onclick="lkRapInlineBewaar('${kind.code}')">💾 Bewaar</button>
+      <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkRapInlineGenereer('${kind.code}')">📄 Genereer PDF</button>
+    </div>
+  `;
+}
+
+// Render één sterren-rij
+function _rapRenderSterRij(kindCode, sl, icoon, naam, manueel) {
+  const s = _rapInitState(kindCode);
+  const aantal = s.sterren[sl];
+  const auto = s.sterrenAuto[sl];
+  const td = s.toetsdata[sl] || {};
+  const heeftData = (td.aantal && td.aantal > 0);
+
+  let sterren = '';
+  for (let i = 1; i <= 4; i++) {
+    const aan = (aantal !== null && aantal !== undefined && i <= aantal);
+    sterren += `<span class="lk-rap-ster ${aan ? 'aan' : ''}" onclick="lkRapInlineKliksterren('${kindCode}', '${sl}', ${i})">★</span>`;
+  }
+
+  let sub = '';
+  if (manueel) {
+    sub = '<span class="lk-rap-ster-sub manueel">manueel</span>';
+  } else if (heeftData) {
+    sub = `<span class="lk-rap-ster-sub">auto: ${td.pct}% · ${td.aantal} toets${td.aantal === 1 ? '' : 'en'}</span>`;
+  } else {
+    sub = '<span class="lk-rap-ster-sub leeg">Nog niet getest tijdens deze rapportperiode</span>';
+  }
+
+  let resetKnop = '';
+  if (!manueel && heeftData && aantal !== auto) {
+    resetKnop = `<button class="lk-rap-ster-reset" title="Terug naar berekende waarde" onclick="lkRapInlineResetSterren('${kindCode}', '${sl}')">↻</button>`;
+  }
+
+  return `
+    <div class="lk-rap-ster-rij">
+      <span class="lk-rap-ster-icoon">${icoon}</span>
+      <span class="lk-rap-ster-naam">${naam}</span>
+      <span class="lk-rap-ster-sterren">${sterren}</span>
+      ${sub}
+      ${resetKnop}
+    </div>
+  `;
+}
+
+// Render één feedback-categorie met checkboxes + AI-knop
+function _rapRenderCategorie(kindCode, naam, cat, titel, kleur) {
+  const s = _rapInitState(kindCode);
+  const standaarden = _RAP_STANDAARDZINNEN[cat] || [];
+  const aiZinnen = s.aiZinnen[cat] || [];
+  const vinkjes = s.feedbackVink[cat] || [];
+
+  const stdHtml = standaarden.map((zin, idx) => {
+    const id = 'std-' + idx;
+    const aangevinkt = vinkjes.includes(id);
+    const bewerkt = s.feedbackTekst[cat][id];
+    const tekst = bewerkt || _rapVervangNaam(zin, naam);
+    const tekstSafe = tekst.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    return `
+      <div class="lk-rap-zin ${aangevinkt ? 'aangevinkt' : ''}">
+        <input type="checkbox" id="rap-${kindCode}-${cat}-${id}" ${aangevinkt ? 'checked' : ''} onclick="lkRapInlineVink('${kindCode}', '${cat}', '${id}')">
+        <input type="text" class="lk-rap-zin-tekst" value="${tekstSafe}" oninput="lkRapInlineBewerkZin('${kindCode}', '${cat}', '${id}', this.value)" ${aangevinkt ? '' : 'disabled'}>
+      </div>
+    `;
+  }).join('');
+
+  const aiHtml = aiZinnen.map((zin, idx) => {
+    const id = 'ai-' + idx;
+    const aangevinkt = vinkjes.includes(id);
+    const tekstSafe = (zin || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    return `
+      <div class="lk-rap-zin lk-rap-zin-ai ${aangevinkt ? 'aangevinkt' : ''}">
+        <input type="checkbox" id="rap-${kindCode}-${cat}-${id}" ${aangevinkt ? 'checked' : ''} onclick="lkRapInlineVink('${kindCode}', '${cat}', '${id}')">
+        <input type="text" class="lk-rap-zin-tekst" value="${tekstSafe}" oninput="lkRapInlineBewerkAiZin('${kindCode}', '${cat}', ${idx}, this.value)" ${aangevinkt ? '' : 'disabled'}>
+        <button class="lk-rap-zin-wis" title="Verwijder deze zin" onclick="lkRapInlineWisAiZin('${kindCode}', '${cat}', ${idx})">🗑️</button>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="lk-rap-cat-blok">
+      <div class="lk-rap-cat-titel" style="color:${kleur}">${titel}</div>
+      ${stdHtml}
+      ${aiHtml}
+      <button class="lk-rap-suggestie-knop" onclick="lkRapInlineAiSuggestie('${kindCode}', '${cat}')">✨ Suggesties van Claude</button>
+    </div>
+  `;
+}
+
+// =================================================================
+//  Click-handlers (allemaal kindCode-aware)
+// =================================================================
+
+async function lkRapInlineWisselPeriode(kindCode, periodeId) {
+  if (!periodeId) return;
+  const s = _rapInitState(kindCode);
+  if (s.periodeId === periodeId) return;
+  s.periodeId = periodeId;
+  _rapResetStateVoorPeriode(kindCode);
+  // Toon laden-melding
+  const cont = document.getElementById('lk-rap-inline');
+  if (cont && cont.getAttribute('data-code') === kindCode) {
+    cont.innerHTML = '<div class="lk-rap-inline-laden"><p>⏳ Bezig met laden…</p></div>';
+  }
+  // Laad nieuwe data
+  const kind = lkKinderen.find(k => k.code === kindCode);
   if (!kind) return;
+  await _rapLaadDataVoorKindPeriode(kindCode, periodeId, kind.naam);
+  s.geladen = true;
+  if (_rapHuidigKindCode === kindCode) _lkRapInlineRender(kind);
+}
 
-  const knop = document.querySelector('#lk-rap-modal-bg .lk-cat-modal-knoppen button:last-child');
-  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+function lkRapInlineKliksterren(kindCode, vaardigheid, nieuwAantal) {
+  const s = _rapInitState(kindCode);
+  const huidig = s.sterren[vaardigheid];
+  if (huidig === nieuwAantal) {
+    s.sterren[vaardigheid] = (vaardigheid === 'werkhouding') ? 1 : null;
+  } else {
+    s.sterren[vaardigheid] = nieuwAantal;
+  }
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) _lkRapInlineRender(kind);
+}
+
+function lkRapInlineResetSterren(kindCode, vaardigheid) {
+  const s = _rapInitState(kindCode);
+  s.sterren[vaardigheid] = s.sterrenAuto[vaardigheid];
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) _lkRapInlineRender(kind);
+}
+
+function lkRapInlineVink(kindCode, cat, id) {
+  const s = _rapInitState(kindCode);
+  const lijst = s.feedbackVink[cat] || [];
+  const idx = lijst.indexOf(id);
+  if (idx >= 0) lijst.splice(idx, 1);
+  else lijst.push(id);
+  s.feedbackVink[cat] = lijst;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) _lkRapInlineRender(kind);
+}
+
+function lkRapInlineBewerkZin(kindCode, cat, id, tekst) {
+  const s = _rapInitState(kindCode);
+  s.feedbackTekst[cat][id] = tekst;
+  // Geen re-render — anders verliest input zijn focus tijdens typen
+}
+
+function lkRapInlineBewerkAiZin(kindCode, cat, idx, tekst) {
+  const s = _rapInitState(kindCode);
+  s.aiZinnen[cat][idx] = tekst;
+}
+
+function lkRapInlineWisAiZin(kindCode, cat, idx) {
+  const s = _rapInitState(kindCode);
+  s.aiZinnen[cat].splice(idx, 1);
+  // Vink-lijst herschikken: hernummer hogere ai-indices
+  const vinkjes = s.feedbackVink[cat] || [];
+  const nieuw = [];
+  vinkjes.forEach(v => {
+    if (v === 'ai-' + idx) return;
+    const m = v.match(/^ai-(\d+)$/);
+    if (m) {
+      const i = parseInt(m[1]);
+      if (i > idx) nieuw.push('ai-' + (i - 1));
+      else nieuw.push(v);
+    } else {
+      nieuw.push(v);
+    }
+  });
+  s.feedbackVink[cat] = nieuw;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) _lkRapInlineRender(kind);
+}
+
+// =================================================================
+//  AI-suggestie
+// =================================================================
+
+async function lkRapInlineAiSuggestie(kindCode, cat) {
+  const s = _rapInitState(kindCode);
+  if (!s.periodeId) return;
+
+  // Knop disabled tonen
+  let knopVoorCat = null;
+  document.querySelectorAll('#lk-rap-inline .lk-rap-suggestie-knop').forEach(b => {
+    const oc = b.getAttribute('onclick');
+    if (oc && oc.includes(`'${cat}'`)) knopVoorCat = b;
+  });
+  if (knopVoorCat) { knopVoorCat.disabled = true; knopVoorCat.textContent = '⏳ Bezig…'; }
 
   try {
-    // Notitie bewaren voor later hergebruik
-    if (_rapModalNotitie && _rapModalNotitie.trim()) {
-      try {
-        await Voortgang.zetRapportNotitiesVoorKind(_rapModalCode, _rapModalNotitie.trim());
-        kind.rapportNotities = _rapModalNotitie.trim();
-      } catch (e) {
-        console.warn('Notitie bewaren mislukt (rapport gaat toch door):', e);
+    const kind = lkKinderen.find(k => k.code === kindCode);
+    const naam = kind ? (kind.naam || kindCode).split(' ')[0] : kindCode;
+    const periode = (_periodes || []).find(p => p.id === s.periodeId);
+
+    const foutNamen = _rapBouwFoutNamenVoorPrompt(kindCode);
+
+    const url = _RAP_AI_URL;
+    const body = {
+      kindNaam: naam,
+      categorie: cat,
+      periode: periode ? periode.naam : '',
+      toetsdata: s.toetsdata,
+      foutWoorden: foutNamen
+    };
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!resp.ok) throw new Error('Server gaf ' + resp.status);
+    const data = await resp.json();
+    const zinnen = Array.isArray(data.zinnen) ? data.zinnen : [];
+    if (zinnen.length === 0) {
+      alert('Geen suggesties ontvangen. Probeer opnieuw.');
+      if (knopVoorCat) { knopVoorCat.disabled = false; knopVoorCat.textContent = '✨ Suggesties van Claude'; }
+      return;
+    }
+    zinnen.forEach(z => s.aiZinnen[cat].push(z));
+    if (kind) _lkRapInlineRender(kind);
+  } catch (e) {
+    console.error('AI-suggestie mislukt:', e);
+    alert('Suggesties ophalen mislukt. Probeer later opnieuw.\n\n' + (e.message || ''));
+    if (knopVoorCat) { knopVoorCat.disabled = false; knopVoorCat.textContent = '✨ Suggesties van Claude'; }
+  }
+}
+
+const _RAP_AI_URL = (function() {
+  if (window.RAPPORT_FEEDBACK_URL) return window.RAPPORT_FEEDBACK_URL;
+  if (window.VRAAGSTUKKEN_URL) {
+    return window.VRAAGSTUKKEN_URL.replace(/\/[^\/]+$/, '/rapportFeedback');
+  }
+  return '/api/rapportFeedback';
+})();
+
+function _rapBouwFoutNamenVoorPrompt(kindCode) {
+  const s = _rapInitState(kindCode);
+  const namen = new Set();
+  ['luisteren', 'lezen', 'schrijven', 'spreken'].forEach(v => {
+    const ids = s.foutWoorden[v] || [];
+    ids.forEach(id => {
+      const naam = _rapZoekWoordnaam(id);
+      if (naam) namen.add(naam);
+    });
+  });
+  return Array.from(namen).slice(0, 8);
+}
+
+function _rapZoekWoordnaam(itemId) {
+  if (!window.ALLE_THEMAS_LK) return null;
+  for (const thema of window.ALLE_THEMAS_LK) {
+    const verrijkt = (typeof lkVerrijkThema === 'function') ? lkVerrijkThema(thema) : thema;
+    const items = verrijkt.items || [];
+    const it = items.find(x => x.id === itemId);
+    if (it) return it.tekst || it.naam || null;
+  }
+  return null;
+}
+
+// =================================================================
+//  Bewaren + PDF genereren
+// =================================================================
+
+function _rapVerzamelFeedback(kindCode, kindNaam) {
+  const s = _rapInitState(kindCode);
+  const result = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
+  ['watGaatGoed', 'groeipunten', 'werkhouding'].forEach(cat => {
+    const vinkjes = s.feedbackVink[cat] || [];
+    vinkjes.forEach(id => {
+      if (id.startsWith('std-')) {
+        const idx = parseInt(id.slice(4));
+        const bewerkt = s.feedbackTekst[cat][id];
+        const standaard = (_RAP_STANDAARDZINNEN[cat] || [])[idx];
+        const tekst = bewerkt || (standaard ? _rapVervangNaam(standaard, kindNaam) : '');
+        if (tekst.trim()) result[cat].push(tekst.trim());
+      } else if (id.startsWith('ai-')) {
+        const idx = parseInt(id.slice(3));
+        const tekst = s.aiZinnen[cat][idx];
+        if (tekst && tekst.trim()) result[cat].push(tekst.trim());
+      }
+    });
+  });
+  return result;
+}
+
+function _rapBouwRapport(kindCode, kindNaam) {
+  const s = _rapInitState(kindCode);
+  return {
+    kindCode: kindCode,
+    rapportperiodeId: s.periodeId,
+    sterren: { ...s.sterren },
+    toetsdata: { ...s.toetsdata },
+    feedback: _rapVerzamelFeedback(kindCode, kindNaam)
+  };
+}
+
+async function lkRapInlineBewaar(kindCode, stilletjes) {
+  const s = _rapInitState(kindCode);
+  if (!s.periodeId) return false;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  const naam = kind ? kind.naam : kindCode;
+  const rapport = _rapBouwRapport(kindCode, naam);
+  try {
+    await Voortgang.bewaarRapport(rapport);
+    if (!stilletjes) {
+      // Visuele bevestiging
+      const knop = document.querySelector(`#lk-rap-inline .lk-rap-inline-knoppen button:first-child`);
+      if (knop) {
+        const oud = knop.textContent;
+        knop.textContent = '✓ Bewaard';
+        knop.style.background = '#c8e6c9';
+        setTimeout(() => {
+          if (knop) { knop.textContent = oud; knop.style.background = ''; }
+        }, 1800);
       }
     }
+    return true;
+  } catch (e) {
+    console.error('Rapport bewaren mislukt:', e);
+    if (!stilletjes) alert('Rapport bewaren mislukt: ' + (e.message || 'onbekend'));
+    return false;
+  }
+}
 
-    await RapportEngine.genereer(kind, {
-      type: _rapModalType,
-      notitie: _rapModalNotitie,
-      watGingGoed: _rapModalGoed,
-      groeikansen: _rapModalGroei,
-      tipsThuis: _rapModalTips
-    });
-    lkSluitRapportModal();
+async function lkRapInlineGenereer(kindCode) {
+  const s = _rapInitState(kindCode);
+  if (!s.periodeId) return;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (!kind) return;
+
+  const knop = document.querySelector('#lk-rap-inline .lk-rap-inline-knoppen button:last-child');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig…'; }
+
+  try {
+    // Bewaar stilletjes voor PDF
+    await lkRapInlineBewaar(kindCode, true);
+
+    const periode = (_periodes || []).find(p => p.id === s.periodeId);
+    const rapport = _rapBouwRapport(kindCode, kind.naam);
+
+    if (!window.RapportEngine || !RapportEngine.rapportPdf) {
+      throw new Error('PDF-engine niet geladen.');
+    }
+    await RapportEngine.rapportPdf(kind, rapport, periode);
+
+    if (knop) { knop.disabled = false; knop.textContent = '📄 Genereer PDF'; }
   } catch (e) {
     console.error('Rapport genereren mislukt:', e);
     alert('Rapport genereren mislukt: ' + (e.message || 'onbekend'));
-    if (knop) { knop.disabled = false; knop.textContent = '📄 PDF genereren'; }
+    if (knop) { knop.disabled = false; knop.textContent = '📄 Genereer PDF'; }
   }
+}
+
+// =================================================================
+//  Compatibility-shims voor oude knoppen elders die lkOpenRapport()
+//  aanroepen — die schakelen nu naar de rapporten-tab van het kind.
+// =================================================================
+
+async function lkOpenRapport(code, naam) {
+  // Schakel naar rapporten-tab voor dit kind
+  if (typeof lkKindtabKies === 'function') {
+    lkKindtabKies('rapporten', code);
+  }
+  // Optioneel: scroll naar de rapport-sectie
+  setTimeout(() => {
+    const el = document.getElementById('lk-rap-inline');
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
+}
+
+function lkSluitRapportModal() {
+  // Niet meer nodig — inline werkomgeving heeft geen sluit-knop.
+  // Functie behouden voor backward compat met oude HTML.
 }
 
 
