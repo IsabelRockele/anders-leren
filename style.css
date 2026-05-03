@@ -1619,11 +1619,188 @@ h1, h2, h3 {
   margin-left: 4px;
 }
 
+/* Modus-keuze bovenaan sectie 2 (alleen bij ≥2 thema's) */
+.werkblad-modus-keuze {
+  background: white;
+  border: 2px solid var(--kleur-rand);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.werkblad-modus-vraag {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--kleur-zwart);
+  margin-bottom: 8px;
+}
+
+.werkblad-modus-knoppen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.werkblad-modus-knop {
+  background: white;
+  border: 2px solid var(--kleur-rand);
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-family: 'Fredoka', sans-serif;
+  text-align: left;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.werkblad-modus-knop:hover {
+  border-color: var(--kleur-zisa);
+  background: #FFFCF6;
+}
+
+.werkblad-modus-knop.actief {
+  background: #FFF4D6;
+  border-color: var(--kleur-zisa-donker, #C8A044);
+}
+
+.werkblad-modus-knop.gegrijsd,
+.werkblad-modus-knop[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Mix-paneel: mini variant van modus-knoppen voor categorie-mode */
+.mix-categorie-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .mix-categorie-mode {
+    grid-template-columns: 1fr;
+  }
+}
+
+.modus-icoon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.modus-titel {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--kleur-zwart);
+}
+
+.modus-uitleg {
+  font-size: 12px;
+  color: var(--kleur-grijs, #5F5E5A);
+  font-weight: 400;
+}
+
+@media (max-width: 600px) {
+  .werkblad-modus-knoppen {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Mix-paneel (werkbladen-tab, inline binnen sectie 2) — stijl als thema-paneel
+   maar met een licht-gele accent zodat het visueel onderscheidt */
+.werkblad-mix-paneel {
+  background: #FFFCF6;
+  border: 2px dashed var(--kleur-zisa, #ffd166);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.mix-overzicht {
+  background: white;
+  border: 1px solid var(--kleur-rand);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.mix-overzicht-themas {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--kleur-zwart);
+  margin-bottom: 4px;
+}
+
+.mix-overzicht-tellers {
+  font-size: 12px;
+  color: var(--kleur-grijs, #5F5E5A);
+}
+
+.mix-veld {
+  margin-bottom: 12px;
+}
+
+.mix-veld-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--kleur-zisa-donker, #5D4037);
+  margin-bottom: 6px;
+}
+
+.mix-veld .paneel-niveau-rij {
+  margin-bottom: 0;
+}
+
+.mix-hint {
+  font-size: 12px;
+  color: var(--kleur-grijs, #5F5E5A);
+  background: #FFF8E7;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.mix-teller-blok {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--kleur-rand);
+}
+
+.mix-teller {
+  font-size: 12px;
+  color: var(--kleur-grijs, #5F5E5A);
+}
+
 .paneel-niveau-rij {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+/* Niveau-groep met kop boven oefeningen-lijst (in werkbladen-tab thema-paneel) */
+.paneel-niveau-groep {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #FFFCF6;
+  border: 1px solid var(--kleur-rand);
+  border-radius: 10px;
+}
+
+.paneel-niveau-groep:first-of-type {
+  margin-top: 8px;
+}
+
+.paneel-niveau-kop {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--kleur-zisa-donker, #5D4037);
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
 }
 
 .mini-niveau-knop {
@@ -6010,6 +6187,21 @@ h1, h2, h3 {
 .lk-twb-oef-rij span {
   flex: 1;
   user-select: none;
+}
+
+/* Niveau-groep-kop boven oefenvormen in werkbladen-modal (twb) */
+.lk-twb-niveau-kop {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--kleur-zisa-donker, #5D4037);
+  margin-top: 10px;
+  margin-bottom: 4px;
+  letter-spacing: 0.2px;
+}
+
+.lk-twb-niveau-kop:first-child {
+  margin-top: 0;
 }
 
 /* Oplossingssleutel-toggle in werkbladen-modal */
