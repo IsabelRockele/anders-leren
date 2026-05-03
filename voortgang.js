@@ -501,13 +501,22 @@ window.Voortgang = (function() {
       status: taakObj.status || 'bezig',
       foutWoordenLaatsteToets: taakObj.foutWoordenLaatsteToets || [],
       // Resultaten per vaardigheids-toets, voor de PDF na afloop. Elk veld bevat
-      // een array met woord-ids die fout waren in die toets. afgenomen-vlag toont
-      // of de toets eigenlijk al was afgenomen (leeg fout-array kan zowel 'niet
-      // afgenomen' als 'alles juist' betekenen — daarom aparte vlag).
+      // 'pogingen' (array van afnames) en 'afgenomen' (vlag of er een poging gedaan is).
+      // Elke poging: { foutIds: [...], datum: timestamp }.
+      // Bij herkansing wordt een 2e poging-object toegevoegd.
       toetsResultaten: taakObj.toetsResultaten || {
-        luisteren: { afgenomen: false, foutIds: [] },
-        lezen:     { afgenomen: false, foutIds: [] },
-        schrijven: { afgenomen: false, foutIds: [] }
+        luisteren: { afgenomen: false, pogingen: [], foutIds: [] },
+        lezen:     { afgenomen: false, pogingen: [], foutIds: [] },
+        schrijven: { afgenomen: false, pogingen: [], foutIds: [] }
+      },
+      // Ronde-status per vaardigheid: in welke ronde zit het kind, en welke
+      // woorden zijn al behandeld in die ronde. Wanneer alle woorden behandeld
+      // zijn → ronde + 1 en lijst leegmaken. Eindigt wanneer huidigeRonde > max.
+      // Schrijven heeft max 2 rondes (of 3 als er fout-woorden zijn).
+      rondeStatus: taakObj.rondeStatus || {
+        luisteren: { huidigeRonde: 1, behandeldDezeRonde: [] },
+        lezen:     { huidigeRonde: 1, behandeldDezeRonde: [] },
+        schrijven: { huidigeRonde: 1, behandeldDezeRonde: [] }
       },
       aantalPogingen: taakObj.aantalPogingen || { luisteren: 0, lezen: 0, schrijven: 0 },
       gestart: taakObj.gestart || Date.now(),
@@ -593,6 +602,50 @@ window.Voortgang = (function() {
         }
       }
     }
+  }
+
+  // Markeer dat een woord behandeld is in de huidige ronde voor een vaardigheid.
+  // Wordt aangeroepen na elke oefening (klikspel/verbinden/verslepen/lezen/schrijven).
+  // Geeft een object terug { rondeAfgerond: bool, nieuweRonde: number }.
+  async function registreerWoordBehandeldInRonde(woordId, vaardigheid, alleWoordIds) {
+    if (!taakCache) return { rondeAfgerond: false, nieuweRonde: 1 };
+    if (!taakCache.rondeStatus) {
+      taakCache.rondeStatus = {
+        luisteren: { huidigeRonde: 1, behandeldDezeRonde: [] },
+        lezen:     { huidigeRonde: 1, behandeldDezeRonde: [] },
+        schrijven: { huidigeRonde: 1, behandeldDezeRonde: [] }
+      };
+    }
+    const status = taakCache.rondeStatus[vaardigheid] ||
+                   { huidigeRonde: 1, behandeldDezeRonde: [] };
+    if (!Array.isArray(status.behandeldDezeRonde)) status.behandeldDezeRonde = [];
+    if (status.behandeldDezeRonde.indexOf(woordId) === -1) {
+      status.behandeldDezeRonde.push(woordId);
+    }
+    taakCache.rondeStatus[vaardigheid] = status;
+
+    // Controleer of de huidige ronde compleet is
+    let rondeAfgerond = false;
+    if (Array.isArray(alleWoordIds) && alleWoordIds.length > 0) {
+      const alleBehandeld = alleWoordIds.every(id => status.behandeldDezeRonde.indexOf(id) !== -1);
+      if (alleBehandeld) {
+        rondeAfgerond = true;
+        status.huidigeRonde = (status.huidigeRonde || 1) + 1;
+        status.behandeldDezeRonde = [];
+      }
+    }
+
+    if (huidigKindCode) {
+      localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
+      if (db) {
+        try {
+          await db.collection('kinderen').doc(huidigKindCode).update({ taak: taakCache });
+        } catch (e) {
+          console.warn('Update ronde-status in Firestore mislukt:', e);
+        }
+      }
+    }
+    return { rondeAfgerond, nieuweRonde: status.huidigeRonde };
   }
 
   // Reset de juist-teller voor een woord in een vaardigheid (bij fout antwoord).
@@ -1131,6 +1184,7 @@ window.Voortgang = (function() {
     updateTaak,
     registreerJuistInTaak,
     registreerFoutInTaak,
+    registreerWoordBehandeldInRonde,
     archiveerHuidigeTaak,
     getTaakgeschiedenis,
     haalTaakOpVoorKind,
