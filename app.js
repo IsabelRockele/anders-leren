@@ -352,6 +352,27 @@ const TAAK_INTRO_CONFIG = {
     uitleg: 'Hoor het woord. Klik dan op het juiste woord.',
     bouwDemo: _bouwDemoLuisterenOef
   },
+  'luisteren-oef:klikspel': {
+    icoon: '🎯',
+    kop: '👂 Mijn taak — klikspel',
+    titel: 'Klikspel',
+    uitleg: 'Hoor het woord. Klik op het juiste woord uit de lijst.',
+    bouwDemo: _bouwDemoLuisterenOef
+  },
+  'luisteren-oef:verbinden': {
+    icoon: '🔗',
+    kop: '👂 Mijn taak — verbinden',
+    titel: 'Verbinden',
+    uitleg: 'Verbind elk woord met het juiste beeld. Klik eerst op een woord, dan op het beeld.',
+    bouwDemo: _bouwDemoLuisterenVerbinden
+  },
+  'luisteren-oef:verslepen': {
+    icoon: '🤚',
+    kop: '👂 Mijn taak — verslepen',
+    titel: 'Verslepen',
+    uitleg: 'Sleep het juiste woord naar het lege vak naast het beeld.',
+    bouwDemo: _bouwDemoLuisterenVerslepen
+  },
   'luisteren-toets': {
     icoon: '🎯',
     kop: '🎯 Mijn taak — luistertoets',
@@ -453,11 +474,19 @@ function taakIntroHoorUitleg() {
 }
 
 function taakIntroVerder() {
-  const fase = _taakIntroDoorNaar;
-  if (!fase) return;
-  _taakIntroBezocht.add(fase);
+  const sleutel = _taakIntroDoorNaar;
+  if (!sleutel) return;
+  _taakIntroBezocht.add(sleutel);
   _taakIntroDoorNaar = null;
-  taakStartFase(fase);
+  // Sub-key zoals 'luisteren-oef:verbinden' → terug naar de basis-fase
+  // 'luisteren-oef' zodat de oefenvorm-router opnieuw draait en de juiste
+  // oefenvorm start (zonder weer naar de intro te springen).
+  if (typeof sleutel === 'string' && sleutel.indexOf(':') !== -1) {
+    const basisFase = sleutel.split(':')[0];
+    taakStartFase(basisFase);
+    return;
+  }
+  taakStartFase(sleutel);
 }
 
 function taakIntroAnnuleer() {
@@ -495,6 +524,17 @@ function _demoExtraItems(uitsluit, n) {
 // Demo: toont een beeld bovenaan, daaronder 4 woord-knoppen, met een zwevend
 // vingertje dat naar het juiste woord beweegt en "klikt".
 function _bouwDemoLuisterenOef(container) {
+  // Welke oefenvorm staat klaar voor de eerstvolgende ronde?
+  const oefenvorm = _kiesOefenvormVoorRonde('luisteren');
+  if (oefenvorm === 'verbinden') {
+    _bouwDemoLuisterenVerbinden(container);
+    return;
+  }
+  if (oefenvorm === 'verslepen') {
+    _bouwDemoLuisterenVerslepen(container);
+    return;
+  }
+  // Default = klikspel
   const item = _demoVoorbeelditem();
   const afl = _demoExtraItems(item, 3);
   const opties = [item, ...afl];
@@ -505,7 +545,7 @@ function _bouwDemoLuisterenOef(container) {
 
   let html = `
     <div class="demo-blok">
-      <div class="demo-label">Voorbeeld:</div>
+      <div class="demo-label">Voorbeeld — klikspel:</div>
       <div class="demo-luister-beeld">${Picto.html(item, { grootte: 64 })}</div>
       <div class="demo-luister-opties">
   `;
@@ -516,6 +556,63 @@ function _bouwDemoLuisterenOef(container) {
       </div>
       <div class="demo-vinger" style="--demo-target-x: 25%;">👆</div>
       <div class="demo-pijl">↑ klik op het juiste woord</div>
+    </div>
+  `;
+  container.innerHTML = html;
+}
+
+// Demo voor verbinden: 3 paren, 1 ervan al getekend met groene lijn
+function _bouwDemoLuisterenVerbinden(container) {
+  const item = _demoVoorbeelditem();
+  const extra = _demoExtraItems(item, 2);
+  const items = [item, ...extra];
+  // Geschudde rechter kolom voor demo
+  const beelden = [items[1], items[0], items[2]];
+  let html = `
+    <div class="demo-blok">
+      <div class="demo-label">Voorbeeld — verbinden:</div>
+      <div class="demo-verbinden">
+        <div class="demo-verbinden-kolommen">
+          <div class="demo-verbinden-kolom">`;
+  items.forEach((it, i) => {
+    html += `<div class="demo-verbinden-kaart ${i === 0 ? 'demo-juist' : ''}">${it.tekst}</div>`;
+  });
+  html += `
+          </div>
+          <div class="demo-verbinden-kolom">`;
+  beelden.forEach((it, i) => {
+    // Beeld 1 (item.tekst beeld) staat op positie 1 (tweede)
+    const isJuist = (it.id === item.id);
+    html += `<div class="demo-verbinden-kaart ${isJuist ? 'demo-juist' : ''}">${Picto.html(it, { grootte: 32 })}</div>`;
+  });
+  html += `
+          </div>
+        </div>
+      </div>
+      <div class="demo-pijl">↑ verbind elk woord met het juiste beeld</div>
+    </div>
+  `;
+  container.innerHTML = html;
+}
+
+// Demo voor verslepen: beeld bovenaan met pijl die naar juist woord wijst
+function _bouwDemoLuisterenVerslepen(container) {
+  const item = _demoVoorbeelditem();
+  const afl = _demoExtraItems(item, 3);
+  const opties = [item, afl[0], afl[1], afl[2]];
+  let html = `
+    <div class="demo-blok">
+      <div class="demo-label">Voorbeeld — verslepen:</div>
+      <div class="demo-verslepen-beeld">${Picto.html(item, { grootte: 56 })}</div>
+      <div class="demo-verslepen-pijl">⬇</div>
+      <div class="demo-verslepen-zones">`;
+  opties.forEach((opt, i) => {
+    const isJuist = (opt.id === item.id);
+    html += `<div class="demo-verslepen-zone ${isJuist ? 'demo-juist' : ''}">${opt.tekst}</div>`;
+  });
+  html += `
+      </div>
+      <div class="demo-pijl">sleep het juiste woord naar het lege vak</div>
     </div>
   `;
   container.innerHTML = html;
@@ -749,17 +846,68 @@ function taakLeerVolgende() {
 //  TAAK FASE 2 — LUISTEREN-OEFENEN  (klikspel, stilte, audio op vraag)
 // =================================================================
 function taakStartLuisterenOefenen() {
-  // Pak een woord dat nog geen 3× juist heeft
-  const item = _kiesVolgendOefenItem('luisteren');
-  if (!item) {
-    // Alle woorden 3× juist → volgende fase volgens lijst
-    const taak = Voortgang.getTaak();
+  const taak = Voortgang.getTaak();
+  // Eerst: zijn alle rondes voorbij? Dan door naar volgende fase.
+  const ruwe = _ruweRonde('luisteren');
+  const max = _maxRondesVoor('luisteren');
+  if (ruwe > max) {
     taakStartFase(_volgendeFase('luisteren-oef', taak));
     return;
   }
+
+  // Pak een woord dat nog niet behandeld is in de huidige ronde
+  const item = _kiesVolgendOefenItem('luisteren');
+  if (!item) {
+    // Geen kandidaten in deze ronde → volgende fase volgens lijst
+    taakStartFase(_volgendeFase('luisteren-oef', taak));
+    return;
+  }
+
+  // Welke oefenvorm voor deze ronde?
+  const oefenvorm = _kiesOefenvormVoorRonde('luisteren');
+
+  // INTRO bij elke nieuwe oefenvorm tonen — niet enkel bij fase-wissel.
+  // Sleutel = 'luisteren-oef:<oefenvorm>'. Als nog niet bezocht, eerst intro.
+  const introSleutel = 'luisteren-oef:' + oefenvorm;
+  if (!_taakIntroBezocht.has(introSleutel)) {
+    _taakIntroDoorNaar = introSleutel;
+    taakHuidigeFase = 'intro:' + introSleutel;
+    taakToonIntro(introSleutel);
+    return;
+  }
+
   taakOefItem = item;
-  taakRendererLuisterenOefenen();
-  toonScherm('scherm-taak-oefenen');
+
+  if (oefenvorm === 'verbinden') {
+    taakStartLuisterenVerbinden();
+  } else if (oefenvorm === 'verslepen') {
+    taakStartLuisterenVerslepen();
+  } else {
+    // Default = klikspel
+    taakRendererLuisterenOefenen();
+    toonScherm('scherm-taak-oefenen');
+  }
+}
+
+// Bepaal welke oefenvorm we in de huidige ronde gebruiken voor een vaardigheid.
+// We cyclen door de aangevinkte oefenvormen op basis van de RUWE ronde-waarde
+// (niet geclampt aan max), zodat de cyclus correct doorrolt.
+function _kiesOefenvormVoorRonde(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  if (!taak) return 'klikspel';
+  const veld = 'oefenvormen_' + vaardigheid;
+  const aangevinkt = Array.isArray(taak[veld]) ? taak[veld] : [];
+  if (aangevinkt.length === 0) {
+    // Default per vaardigheid
+    if (vaardigheid === 'luisteren') return 'klikspel';
+    if (vaardigheid === 'lezen')     return 'woord-beeld';
+    if (vaardigheid === 'schrijven') return 'overtypen';
+  }
+  if (aangevinkt.length === 1) return aangevinkt[0];
+  // Cyclisch op basis van RAW ronde, zodat ronde 1 → idx 0, ronde 2 → idx 1, enz.
+  const r = _ruweRonde(vaardigheid);
+  const idx = (r - 1) % aangevinkt.length;
+  return aangevinkt[idx];
 }
 
 // Kies item dat nog niet "zit" op een vaardigheid. Geeft null als alles zit.
@@ -769,48 +917,47 @@ function taakStartLuisterenOefenen() {
 //   - schrijven         → 2× juist standaard, 3× als kind het ooit fout had
 //                         (schrijven duurt lang dus minder herhalingen tenzij nodig)
 function _drempelVoor(vaardigheid, woordData) {
+  // (Behouden voor backwards compatibility maar nu enkel relevant voor schrijven.)
   if (vaardigheid !== 'schrijven') return 3;
-  // Schrijven: standaard 2, maar 3 als woord ooit fout geweest is
   const fout = (woordData && woordData.schrijven_fout) || 0;
   return fout > 0 ? 3 : 2;
 }
 
-// Bepaal in welke ronde het kind zit voor een vaardigheid.
-// Een ronde = elk nog-niet-klaar-woord 1× behandeld. We tellen het laagste
-// juist-getal onder de woorden die nog niet klaar zijn — dat is de huidige ronde.
-//   - 0× juist op een woord → het wacht nog op ronde 1
-//   - 1× juist              → het wacht nog op ronde 2
-//   - 2× juist              → het wacht nog op ronde 3
-// We tonen de ronde ALS er nog kandidaten zijn; anders zijn we klaar.
-// MAX-ronde verschilt: luisteren/lezen=3, schrijven=2 of 3 (afhankelijk van of er
-// fout-woorden zijn binnen de taak).
-function _huidigeRonde(vaardigheid) {
+// Maximum aantal rondes per vaardigheid in deze taak.
+//   - luisteren / lezen: altijd 3
+//   - schrijven: 2 standaard, 3 als er minstens één woord ooit fout is geweest
+function _maxRondesVoor(vaardigheid) {
+  if (vaardigheid !== 'schrijven') return 3;
   const taak = Voortgang.getTaak();
-  if (!taak || !taakItems || taakItems.length === 0) return { huidig: 1, max: 3 };
-  const sleutel = vaardigheid + '_juist';
-  // Verzamel juist-tellers van woorden die nog niet voorbij hun drempel zijn
-  let laagste = Infinity;
-  let drempelMax = 2; // bij schrijven default 2, bij luisteren/lezen 3
-  taakItems.forEach(it => {
-    const data = taak.perWoord && taak.perWoord[it.id] ? taak.perWoord[it.id] : null;
-    const teller = data ? (data[sleutel] || 0) : 0;
-    const drempel = _drempelVoor(vaardigheid, data);
-    if (drempel > drempelMax) drempelMax = drempel;
-    if (teller < drempel) {
-      if (teller < laagste) laagste = teller;
-    }
+  if (!taak || !taakItems) return 2;
+  const heeftFout = taakItems.some(it => {
+    const d = taak.perWoord && taak.perWoord[it.id];
+    return d && (d.schrijven_fout || 0) > 0;
   });
-  if (laagste === Infinity) {
-    // Geen kandidaten meer = alle woorden klaar
-    return { huidig: drempelMax, max: drempelMax };
-  }
-  // huidige ronde = laagste juist-teller + 1 (want 0× juist = ronde 1)
-  const huidig = Math.min(laagste + 1, drempelMax);
-  return { huidig, max: drempelMax };
+  return heeftFout ? 3 : 2;
 }
 
-// Update de ronde-badge in een oefen-scherm. badgeId = id van het span/div-element
-// dat de ronde-tekst moet bevatten. Bv. "Ronde 1 van 3".
+// Bepaal in welke ronde het kind nu zit. Ronde-status wordt nu rechtstreeks
+// uit taak.rondeStatus[vaardigheid] gehaald (niet meer afgeleid uit juist-tellers).
+function _huidigeRonde(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  const max = _maxRondesVoor(vaardigheid);
+  if (!taak || !taak.rondeStatus || !taak.rondeStatus[vaardigheid]) {
+    return { huidig: 1, max };
+  }
+  const huidig = Math.min(taak.rondeStatus[vaardigheid].huidigeRonde || 1, max);
+  return { huidig, max };
+}
+
+// Geeft de raw ronde-waarde uit de taak-state, NIET geclampt aan max.
+// Gebruikt door de router om te detecteren "we zijn voorbij alle rondes → klaar".
+function _ruweRonde(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  if (!taak || !taak.rondeStatus || !taak.rondeStatus[vaardigheid]) return 1;
+  return taak.rondeStatus[vaardigheid].huidigeRonde || 1;
+}
+
+// Update de ronde-badge in een oefen-scherm.
 function _updateRondeBadge(badgeId, vaardigheid) {
   const el = document.getElementById(badgeId);
   if (!el) return;
@@ -818,34 +965,105 @@ function _updateRondeBadge(badgeId, vaardigheid) {
   el.textContent = `Ronde ${r.huidig} van ${r.max}`;
 }
 
+// Welke woorden moet het kind in de huidige ronde nog behandelen?
+// Standaard: alle woorden uit de taak die nog niet behandeld zijn deze ronde.
+// Speciaal: bij schrijven ronde 3 → alleen woorden met schrijven_fout > 0.
+function _resterendeWoordenInRonde(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  if (!taak) return [];
+  const r = _huidigeRonde(vaardigheid);
+  // Klaar als we voorbij de max-ronde zijn
+  if (r.huidig > r.max) return [];
+
+  const status = taak.rondeStatus && taak.rondeStatus[vaardigheid];
+  const behandeld = status && Array.isArray(status.behandeldDezeRonde)
+                       ? status.behandeldDezeRonde : [];
+
+  // Welke woorden komen in deze ronde aan bod?
+  let pool;
+  if (vaardigheid === 'schrijven' && r.huidig === 3) {
+    // Ronde 3 schrijven: enkel fout-woorden
+    pool = taakItems.filter(it => {
+      const d = taak.perWoord && taak.perWoord[it.id];
+      return d && (d.schrijven_fout || 0) > 0;
+    });
+  } else {
+    pool = [...taakItems];
+  }
+
+  // Filter de al-behandelde uit
+  return pool.filter(it => behandeld.indexOf(it.id) === -1);
+}
+
+// Wrapper: registreer juist/fout antwoord én markeer woord als behandeld in
+// huidige ronde. Geeft true terug als de ronde door dit antwoord werd afgerond.
+async function _registreerAntwoord(woordId, vaardigheid, isJuist) {
+  if (isJuist) {
+    await Voortgang.registreerJuistInTaak(woordId, vaardigheid);
+  } else {
+    await Voortgang.registreerFoutInTaak(woordId, vaardigheid);
+  }
+  // Markeer behandeld — pas door naar volgende ronde als alle woorden behandeld zijn
+  const woordIds = _woordIdsVoorRonde(vaardigheid);
+  const result = await Voortgang.registreerWoordBehandeldInRonde(woordId, vaardigheid, woordIds);
+  return result.rondeAfgerond;
+}
+
+// Bereken voortgang in oefen-fase op basis van ronde + behandelde woorden.
+// Returns { klaar, totaal } voor in voortgangsbalk + teller.
+function _voortgangVoorVaardigheid(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  const r = _huidigeRonde(vaardigheid);
+  // Totaal = aantal woorden × max-rondes (= alle "stappen" die kind moet doen)
+  const totaal = (taakItems ? taakItems.length : 0) * r.max;
+  // Klaar = (afgewerkte rondes × aantal woorden) + behandeld in huidige ronde
+  const status = taak && taak.rondeStatus && taak.rondeStatus[vaardigheid];
+  const behandeld = status && Array.isArray(status.behandeldDezeRonde) ? status.behandeldDezeRonde.length : 0;
+  const huidigRonde = Math.min(r.huidig, r.max);
+  const klaar = ((huidigRonde - 1) * (taakItems ? taakItems.length : 0)) + behandeld;
+  return { klaar, totaal };
+}
+
 function _kiesVolgendOefenItem(vaardigheid) {
   const taak = Voortgang.getTaak();
   if (!taak) return null;
-  const sleutel = vaardigheid + '_juist';
-  const kandidaten = taakItems.filter(it => {
-    const data = taak.perWoord && taak.perWoord[it.id] ? taak.perWoord[it.id] : null;
-    const teller = data ? (data[sleutel] || 0) : 0;
-    const drempel = _drempelVoor(vaardigheid, data);
-    return teller < drempel;
-  });
-  if (kandidaten.length === 0) return null;
+  const r = _huidigeRonde(vaardigheid);
+  if (r.huidig > r.max) return null; // alle rondes klaar
 
-  // Vorige item uitsluiten als er meer dan 1 kandidaat is — voorkomt dat
-  // hetzelfde woord 2x na elkaar komt.
-  const vorigeId = taakOefItem ? taakOefItem.id : null;
-  let pool = kandidaten;
-  if (vorigeId && kandidaten.length > 1) {
-    const zonderVorige = kandidaten.filter(it => it.id !== vorigeId);
-    if (zonderVorige.length > 0) pool = zonderVorige;
+  let resterend = _resterendeWoordenInRonde(vaardigheid);
+
+  // Als deze ronde leeg is (alle woorden behandeld), forceren we doorgang naar
+  // de volgende ronde. Dit kan gebeuren als rondestatus stale is.
+  if (resterend.length === 0) {
+    return null;
   }
 
-  // Geef voorkeur aan items die net fout waren (teller 0) binnen de pool
-  const nul = pool.filter(it => {
-    const data = taak.perWoord[it.id];
-    return !data || (data[sleutel] || 0) === 0;
-  });
-  const finalePool = nul.length > 0 ? nul : pool;
-  return finalePool[Math.floor(Math.random() * finalePool.length)];
+  // Vorig item uitsluiten als er meer dan 1 kandidaat is — voorkomt dat
+  // hetzelfde woord 2x na elkaar komt
+  const vorigeId = taakOefItem ? taakOefItem.id : null;
+  if (vorigeId && resterend.length > 1) {
+    const zonderVorige = resterend.filter(it => it.id !== vorigeId);
+    if (zonderVorige.length > 0) resterend = zonderVorige;
+  }
+
+  return resterend[Math.floor(Math.random() * resterend.length)];
+}
+
+// Welke woord-IDs horen in de huidige ronde aan bod te komen?
+// Wordt gebruikt om te detecteren wanneer een ronde compleet is.
+function _woordIdsVoorRonde(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  if (!taak) return [];
+  const r = _huidigeRonde(vaardigheid);
+  if (vaardigheid === 'schrijven' && r.huidig === 3) {
+    return taakItems
+      .filter(it => {
+        const d = taak.perWoord && taak.perWoord[it.id];
+        return d && (d.schrijven_fout || 0) > 0;
+      })
+      .map(it => it.id);
+  }
+  return taakItems.map(it => it.id);
 }
 
 function taakRendererLuisterenOefenen() {
@@ -855,17 +1073,12 @@ function taakRendererLuisterenOefenen() {
   // Beeld in het oefen-scherm
   document.getElementById('taak-oef-beeld').innerHTML = Picto.html(taakOefItem);
 
-  // Voortgang: aantal woorden dat al 3× juist is
-  let klaar = 0;
-  taakItems.forEach(it => {
-    const d = taak.perWoord && taak.perWoord[it.id];
-    const drempel = _drempelVoor('luisteren', d);
-    if (d && (d.luisteren_juist || 0) >= drempel) klaar++;
-  });
-  document.getElementById('taak-oef-klaar').textContent = klaar;
-  document.getElementById('taak-oef-totaal').textContent = taakItems.length;
+  // Voortgang: gebruik ronde-gebaseerde berekening
+  const v = _voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-oef-klaar').textContent = v.klaar;
+  document.getElementById('taak-oef-totaal').textContent = v.totaal;
   // Voortgangsbalk
-  const pct = taakItems.length > 0 ? (klaar / taakItems.length) * 100 : 0;
+  const pct = v.totaal > 0 ? (v.klaar / v.totaal) * 100 : 0;
   const balk = document.getElementById('taak-oef-balk');
   if (balk) balk.style.width = pct + '%';
   // Ronde-badge
@@ -903,10 +1116,9 @@ function taakOefHoor() {
 async function taakKiesOefAntwoord(knop, gekozen) {
   document.querySelectorAll('#taak-oef-opties .optie-knop').forEach(k => k.disabled = true);
 
-  if (gekozen.id === taakOefItem.id) {
+  const isJuist = (gekozen.id === taakOefItem.id);
+  if (isJuist) {
     knop.classList.add('juist');
-    await Voortgang.registreerJuistInTaak(taakOefItem.id, 'luisteren');
-    // Sterren-systeem voor vrij oefenen ook updaten
     Voortgang.registreerJuist(huidigThema.id, taakOefItem.id);
     AudioEngine.spreek(taakOefItem.tekst);
   } else {
@@ -914,10 +1126,10 @@ async function taakKiesOefAntwoord(knop, gekozen) {
     document.querySelectorAll('#taak-oef-opties .optie-knop').forEach(k => {
       if (k.textContent === taakOefItem.tekst) k.classList.add('juist');
     });
-    await Voortgang.registreerFoutInTaak(taakOefItem.id, 'luisteren');
     Voortgang.registreerFout(huidigThema.id, taakOefItem.id);
     AudioEngine.spreek(taakOefItem.tekst);
   }
+  await _registreerAntwoord(taakOefItem.id, 'luisteren', isJuist);
 
   setTimeout(() => {
     if (!taakModus) return;
@@ -1019,17 +1231,484 @@ async function taakKiesToetsAntwoord(knop, gekozen, juistItem) {
 }
 
 // =================================================================
-//  TAAK FASE — LEZEN-OEFENEN  (kind ziet woord, kiest juist beeld)
+//  TAAK FASE — LUISTEREN-VERBINDEN  (woord ↔ beeld lijntjes trekken)
 // =================================================================
+//
+// Pedagogisch: kind ziet 4-5 woorden links en de bijhorende beelden rechts
+// (geschud). Klikken op een woord-kaart, dan op een beeld-kaart → lijntje.
+// Als alle paren gelegd: knop "Klaar" → controle.
+// Score: per juist verbonden paar +1 op luisteren_juist (max bereikt drempel).
+
+let _verbindenItems = [];          // de woorden waarmee we werken (max 5)
+let _verbindenBeelden = [];        // geschudde versie voor rechter kolom
+let _verbindenGekozenWoord = null; // huidig geselecteerde woord-id (wachtend op beeld)
+let _verbindenLijntjes = {};       // map van woordId → beeldId (voorgestelde paren)
+let _verbindenGroepjesQueue = [];  // wachtrij van groepjes voor deze ronde
+
+// Verdeel een woord-array in groepjes met max-grootte. Gelijk verdelen.
+// Bv. 8 woorden, max 5: → [4,4]. 7: → [4,3]. 6: → [3,3]. 9: → [5,4]. 10: → [5,5].
+function _verbindenGroepjes(items, maxPerGroep) {
+  const n = items.length;
+  if (n <= maxPerGroep) return [items];
+  // Bepaal aantal groepjes (= ceil)
+  const aantal = Math.ceil(n / maxPerGroep);
+  // Probeer gelijk verdelen
+  const basis = Math.floor(n / aantal);
+  const rest = n % aantal;
+  const groepjes = [];
+  let i = 0;
+  for (let g = 0; g < aantal; g++) {
+    const grootte = basis + (g < rest ? 1 : 0);
+    groepjes.push(items.slice(i, i + grootte));
+    i += grootte;
+  }
+  return groepjes;
+}
+
+function taakStartLuisterenVerbinden() {
+  const taak = Voortgang.getTaak();
+  if (!taak) return;
+  // Pak ALLE woorden die nog niet hun drempel hebben (niet maar 5!)
+  const sleutel = 'luisteren_juist';
+  const kandidaten = taakItems.filter(it => {
+    const data = taak.perWoord && taak.perWoord[it.id] ? taak.perWoord[it.id] : null;
+    const teller = data ? (data[sleutel] || 0) : 0;
+    const drempel = _drempelVoor('luisteren', data);
+    return teller < drempel;
+  });
+  if (kandidaten.length === 0) {
+    taakStartFase(_volgendeFase('luisteren-oef', taak));
+    return;
+  }
+  // Als slechts 1 kandidaat over: val terug op klikspel (verbinden heeft min 2 paren nodig)
+  if (kandidaten.length < 2) {
+    taakOefItem = kandidaten[0];
+    taakRendererLuisterenOefenen();
+    toonScherm('scherm-taak-oefenen');
+    return;
+  }
+  // Verdeel in groepjes (max 5 per scherm) en zet als queue
+  // Schud eerst zodat de groepjes elke ronde anders zijn
+  const geschud = [...kandidaten].sort(() => Math.random() - 0.5);
+  _verbindenGroepjesQueue = _verbindenGroepjes(geschud, 5);
+  _toonVolgendVerbindenGroepje();
+}
+
+// Toont het volgende groepje uit de queue. Als de queue leeg is, gaan we
+// naar de volgende oefenvorm/fase.
+function _toonVolgendVerbindenGroepje() {
+  if (!_verbindenGroepjesQueue || _verbindenGroepjesQueue.length === 0) {
+    // Alle groepjes klaar → terug naar router voor volgende ronde of fase
+    taakStartLuisterenOefenen();
+    return;
+  }
+  const groep = _verbindenGroepjesQueue.shift();
+  _verbindenItems = groep;
+  _verbindenBeelden = [...groep].sort(() => Math.random() - 0.5);
+  _verbindenGekozenWoord = null;
+  _verbindenLijntjes = {};
+  taakRendererVerbinden();
+  toonScherm('scherm-taak-verbinden');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => _renderVerbindenLijnen());
+  });
+}
+
+function taakRendererVerbinden() {
+  const taak = Voortgang.getTaak();
+  if (!taak) return;
+
+  // Voortgangsteller — ronde-gebaseerd
+  const v = _voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-verbinden-klaar').textContent = v.klaar;
+  document.getElementById('taak-verbinden-totaal').textContent = v.totaal;
+  const balk = document.getElementById('taak-verbinden-balk');
+  if (balk) balk.style.width = (v.totaal > 0 ? (v.klaar / v.totaal) * 100 : 0) + '%';
+  _updateRondeBadge('taak-verbinden-ronde', 'luisteren');
+
+  // Bouw woorden-kolom (links) en beelden-kolom (rechts)
+  const woordKol = document.getElementById('verbinden-kolom-woorden');
+  const beeldKol = document.getElementById('verbinden-kolom-beelden');
+  if (!woordKol || !beeldKol) return;
+  woordKol.innerHTML = '';
+  beeldKol.innerHTML = '';
+
+  _verbindenItems.forEach(it => {
+    const w = document.createElement('button');
+    w.className = 'verbinden-kaart verbinden-woord';
+    w.dataset.woordId = it.id;
+    w.innerHTML = `<span class="verbinden-tekst">${it.tekst}</span>
+                   <span class="verbinden-knoppunt"></span>`;
+    w.onclick = () => taakVerbindenKlikWoord(it.id);
+    woordKol.appendChild(w);
+  });
+
+  _verbindenBeelden.forEach(it => {
+    const b = document.createElement('button');
+    b.className = 'verbinden-kaart verbinden-beeld';
+    b.dataset.beeldId = it.id;
+    b.innerHTML = `<span class="verbinden-knoppunt"></span>
+                   <span class="verbinden-pic">${Picto.html(it, { grootte: 48 })}</span>`;
+    b.onclick = () => taakVerbindenKlikBeeld(it.id);
+    beeldKol.appendChild(b);
+  });
+
+  // Reset SVG
+  const svg = document.getElementById('verbinden-lijnen');
+  if (svg) svg.innerHTML = '';
+
+  // Klaar-knop disabled tot alle paren gelegd zijn
+  _updateVerbindenKlaarKnop();
+}
+
+function taakVerbindenKlikWoord(woordId) {
+  // Als dit woord al een lijn heeft → koppel los
+  if (_verbindenLijntjes[woordId]) {
+    delete _verbindenLijntjes[woordId];
+    _verbindenGekozenWoord = woordId;
+    _renderVerbindenSelectie();
+    _renderVerbindenLijnen();
+    _updateVerbindenKlaarKnop();
+    return;
+  }
+  _verbindenGekozenWoord = woordId;
+  _renderVerbindenSelectie();
+}
+
+function taakVerbindenKlikBeeld(beeldId) {
+  // Als dit beeld al gekoppeld is aan een woord → koppel los
+  const reedsGekoppeldWoord = Object.keys(_verbindenLijntjes).find(wId => _verbindenLijntjes[wId] === beeldId);
+  if (reedsGekoppeldWoord) {
+    delete _verbindenLijntjes[reedsGekoppeldWoord];
+    _renderVerbindenLijnen();
+    _renderVerbindenSelectie();
+    _updateVerbindenKlaarKnop();
+    return;
+  }
+  // Anders: koppel huidig gekozen woord aan dit beeld
+  if (!_verbindenGekozenWoord) return;
+  _verbindenLijntjes[_verbindenGekozenWoord] = beeldId;
+  _verbindenGekozenWoord = null;
+  _renderVerbindenSelectie();
+  _renderVerbindenLijnen();
+  _updateVerbindenKlaarKnop();
+}
+
+function _renderVerbindenSelectie() {
+  // Markeer geselecteerd woord
+  document.querySelectorAll('.verbinden-woord').forEach(el => {
+    if (el.dataset.woordId === _verbindenGekozenWoord) {
+      el.classList.add('geselecteerd');
+    } else {
+      el.classList.remove('geselecteerd');
+    }
+    if (_verbindenLijntjes[el.dataset.woordId]) {
+      el.classList.add('gekoppeld');
+    } else {
+      el.classList.remove('gekoppeld');
+    }
+  });
+  // Markeer gekoppelde beelden
+  const gekoppeldeBeelden = new Set(Object.values(_verbindenLijntjes));
+  document.querySelectorAll('.verbinden-beeld').forEach(el => {
+    if (gekoppeldeBeelden.has(el.dataset.beeldId)) {
+      el.classList.add('gekoppeld');
+    } else {
+      el.classList.remove('gekoppeld');
+    }
+  });
+}
+
+function _renderVerbindenLijnen() {
+  const wrap = document.getElementById('verbinden-wrap');
+  const svg = document.getElementById('verbinden-lijnen');
+  if (!wrap || !svg) return;
+  // Update SVG-grootte
+  const wrapRect = wrap.getBoundingClientRect();
+  svg.setAttribute('width', wrapRect.width);
+  svg.setAttribute('height', wrapRect.height);
+  svg.setAttribute('viewBox', `0 0 ${wrapRect.width} ${wrapRect.height}`);
+  svg.innerHTML = '';
+
+  Object.keys(_verbindenLijntjes).forEach(woordId => {
+    const beeldId = _verbindenLijntjes[woordId];
+    const woordEl = document.querySelector(`.verbinden-woord[data-woord-id="${woordId}"]`);
+    const beeldEl = document.querySelector(`.verbinden-beeld[data-beeld-id="${beeldId}"]`);
+    if (!woordEl || !beeldEl) return;
+    const wPunt = woordEl.querySelector('.verbinden-knoppunt');
+    const bPunt = beeldEl.querySelector('.verbinden-knoppunt');
+    if (!wPunt || !bPunt) return;
+    const wRect = wPunt.getBoundingClientRect();
+    const bRect = bPunt.getBoundingClientRect();
+    const x1 = wRect.left + wRect.width / 2 - wrapRect.left;
+    const y1 = wRect.top + wRect.height / 2 - wrapRect.top;
+    const x2 = bRect.left + bRect.width / 2 - wrapRect.left;
+    const y2 = bRect.top + bRect.height / 2 - wrapRect.top;
+    const lijn = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    lijn.setAttribute('x1', x1);
+    lijn.setAttribute('y1', y1);
+    lijn.setAttribute('x2', x2);
+    lijn.setAttribute('y2', y2);
+    lijn.setAttribute('class', 'verbinden-lijn');
+    lijn.dataset.woordId = woordId;
+    svg.appendChild(lijn);
+  });
+}
+
+function _updateVerbindenKlaarKnop() {
+  const knop = document.getElementById('verbinden-klaar-knop');
+  if (!knop) return;
+  const aantalPaar = Object.keys(_verbindenLijntjes).length;
+  knop.disabled = aantalPaar < _verbindenItems.length;
+}
+
+async function taakVerbindenKlaar() {
+  // Controleer alle paren: voor elk woord, koppelt het aan zichzelf?
+  let aantalJuist = 0;
+  let aantalFout = 0;
+  // Markeer lijnen groen/rood
+  const svg = document.getElementById('verbinden-lijnen');
+  Object.keys(_verbindenLijntjes).forEach(woordId => {
+    const beeldId = _verbindenLijntjes[woordId];
+    const lijn = svg ? svg.querySelector(`line[data-woord-id="${woordId}"]`) : null;
+    if (woordId === beeldId) {
+      aantalJuist++;
+      if (lijn) lijn.setAttribute('class', 'verbinden-lijn juist');
+    } else {
+      aantalFout++;
+      if (lijn) lijn.setAttribute('class', 'verbinden-lijn fout');
+    }
+  });
+
+  // Update tellers per woord — én markeer als behandeld in ronde
+  for (const it of _verbindenItems) {
+    const beeldId = _verbindenLijntjes[it.id];
+    const isJuist = (beeldId === it.id);
+    await _registreerAntwoord(it.id, 'luisteren', isJuist);
+  }
+
+  // Toon kort feedback en ga door na 1.8 sec naar volgend groepje (of einde ronde)
+  setTimeout(() => {
+    if (!taakModus) return;
+    if (_verbindenGroepjesQueue && _verbindenGroepjesQueue.length > 0) {
+      _toonVolgendVerbindenGroepje();
+    } else {
+      // Geen groepjes meer in deze ronde → terug naar router voor volgende oefenvorm/fase
+      taakStartLuisterenOefenen();
+    }
+  }, 1800);
+}
+
+// Bij vensterresize moet de SVG opnieuw getekend worden zodat lijnen mee verschuiven.
+window.addEventListener('resize', () => {
+  if (taakHuidigeFase === 'luisteren-oef' &&
+      document.getElementById('scherm-taak-verbinden') &&
+      document.getElementById('scherm-taak-verbinden').classList.contains('actief')) {
+    _renderVerbindenLijnen();
+  }
+});
+
+
+// =================================================================
+//  TAAK FASE — LUISTEREN-VERSLEPEN  (sleep woord naar leeg vak bij beeld)
+// =================================================================
+//
+// Pedagogisch: kind ziet 1 beeld bovenaan met een leeg vak ernaast (=plaats
+// voor het woord-label), en 4 woord-knoppen onderaan. Sleep de juiste woord-
+// knop in het lege vak. Werkt met Pointer Events (muis + touch).
+
+let _verslepenItem = null;
+let _verslepenOpties = [];
+let _verslepenDraggingEl = null;
+let _verslepenStartX = 0;
+let _verslepenStartY = 0;
+let _verslepenOffsetX = 0;
+let _verslepenOffsetY = 0;
+let _verslepenAfHandeling = false;
+
+function taakStartLuisterenVerslepen() {
+  const item = _kiesVolgendOefenItem('luisteren');
+  if (!item) {
+    const taak = Voortgang.getTaak();
+    taakStartFase(_volgendeFase('luisteren-oef', taak));
+    return;
+  }
+  taakOefItem = item;
+  _verslepenItem = item;
+
+  // 3 afleiders + juist woord
+  const verrijkt = verrijkThema(huidigThema);
+  const beschikbAfl = verrijkt.items.filter(x => x.id !== item.id);
+  const afl = [];
+  while (afl.length < 3 && beschikbAfl.length > 0) {
+    const idx = Math.floor(Math.random() * beschikbAfl.length);
+    afl.push(beschikbAfl[idx]);
+    beschikbAfl.splice(idx, 1);
+  }
+  _verslepenOpties = [item, ...afl].sort(() => Math.random() - 0.5);
+  _verslepenAfHandeling = false;
+
+  taakRendererVerslepen();
+  toonScherm('scherm-taak-verslepen');
+}
+
+function taakRendererVerslepen() {
+  const taak = Voortgang.getTaak();
+  if (!taak || !_verslepenItem) return;
+
+  // Voortgang — ronde-gebaseerd
+  const v = _voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-verslepen-klaar').textContent = v.klaar;
+  document.getElementById('taak-verslepen-totaal').textContent = v.totaal;
+  const balk = document.getElementById('taak-verslepen-balk');
+  if (balk) balk.style.width = (v.totaal > 0 ? (v.klaar / v.totaal) * 100 : 0) + '%';
+  _updateRondeBadge('taak-verslepen-ronde', 'luisteren');
+
+  // Beeld + leeg vak bovenaan
+  const beeldEl = document.getElementById('verslepen-beeld');
+  const dropVakEl = document.getElementById('verslepen-dropvak');
+  if (beeldEl) beeldEl.innerHTML = Picto.html(_verslepenItem, { grootte: 90 });
+  if (dropVakEl) {
+    dropVakEl.classList.remove('juist', 'fout', 'gevuld', 'hover');
+    dropVakEl.innerHTML = '<span class="verslepen-dropvak-placeholder">sleep het woord hier</span>';
+  }
+
+  // Woord-knoppen onderaan (sleepbaar)
+  const optiesEl = document.getElementById('verslepen-woorden');
+  optiesEl.innerHTML = '';
+  _verslepenOpties.forEach(opt => {
+    const w = document.createElement('div');
+    w.className = 'verslepen-woord';
+    w.dataset.woordId = opt.id;
+    w.textContent = opt.tekst;
+    w.onpointerdown = _verslepenStart;
+    optiesEl.appendChild(w);
+  });
+}
+
+function taakVerslepenHoor() {
+  if (_verslepenItem) AudioEngine.spreek(_verslepenItem.tekst);
+}
+
+function _verslepenStart(e) {
+  if (_verslepenAfHandeling) return;
+  const woordEl = e.currentTarget;
+  if (!woordEl) return;
+  e.preventDefault();
+  _verslepenDraggingEl = woordEl;
+  const rect = woordEl.getBoundingClientRect();
+  _verslepenStartX = rect.left;
+  _verslepenStartY = rect.top;
+  _verslepenOffsetX = e.clientX - rect.left;
+  _verslepenOffsetY = e.clientY - rect.top;
+  woordEl.classList.add('slepen');
+  woordEl.setPointerCapture(e.pointerId);
+  woordEl.style.transition = 'none';
+  woordEl.onpointermove = _verslepenBeweeg;
+  woordEl.onpointerup = _verslepenEinde;
+  woordEl.onpointercancel = _verslepenEinde;
+}
+
+function _verslepenBeweeg(e) {
+  if (!_verslepenDraggingEl) return;
+  const verschilX = e.clientX - _verslepenOffsetX - _verslepenStartX;
+  const verschilY = e.clientY - _verslepenOffsetY - _verslepenStartY;
+  _verslepenDraggingEl.style.transform = `translate(${verschilX}px, ${verschilY}px)`;
+  // Highlight het dropvak als we eroverheen zweven
+  const dropVakEl = document.getElementById('verslepen-dropvak');
+  if (dropVakEl) {
+    const r = dropVakEl.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+      dropVakEl.classList.add('hover');
+    } else {
+      dropVakEl.classList.remove('hover');
+    }
+  }
+}
+
+async function _verslepenEinde(e) {
+  if (!_verslepenDraggingEl) return;
+  const woordEl = _verslepenDraggingEl;
+  _verslepenDraggingEl = null;
+  woordEl.onpointermove = null;
+  woordEl.onpointerup = null;
+  woordEl.onpointercancel = null;
+  if (e && e.pointerId !== undefined) {
+    try { woordEl.releasePointerCapture(e.pointerId); } catch (er) {}
+  }
+  woordEl.classList.remove('slepen');
+
+  const dropVakEl = document.getElementById('verslepen-dropvak');
+  let geraakt = false;
+  if (dropVakEl) {
+    const r = dropVakEl.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+      geraakt = true;
+    }
+    dropVakEl.classList.remove('hover');
+  }
+
+  if (!geraakt) {
+    // Niet in vak gedropt: terug naar startpositie
+    woordEl.style.transition = 'transform 0.25s ease';
+    woordEl.style.transform = '';
+    return;
+  }
+
+  _verslepenAfHandeling = true;
+  const gekozenId = woordEl.dataset.woordId;
+  const isJuist = (gekozenId === _verslepenItem.id);
+
+  // Toon het woord in het dropvak
+  if (dropVakEl) {
+    dropVakEl.innerHTML = `<span class="verslepen-dropvak-tekst">${woordEl.textContent}</span>`;
+    dropVakEl.classList.add('gevuld');
+    dropVakEl.classList.add(isJuist ? 'juist' : 'fout');
+  }
+  // Verberg het gesleepte woord
+  woordEl.style.opacity = '0';
+
+  if (isJuist) {
+    await _registreerAntwoord(_verslepenItem.id, 'luisteren', true);
+    setTimeout(() => {
+      if (taakModus) taakStartLuisterenOefenen();
+    }, 900);
+  } else {
+    // Bij fout: register als fout (telt voor schrijven_fout, etc.) maar
+    // markeer NIET als behandeld — kind probeert opnieuw met hetzelfde woord
+    await Voortgang.registreerFoutInTaak(_verslepenItem.id, 'luisteren');
+    // Reset zodat kind opnieuw kan proberen
+    setTimeout(() => {
+      if (!taakModus) return;
+      if (dropVakEl) {
+        dropVakEl.classList.remove('juist', 'fout', 'gevuld');
+        dropVakEl.innerHTML = '<span class="verslepen-dropvak-placeholder">sleep het woord hier</span>';
+      }
+      woordEl.style.opacity = '';
+      woordEl.style.transition = 'transform 0.3s ease';
+      woordEl.style.transform = '';
+      _verslepenAfHandeling = false;
+    }, 1200);
+  }
+}
+
+
+
 //
 // Pedagogisch verschil met luisteren-oef: GEEN audio-knop. Kind moet het
 // geschreven woord zelf decoderen. Het juiste beeld kiezen uit 4.
 
 function taakStartLezenOefenen() {
+  const taak = Voortgang.getTaak();
+  // Eerst: zijn alle rondes voorbij? Dan door naar volgende fase.
+  const ruwe = _ruweRonde('lezen');
+  const max = _maxRondesVoor('lezen');
+  if (ruwe > max) {
+    taakStartFase(_volgendeFase('lezen-oef', taak));
+    return;
+  }
   const item = _kiesVolgendOefenItem('lezen');
   if (!item) {
-    // Alle woorden 3× juist → volgende fase volgens lijst
-    const taak = Voortgang.getTaak();
     taakStartFase(_volgendeFase('lezen-oef', taak));
     return;
   }
@@ -1046,19 +1725,14 @@ function taakRendererLezenOefenen() {
   const woordEl = document.getElementById('taak-lezen-oef-woord');
   if (woordEl) woordEl.textContent = taakOefItem.tekst;
 
-  // Voortgang: aantal woorden dat al 3× juist is in lezen
-  let klaar = 0;
-  taakItems.forEach(it => {
-    const d = taak.perWoord && taak.perWoord[it.id];
-    const drempel = _drempelVoor('lezen', d);
-    if (d && (d.lezen_juist || 0) >= drempel) klaar++;
-  });
+  // Voortgang — ronde-gebaseerd
+  const v = _voortgangVoorVaardigheid('lezen');
   const klaarEl = document.getElementById('taak-lezen-oef-klaar');
   const totaalEl = document.getElementById('taak-lezen-oef-totaal');
-  if (klaarEl) klaarEl.textContent = klaar;
-  if (totaalEl) totaalEl.textContent = taakItems.length;
+  if (klaarEl) klaarEl.textContent = v.klaar;
+  if (totaalEl) totaalEl.textContent = v.totaal;
   const balk = document.getElementById('taak-lezen-oef-balk');
-  if (balk) balk.style.width = (taakItems.length > 0 ? (klaar / taakItems.length) * 100 : 0) + '%';
+  if (balk) balk.style.width = (v.totaal > 0 ? (v.klaar / v.totaal) * 100 : 0) + '%';
   // Ronde-badge
   _updateRondeBadge('taak-lezen-oef-ronde', 'lezen');
 
@@ -1089,9 +1763,9 @@ function taakRendererLezenOefenen() {
 async function taakKiesLezenOefAntwoord(knop, gekozen) {
   document.querySelectorAll('#taak-lezen-oef-opties .taak-toets-beeld-knop').forEach(k => k.disabled = true);
 
-  if (gekozen.id === taakOefItem.id) {
+  const isJuist = (gekozen.id === taakOefItem.id);
+  if (isJuist) {
     knop.classList.add('juist');
-    await Voortgang.registreerJuistInTaak(taakOefItem.id, 'lezen');
     Voortgang.registreerJuist(huidigThema.id, taakOefItem.id);
     AudioEngine.spreek(taakOefItem.tekst);
   } else {
@@ -1099,10 +1773,10 @@ async function taakKiesLezenOefAntwoord(knop, gekozen) {
     document.querySelectorAll('#taak-lezen-oef-opties .taak-toets-beeld-knop').forEach(k => {
       if (k.dataset.id === taakOefItem.id) k.classList.add('juist');
     });
-    await Voortgang.registreerFoutInTaak(taakOefItem.id, 'lezen');
     Voortgang.registreerFout(huidigThema.id, taakOefItem.id);
     AudioEngine.spreek(taakOefItem.tekst);
   }
+  await _registreerAntwoord(taakOefItem.id, 'lezen', isJuist);
 
   setTimeout(() => {
     if (!taakModus) return;
@@ -1203,14 +1877,20 @@ let taakSchrijvenWoordZichtbaar = true;
 let _taakSchrijvenHerbekijkAantal = 0;
 
 function taakStartSchrijvenOefenen() {
+  const taak = Voortgang.getTaak();
+  // Eerst: zijn alle rondes voorbij? Dan door naar volgende fase.
+  const ruwe = _ruweRonde('schrijven');
+  const max = _maxRondesVoor('schrijven');
+  if (ruwe > max) {
+    taakStartFase(_volgendeFase('schrijven-oef', taak));
+    return;
+  }
   const item = _kiesVolgendOefenItem('schrijven');
   if (!item) {
-    const taak = Voortgang.getTaak();
     taakStartFase(_volgendeFase('schrijven-oef', taak));
     return;
   }
   taakOefItem = item;
-  // Reset herbekijk-teller voor het nieuwe woord
   _taakSchrijvenHerbekijkAantal = 0;
   taakRendererSchrijvenOefenen();
   toonScherm('scherm-taak-schrijven-oef');
@@ -1224,20 +1904,14 @@ function taakRendererSchrijvenOefenen() {
   const beeldEl = document.getElementById('taak-schrijven-oef-beeld');
   if (beeldEl) beeldEl.innerHTML = Picto.html(taakOefItem);
 
-  // Voortgang: een woord is "klaar" als juist-teller >= drempel voor schrijven.
-  // Drempel is 2 standaard, 3 als kind het ooit fout had — zelfde regel als kies-logica.
-  let klaar = 0;
-  taakItems.forEach(it => {
-    const d = taak.perWoord && taak.perWoord[it.id];
-    const drempel = _drempelVoor('schrijven', d);
-    if (d && (d.schrijven_juist || 0) >= drempel) klaar++;
-  });
+  // Voortgang — ronde-gebaseerd
+  const v = _voortgangVoorVaardigheid('schrijven');
   const klaarEl = document.getElementById('taak-schrijven-oef-klaar');
   const totaalEl = document.getElementById('taak-schrijven-oef-totaal');
-  if (klaarEl) klaarEl.textContent = klaar;
-  if (totaalEl) totaalEl.textContent = taakItems.length;
+  if (klaarEl) klaarEl.textContent = v.klaar;
+  if (totaalEl) totaalEl.textContent = v.totaal;
   const balk = document.getElementById('taak-schrijven-oef-balk');
-  if (balk) balk.style.width = (taakItems.length > 0 ? (klaar / taakItems.length) * 100 : 0) + '%';
+  if (balk) balk.style.width = (v.totaal > 0 ? (v.klaar / v.totaal) * 100 : 0) + '%';
   // Ronde-badge
   _updateRondeBadge('taak-schrijven-oef-ronde', 'schrijven');
 
@@ -1332,9 +2006,9 @@ async function taakSchrijvenSubmit() {
   if (getypt === juist) {
     inputEl.classList.add('juist');
     if (fbEl) fbEl.innerHTML = '<span class="schrijven-fb-juist">🎉 Juist!</span>';
-    await Voortgang.registreerJuistInTaak(taakOefItem.id, 'schrijven');
     Voortgang.registreerJuist(huidigThema.id, taakOefItem.id);
     AudioEngine.spreek(taakOefItem.tekst);
+    await _registreerAntwoord(taakOefItem.id, 'schrijven', true);
     setTimeout(() => {
       if (!taakModus) return;
       taakStartSchrijvenOefenen();
@@ -1345,6 +2019,8 @@ async function taakSchrijvenSubmit() {
       fbEl.innerHTML = `<span class="schrijven-fb-fout">Bijna! Het juiste woord is:</span>
                         <span class="schrijven-fb-juist-woord">${taakOefItem.tekst}</span>`;
     }
+    // Bij fout: register als fout (verhoogt schrijven_fout) maar markeer
+    // NIET als behandeld — kind probeert opnieuw met hetzelfde woord
     await Voortgang.registreerFoutInTaak(taakOefItem.id, 'schrijven');
     Voortgang.registreerFout(huidigThema.id, taakOefItem.id);
     AudioEngine.spreek(taakOefItem.tekst);
@@ -1454,9 +2130,16 @@ async function taakEindigToets(vaardigheid) {
     const huidigeFase = vaardigheid + '-toets';
     const volgende = _volgendeFase(huidigeFase, taak);
     const isLaatste = (volgende === 'klaar');
-    // Update toetsResultaten voor deze vaardigheid (afgenomen + fouten)
+    // Update toetsResultaten: voeg deze poging toe aan pogingen-array
     const nieuweResultaten = Object.assign({}, taak.toetsResultaten || {});
-    nieuweResultaten[vaardigheid] = { afgenomen: true, foutIds: [...taakToetsFoutIds] };
+    const huidig = nieuweResultaten[vaardigheid] || { afgenomen: false, pogingen: [], foutIds: [] };
+    const pogingen = Array.isArray(huidig.pogingen) ? [...huidig.pogingen] : [];
+    pogingen.push({ foutIds: [...taakToetsFoutIds], datum: Date.now(), pct });
+    nieuweResultaten[vaardigheid] = {
+      afgenomen: true,
+      pogingen,
+      foutIds: [...taakToetsFoutIds]  // backwards-compat: laatste poging
+    };
     const update = {
       huidigeFase: volgende,
       foutWoordenLaatsteToets: taakToetsFoutIds,
@@ -1470,9 +2153,16 @@ async function taakEindigToets(vaardigheid) {
     const huidigPogingen = (taak.aantalPogingen && taak.aantalPogingen[vaardigheid]) || 0;
     const nieuwAantal = huidigPogingen + 1;
     const nieuw = Object.assign({}, taak.aantalPogingen || {}, { [vaardigheid]: nieuwAantal });
-    // Ook bij niet-geslaagd: bewaar deze toets-uitslag in toetsResultaten
+    // Voeg ook deze (mislukte) poging toe aan pogingen-array
     const nieuweResultaten = Object.assign({}, taak.toetsResultaten || {});
-    nieuweResultaten[vaardigheid] = { afgenomen: true, foutIds: [...taakToetsFoutIds] };
+    const huidig = nieuweResultaten[vaardigheid] || { afgenomen: false, pogingen: [], foutIds: [] };
+    const pogingen = Array.isArray(huidig.pogingen) ? [...huidig.pogingen] : [];
+    pogingen.push({ foutIds: [...taakToetsFoutIds], datum: Date.now(), pct });
+    nieuweResultaten[vaardigheid] = {
+      afgenomen: true,
+      pogingen,
+      foutIds: [...taakToetsFoutIds]
+    };
     if (nieuwAantal >= 2) {
       // Tweede mislukking → status moeilijk, taak stopt
       await Voortgang.updateTaak({
