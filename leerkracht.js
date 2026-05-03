@@ -267,15 +267,21 @@ function _lkRendererTaken(kind) {
 
   const gesch = Array.isArray(kind.taakgeschiedenis) ? kind.taakgeschiedenis : [];
   gesch.forEach((arch, idx) => {
+    // Voor de zichtbare datum gebruiken we 'gestart' als primair (= wanneer
+    // de leerkracht de taak aanmaakte), en voltooidOp alleen als fallback.
+    // Sorteren gebeurt op voltooidOp (= wanneer gearchiveerd) zodat recente
+    // archiveringen bovenaan staan, maar de getoonde datum is wel de start-datum.
     items.push({
       taak: arch,
       isHuidig: false,
       archiefIdx: idx,
-      tijd: arch.voltooidOp || 0
+      tijd: arch.gestart || arch.voltooidOp || 0,
+      sorteerTijd: arch.voltooidOp || arch.gestart || 0
     });
   });
 
-  items.sort((a, b) => b.tijd - a.tijd);
+  // Sorteer op archief-tijd (voltooidOp), zodat recent gearchiveerde taken bovenaan
+  items.sort((a, b) => (b.sorteerTijd || b.tijd) - (a.sorteerTijd || a.tijd));
 
   if (items.length === 0) {
     html += '<p class="lk-kind-leeg">Nog geen taken voor deze leerling. Klik <strong>+ Nieuwe taak</strong> om er een aan te maken.</p>';
@@ -311,16 +317,27 @@ function _lkRendererTaken(kind) {
       scoreTekst = `${aantalW} woorden`;
     }
 
-    const heeftToets = (Array.isArray(t.foutWoordenLaatsteToets) && t.foutWoordenLaatsteToets.length > 0)
-                       || t.status === 'voltooid' || t.status === 'moeilijk' || t.status === 'haperde';
+    // Heeft deze taak een afgenomen toets?
+    //   - Nieuwe taken: kijk naar toetsResultaten (per vaardigheid)
+    //   - Oude taken: val terug op foutWoordenLaatsteToets + status
+    let heeftToets = false;
+    if (t.toetsResultaten) {
+      heeftToets = ['luisteren', 'lezen', 'schrijven'].some(v =>
+        t.toetsResultaten[v] && t.toetsResultaten[v].afgenomen
+      );
+    }
+    if (!heeftToets) {
+      heeftToets = (Array.isArray(t.foutWoordenLaatsteToets) && t.foutWoordenLaatsteToets.length > 0)
+                   || t.status === 'voltooid' || t.status === 'moeilijk' || t.status === 'haperde';
+    }
 
     // PDF-knop alleen als toets is afgenomen
     let pdfKnop = '';
     if (heeftToets) {
       if (entry.isHuidig) {
-        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfHuidig('${kind.code}')" title="PDF luistertoets voor toetsenmap">📄</button>`;
+        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfHuidig('${kind.code}')" title="PDF van de afgenomen toetsen">📄</button>`;
       } else {
-        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfVanGeschiedenis('${kind.code}', ${entry.archiefIdx})" title="PDF luistertoets voor toetsenmap">📄</button>`;
+        pdfKnop = `<button class="lk-knop-mini" onclick="lkTaakPdfVanGeschiedenis('${kind.code}', ${entry.archiefIdx})" title="PDF van de afgenomen toetsen">📄</button>`;
       }
     }
 
@@ -332,6 +349,19 @@ function _lkRendererTaken(kind) {
       wbKnop = `<button class="lk-knop-mini" onclick="lkTaakWerkbladen('${kind.code}', ${entry.archiefIdx})" title="Werkbladen maken met deze woorden">📝</button>`;
     }
 
+    // Bewerken + wissen logica:
+    //   - Huidige taak  → ✏️ bewerken + 🗑️ wissen (verwijdert huidige taak)
+    //   - Archief-taak  → 🗑️ wissen (verwijdert uit geschiedenis)
+    let bewerkKnop = '';
+    let wisKnop = '';
+    if (entry.isHuidig) {
+      const naamSafe2 = (kind.naam || '').replace(/'/g, "\\'");
+      bewerkKnop = `<button class="lk-knop-mini" onclick="lkBeheerTaak('${kind.code}', '${naamSafe2}')" title="Taak bewerken">✏️</button>`;
+      wisKnop = `<button class="lk-knop-mini gevaar" onclick="lkTaakWissenDirect('${kind.code}')" title="Huidige taak wissen">🗑️</button>`;
+    } else {
+      wisKnop = `<button class="lk-knop-mini gevaar" onclick="lkTaakArchiefWissen('${kind.code}', ${entry.archiefIdx})" title="Uit geschiedenis verwijderen">🗑️</button>`;
+    }
+
     const huidigBadge = entry.isHuidig ? '<span class="lk-huidig-badge">huidig</span>' : '';
 
     html += `
@@ -340,7 +370,7 @@ function _lkRendererTaken(kind) {
         <span class="lk-taakrij-thema">${themaNaam} ${huidigBadge}</span>
         <span class="lk-taakrij-status">${statusBadge}</span>
         <span class="lk-taakrij-score">${scoreTekst}</span>
-        <span class="lk-taakrij-acties">${wbKnop}${pdfKnop}</span>
+        <span class="lk-taakrij-acties">${bewerkKnop}${wbKnop}${pdfKnop}${wisKnop}</span>
       </div>
     `;
   });
@@ -2057,13 +2087,21 @@ function lkSluitCatModal() {
 //   - Bewaren = nieuwe taak (overschrijft eventuele oude)
 
 let _taakModalKindCode = null;
+// Welke sectie van de taak-modal is uitgeklapt — 'woorden', 'vaardigheden' of 'toetsen'.
+// null = alles dicht. Bij open van modal start sectie 'woorden'.
+let _taakModalOpenSectie = 'woorden';
 let _taakModalNaam = '';
 let _taakModalThemaId = null;
 let _taakModalWoordIds = new Set();
-// Nieuwe state voor v1:
-let _taakModalVaardigheden = new Set(['luisteren']); // 'luisteren', 'lezen', 'schrijven'
+// Vaardigheden in deze taak — mogelijk: 'luisteren', 'lezen', 'schrijven'
+let _taakModalVaardigheden = new Set(['luisteren']);
+// Per vaardigheid: welke oefenvorm(en) actief zijn.
+// Voor v1 is er per vaardigheid 1 actieve oefenvorm; rest staat 'binnenkort'.
 let _taakModalOefenvormenLuisteren = new Set(['klikspel']); // 'klikspel', 'verbinden', 'verslepen'
-let _taakModalOefenvormenSchrijven = new Set(['slepen']); // 'slepen', 'typen'
+let _taakModalOefenvormenLezen     = new Set(['woord-beeld']); // 'woord-beeld'
+let _taakModalOefenvormenSchrijven = new Set(['overtypen']);   // 'overtypen' (3s zichtbaar dan typen), 'slepen' (binnenkort)
+// Toetsen per vaardigheid — leerkracht kiest per vaardigheid of er een mini-toets bij komt
+let _taakModalToetsen = new Set(['luisteren']); // default luisteren-toets aan (zoals nu)
 let _taakModalZinscontext = false;
 // Geschiedenis voor kleur-codering van woorden: array van vorige taken voor dit kind
 let _taakModalGeschiedenis = [];
@@ -2071,45 +2109,55 @@ let _taakModalGeschiedenis = [];
 let _taakModalHuidigeTaak = null;
 
 // Helper: bepaal kleur voor een woord-id binnen het huidig gekozen thema
-//   'geel'  = woord was ooit fout in een toets (huidig of vorige taak)
-//   'groen' = woord stond ooit in een taak (huidig of vorige) en was niet fout
+//   'geel'  = woord was fout in de MEEST RECENTE toets waar het in zat
+//   'groen' = woord stond in een taak en was in de meest recente toets niet fout
 //   ''      = nog nooit geoefend in een taak (wit/standaard)
+//
+// Belangrijk: we kijken naar de MEEST RECENTE taak waarin het woord voorkwam,
+// niet naar alle taken cumulatief. Anders blijft een woord eeuwig geel ook al
+// heeft het kind het in een latere taak goed gedaan.
 function _taakModalWoordKleur(woordId) {
   if (!_taakModalThemaId) return '';
-  let ooitGeoefend = false;
-  let ooitFout = false;
 
-  // Check 1: huidige nog-niet-gearchiveerde taak
+  // Verzamel alle taken (huidig + archief) waarin het woord voorkwam, met tijdstempel
+  const voorkomens = []; // { tijd, foutInToets }
+
   if (_taakModalHuidigeTaak &&
       _taakModalHuidigeTaak.themaId === _taakModalThemaId &&
       Array.isArray(_taakModalHuidigeTaak.woordIds) &&
       _taakModalHuidigeTaak.woordIds.indexOf(woordId) !== -1) {
-    ooitGeoefend = true;
-    if (Array.isArray(_taakModalHuidigeTaak.foutWoordenLaatsteToets) &&
-        _taakModalHuidigeTaak.foutWoordenLaatsteToets.indexOf(woordId) !== -1) {
-      ooitFout = true;
-    }
+    const foutInToets = Array.isArray(_taakModalHuidigeTaak.foutWoordenLaatsteToets) &&
+                        _taakModalHuidigeTaak.foutWoordenLaatsteToets.indexOf(woordId) !== -1;
+    // Huidige taak is altijd het meest recent — gebruik gestart of nu
+    const tijd = _taakModalHuidigeTaak.gestart || Date.now();
+    voorkomens.push({ tijd, foutInToets });
   }
 
-  // Check 2: gearchiveerde geschiedenis
   for (const archief of _taakModalGeschiedenis) {
     if (archief.themaId !== _taakModalThemaId) continue;
     if (!Array.isArray(archief.woordIds) || archief.woordIds.indexOf(woordId) === -1) continue;
-    ooitGeoefend = true;
-    if (Array.isArray(archief.foutWoordenLaatsteToets) &&
-        archief.foutWoordenLaatsteToets.indexOf(woordId) !== -1) {
-      ooitFout = true;
-    }
+    const foutInToets = Array.isArray(archief.foutWoordenLaatsteToets) &&
+                        archief.foutWoordenLaatsteToets.indexOf(woordId) !== -1;
+    // Sorteren op voltooidOp (of gestart als fallback)
+    const tijd = archief.voltooidOp || archief.gestart || 0;
+    voorkomens.push({ tijd, foutInToets });
   }
 
-  if (ooitFout) return 'geel';
-  if (ooitGeoefend) return 'groen';
-  return '';
+  if (voorkomens.length === 0) return '';
+
+  // Sorteer op tijd, meest recente eerst
+  voorkomens.sort((a, b) => b.tijd - a.tijd);
+  const meestRecent = voorkomens[0];
+
+  if (meestRecent.foutInToets) return 'geel';
+  return 'groen';
 }
 
 async function lkBeheerTaak(code, naam) {
   _taakModalKindCode = code;
   _taakModalNaam = naam || code;
+  // Standaard start de modal op de woorden-sectie open
+  _taakModalOpenSectie = 'woorden';
 
   // Huidige taak + geschiedenis ophalen
   let huidigeTaak = null;
@@ -2137,7 +2185,9 @@ async function lkBeheerTaak(code, naam) {
     _taakModalWoordIds = taakAfgewerkt ? new Set() : new Set(huidigeTaak.woordIds || []);
     _taakModalVaardigheden = new Set(huidigeTaak.vaardigheden || ['luisteren']);
     _taakModalOefenvormenLuisteren = new Set(huidigeTaak.oefenvormen_luisteren || ['klikspel']);
-    _taakModalOefenvormenSchrijven = new Set(huidigeTaak.oefenvormen_schrijven || ['slepen']);
+    _taakModalOefenvormenLezen     = new Set(huidigeTaak.oefenvormen_lezen     || ['woord-beeld']);
+    _taakModalOefenvormenSchrijven = new Set(huidigeTaak.oefenvormen_schrijven || ['overtypen']);
+    _taakModalToetsen              = new Set(huidigeTaak.toetsen              || ['luisteren']);
     _taakModalZinscontext = huidigeTaak.zinscontext === true;
   } else {
     // Pak eerste thema dat actief is voor dit kind, anders eerste van de lijst
@@ -2152,7 +2202,9 @@ async function lkBeheerTaak(code, naam) {
     _taakModalWoordIds = new Set();
     _taakModalVaardigheden = new Set(['luisteren']);
     _taakModalOefenvormenLuisteren = new Set(['klikspel']);
-    _taakModalOefenvormenSchrijven = new Set(['slepen']);
+    _taakModalOefenvormenLezen     = new Set(['woord-beeld']);
+    _taakModalOefenvormenSchrijven = new Set(['overtypen']);
+    _taakModalToetsen              = new Set(['luisteren']);
     _taakModalZinscontext = false;
   }
 
@@ -2219,10 +2271,11 @@ function rendererTaakModal(huidigeTaak) {
   }
 
   let html = `
-    <div class="lk-cat-modal" onclick="event.stopPropagation()">
+    <div class="lk-cat-modal lk-taak-modal-doos" onclick="event.stopPropagation()">
       <h2>📋 Taak voor ${_taakModalNaam}</h2>
       <p class="modal-uitleg">
-        Stel een taak samen: kies thema, woorden, en welke vaardigheden de leerling moet oefenen.
+        Stel een taak samen in 3 stappen. Klik op een sectie om hem open of dicht te klappen.
+        Open één sectie tegelijk om overzichtelijk te werken.
       </p>
 
       ${statusBlok}
@@ -2247,13 +2300,52 @@ function rendererTaakModal(huidigeTaak) {
       </div>
   `;
 
-  // Woordlijst van het gekozen thema (zonder niveau-groepering)
+  // Voorbereiding voor secties: bepaal wat zinnen-thema is, en welke vaardigheden aan staan
+  const _modalThema = _taakModalThemaId ? ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId) : null;
+  const _modalIsZinnen = _modalThema && _modalThema.type === 'zinnen';
+  if (_modalIsZinnen && _taakModalVaardigheden.has('schrijven')) {
+    _taakModalVaardigheden.delete('schrijven');
+  }
+  const luisterenAan = _taakModalVaardigheden.has('luisteren');
+  const lezenAan = _taakModalVaardigheden.has('lezen');
+  const schrijvenAan = _taakModalVaardigheden.has('schrijven');
+
+  // Bouw samenvattingen voor in de gesloten sectie-koppen
+  const sectieWoordenSamenvatting = `${_taakModalWoordIds.size} woord${_taakModalWoordIds.size === 1 ? '' : 'en'} gekozen`;
+  const vaardigSamen = [];
+  if (luisterenAan)  vaardigSamen.push('👂');
+  if (lezenAan)      vaardigSamen.push('👁️');
+  if (schrijvenAan)  vaardigSamen.push('✍️');
+  const sectieVaardighedenSamenvatting = vaardigSamen.length > 0
+    ? vaardigSamen.join(' ') + ` (${vaardigSamen.length} vaardighe${vaardigSamen.length === 1 ? 'id' : 'den'})`
+    : 'geen vaardigheden gekozen';
+  const toetsSamen = [];
+  if (_taakModalToetsen.has('luisteren')) toetsSamen.push('luisteren');
+  if (_taakModalToetsen.has('lezen'))     toetsSamen.push('lezen');
+  if (_taakModalToetsen.has('schrijven')) toetsSamen.push('schrijven');
+  const sectieToetsenSamenvatting = toetsSamen.length > 0
+    ? `🎯 ${toetsSamen.join(' + ')}`
+    : 'geen toetsen';
+
+  // ====================================================
+  // SECTIE 1: WOORDEN
+  // ====================================================
+  const sectie1Open = (_taakModalOpenSectie === 'woorden');
+  html += `
+    <div class="lk-sectie ${sectie1Open ? 'open' : ''}">
+      <button type="button" class="lk-sectie-kop" onclick="lkTaakToggleSectie('woorden')">
+        <span class="lk-sectie-nummer">1</span>
+        <span class="lk-sectie-titel">Welke woorden?</span>
+        <span class="lk-sectie-samenvatting">${sectieWoordenSamenvatting}</span>
+        <span class="lk-sectie-pijl">${sectie1Open ? '▾' : '▸'}</span>
+      </button>
+      <div class="lk-sectie-inhoud" ${sectie1Open ? '' : 'hidden'}>
+  `;
   if (_taakModalThemaId) {
     const thema = ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId);
     if (thema) {
       const verrijkt = lkVerrijkThema(thema);
       const items = verrijkt.items;
-      const aantalAangevinkt = _taakModalWoordIds.size;
 
       // Tellen voor legende: hebben we überhaupt geschiedenis voor dit thema?
       let heeftGroen = false, heeftGeel = false;
@@ -2271,14 +2363,12 @@ function rendererTaakModal(huidigeTaak) {
         : '';
 
       html += `
-        <div class="lk-taak-veld">
-          <label class="lk-taak-label">Welke woorden in de taak? <span class="lk-taak-teller">(${aantalAangevinkt} gekozen)</span></label>
-          <div class="lk-taak-snelacties">
-            <button class="lk-knop-mini" onclick="lkTaakAllesAan()">Alle aanvinken</button>
-            <button class="lk-knop-mini" onclick="lkTaakNietsAan()">Alles uit</button>
-          </div>
-          ${legende}
-          <div class="lk-taak-woorden">
+        <div class="lk-taak-snelacties">
+          <button class="lk-knop-mini" onclick="lkTaakAllesAan()">Alle aanvinken</button>
+          <button class="lk-knop-mini" onclick="lkTaakNietsAan()">Alles uit</button>
+        </div>
+        ${legende}
+        <div class="lk-taak-woorden">
       `;
       items.forEach(item => {
         const aan = _taakModalWoordIds.has(item.id);
@@ -2292,76 +2382,157 @@ function rendererTaakModal(huidigeTaak) {
           </label>
         `;
       });
-      html += `</div></div>`;
+      html += `</div>`;
     }
   }
-
-  // Vaardigheden + oefenvormen + zinscontext
-  const luisterenAan = _taakModalVaardigheden.has('luisteren');
-  const lezenAan = _taakModalVaardigheden.has('lezen');
-  const schrijvenAan = _taakModalVaardigheden.has('schrijven');
-
   html += `
-    <div class="lk-taak-veld">
-      <label class="lk-taak-label">Welke vaardigheden moet de leerling oefenen?</label>
-      <div class="lk-taak-vaardigheden">
-        <label class="lk-taak-vaardigheid ${luisterenAan ? 'aan' : ''}">
-          <input type="checkbox" ${luisterenAan ? 'checked' : ''} onchange="lkTaakToggleVaardigheid('luisteren')">
-          <span class="lk-vaardigheid-icoon">👂</span>
-          <span class="lk-vaardigheid-naam">Luisteren</span>
-        </label>
-        <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
-          <input type="checkbox" disabled>
-          <span class="lk-vaardigheid-icoon">👁️</span>
-          <span class="lk-vaardigheid-naam">Lezen <small>(binnenkort)</small></span>
-        </label>
-        <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
-          <input type="checkbox" disabled>
-          <span class="lk-vaardigheid-icoon">✍️</span>
-          <span class="lk-vaardigheid-naam">Schrijven <small>(binnenkort)</small></span>
-        </label>
       </div>
     </div>
   `;
 
-  // Oefenvormen — alleen tonen als luisteren aan staat
-  if (luisterenAan) {
-    const klikspelAan = _taakModalOefenvormenLuisteren.has('klikspel');
-    const verbindenAan = _taakModalOefenvormenLuisteren.has('verbinden');
-    const verslepenAan = _taakModalOefenvormenLuisteren.has('verslepen');
-    html += `
-      <div class="lk-taak-veld">
-        <label class="lk-taak-label">Oefenvormen voor luisteren</label>
-        <div class="lk-taak-vaardigheden">
-          <label class="lk-taak-vaardigheid ${klikspelAan ? 'aan' : ''}">
-            <input type="checkbox" ${klikspelAan ? 'checked' : ''} onchange="lkTaakToggleOefenvorm('luisteren', 'klikspel')">
-            <span class="lk-vaardigheid-icoon">🎯</span>
-            <span class="lk-vaardigheid-naam">Klikspel</span>
-          </label>
-          <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
-            <input type="checkbox" disabled>
-            <span class="lk-vaardigheid-icoon">🔗</span>
-            <span class="lk-vaardigheid-naam">Verbinden <small>(binnenkort)</small></span>
-          </label>
-          <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
-            <input type="checkbox" disabled>
-            <span class="lk-vaardigheid-icoon">🤚</span>
-            <span class="lk-vaardigheid-naam">Verslepen <small>(binnenkort)</small></span>
-          </label>
+  // ====================================================
+  // SECTIE 2: VAARDIGHEDEN + OEFENVORMEN
+  // ====================================================
+  const sectie2Open = (_taakModalOpenSectie === 'vaardigheden');
+  html += `
+    <div class="lk-sectie ${sectie2Open ? 'open' : ''}">
+      <button type="button" class="lk-sectie-kop" onclick="lkTaakToggleSectie('vaardigheden')">
+        <span class="lk-sectie-nummer">2</span>
+        <span class="lk-sectie-titel">Welke vaardigheden + oefenvormen?</span>
+        <span class="lk-sectie-samenvatting">${sectieVaardighedenSamenvatting}</span>
+        <span class="lk-sectie-pijl">${sectie2Open ? '▾' : '▸'}</span>
+      </button>
+      <div class="lk-sectie-inhoud" ${sectie2Open ? '' : 'hidden'}>
+        <div class="lk-taak-veld">
+          <label class="lk-taak-label">Vaardigheden</label>
+          <div class="lk-taak-vaardigheden">
+            <label class="lk-taak-vaardigheid ${luisterenAan ? 'aan' : ''}">
+              <input type="checkbox" ${luisterenAan ? 'checked' : ''} onchange="lkTaakToggleVaardigheid('luisteren')">
+              <span class="lk-vaardigheid-icoon">👂</span>
+              <span class="lk-vaardigheid-naam">Luisteren</span>
+            </label>
+            <label class="lk-taak-vaardigheid ${lezenAan ? 'aan' : ''}">
+              <input type="checkbox" ${lezenAan ? 'checked' : ''} onchange="lkTaakToggleVaardigheid('lezen')">
+              <span class="lk-vaardigheid-icoon">👁️</span>
+              <span class="lk-vaardigheid-naam">Lezen</span>
+            </label>
+            ${_modalIsZinnen ? '' : `
+            <label class="lk-taak-vaardigheid ${schrijvenAan ? 'aan' : ''}">
+              <input type="checkbox" ${schrijvenAan ? 'checked' : ''} onchange="lkTaakToggleVaardigheid('schrijven')">
+              <span class="lk-vaardigheid-icoon">✍️</span>
+              <span class="lk-vaardigheid-naam">Schrijven</span>
+            </label>
+            `}
+          </div>
+          ${_modalIsZinnen ? '<p class="lk-taak-tip" style="margin-top:8px">✍️ Schrijven is niet beschikbaar voor zinnen-thema\'s.</p>' : ''}
         </div>
-      </div>
-    `;
+  `;
+
+  // Helper voor sub-blok per vaardigheid (oefenvormen-rij — toets staat in sectie 3)
+  function _oefenBlok(vaardigheid, kop, oefenvormen) {
+    const set = vaardigheid === 'luisteren' ? _taakModalOefenvormenLuisteren
+              : vaardigheid === 'lezen'     ? _taakModalOefenvormenLezen
+              :                                _taakModalOefenvormenSchrijven;
+    let blok = `
+      <div class="lk-taak-veld lk-vaardigheid-blok">
+        <label class="lk-taak-label">${kop}</label>
+        <div class="lk-taak-vaardigheden">`;
+    oefenvormen.forEach(ov => {
+      const aan = set.has(ov.key);
+      if (ov.beschikbaar) {
+        blok += `
+          <label class="lk-taak-vaardigheid ${aan ? 'aan' : ''}">
+            <input type="checkbox" ${aan ? 'checked' : ''} onchange="lkTaakToggleOefenvorm('${vaardigheid}', '${ov.key}')">
+            <span class="lk-vaardigheid-icoon">${ov.icoon}</span>
+            <span class="lk-vaardigheid-naam">${ov.naam}</span>
+          </label>`;
+      } else {
+        blok += `
+          <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
+            <input type="checkbox" disabled>
+            <span class="lk-vaardigheid-icoon">${ov.icoon}</span>
+            <span class="lk-vaardigheid-naam">${ov.naam} <small>(binnenkort)</small></span>
+          </label>`;
+      }
+    });
+    blok += `</div></div>`;
+    return blok;
   }
 
-  // Zinscontext
+  if (luisterenAan) {
+    html += _oefenBlok('luisteren', '👂 Oefenvormen voor luisteren', [
+      { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: true },
+      { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: false },
+      { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: false }
+    ]);
+  }
+  if (lezenAan) {
+    html += _oefenBlok('lezen', '👁️ Oefenvormen voor lezen', [
+      { key: 'woord-beeld', icoon: '🖼️', naam: 'Woord → kies beeld', beschikbaar: true }
+    ]);
+  }
+  if (schrijvenAan) {
+    html += _oefenBlok('schrijven', '✍️ Oefenvormen voor schrijven', [
+      { key: 'overtypen', icoon: '⌨️', naam: 'Overtypen (woord 3s zichtbaar)', beschikbaar: true },
+      { key: 'slepen',    icoon: '🤚', naam: 'Letters slepen',                  beschikbaar: false }
+    ]);
+  }
+
+  // Zinscontext (extra optie binnen sectie 2)
   html += `
-    <div class="lk-taak-veld">
-      <label class="lk-taak-zinscontext ${_taakModalZinscontext ? 'aan' : ''}">
-        <input type="checkbox" ${_taakModalZinscontext ? 'checked' : ''} onchange="lkTaakToggleZinscontext()">
-        <span class="lk-vaardigheid-icoon">💬</span>
-        <span class="lk-vaardigheid-naam">Zin laten zien bij elk woord (in leren-fase)</span>
-      </label>
-      <p class="lk-taak-tip">Aanvinken als je wil dat het kind ook de zin bij elk woord ziet en hoort tijdens de leren-fase.</p>
+        <div class="lk-taak-veld">
+          <label class="lk-taak-zinscontext ${_taakModalZinscontext ? 'aan' : ''}">
+            <input type="checkbox" ${_taakModalZinscontext ? 'checked' : ''} onchange="lkTaakToggleZinscontext()">
+            <span class="lk-vaardigheid-icoon">💬</span>
+            <span class="lk-vaardigheid-naam">Zin laten zien bij elk woord (in leren-fase)</span>
+          </label>
+          <p class="lk-taak-tip">Aanvinken als je wil dat het kind ook de zin bij elk woord ziet en hoort tijdens de leren-fase.</p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ====================================================
+  // SECTIE 3: TOETSEN
+  // ====================================================
+  const sectie3Open = (_taakModalOpenSectie === 'toetsen');
+  // Toets-checkbox helper
+  function _toetsRij(vaardigheid, label, vaardigAan) {
+    const toetsAan = _taakModalToetsen.has(vaardigheid);
+    if (!vaardigAan) {
+      return `
+        <label class="lk-taak-toets-rij uitgeschakeld" title="Vaardigheid niet aangevinkt">
+          <input type="checkbox" disabled>
+          <span class="lk-vaardigheid-icoon">🎯</span>
+          <span class="lk-vaardigheid-naam">${label} <small>(eerst vaardigheid aanvinken)</small></span>
+        </label>`;
+    }
+    return `
+      <label class="lk-taak-toets-rij ${toetsAan ? 'aan' : ''}">
+        <input type="checkbox" ${toetsAan ? 'checked' : ''} onchange="lkTaakToggleToets('${vaardigheid}')">
+        <span class="lk-vaardigheid-icoon">🎯</span>
+        <span class="lk-vaardigheid-naam">${label}</span>
+      </label>`;
+  }
+
+  html += `
+    <div class="lk-sectie ${sectie3Open ? 'open' : ''}">
+      <button type="button" class="lk-sectie-kop" onclick="lkTaakToggleSectie('toetsen')">
+        <span class="lk-sectie-nummer">3</span>
+        <span class="lk-sectie-titel">Welke mini-toetsen?</span>
+        <span class="lk-sectie-samenvatting">${sectieToetsenSamenvatting}</span>
+        <span class="lk-sectie-pijl">${sectie3Open ? '▾' : '▸'}</span>
+      </button>
+      <div class="lk-sectie-inhoud" ${sectie3Open ? '' : 'hidden'}>
+        <p class="lk-taak-tip" style="margin-top:0">
+          Een mini-toets test of het kind de woorden echt kent. Vink aan welke toetsen het kind moet maken na de oefenfases.
+        </p>
+        <div class="lk-taak-toetsen-lijst">
+          ${_toetsRij('luisteren', 'Mini-toets luisteren', luisterenAan)}
+          ${_toetsRij('lezen',     'Mini-toets lezen',     lezenAan)}
+          ${_toetsRij('schrijven', 'Mini-toets schrijven', schrijvenAan)}
+        </div>
+      </div>
     </div>
   `;
 
@@ -2406,7 +2577,18 @@ function lkTaakNietsAan() {
   rendererTaakModal(null);
 }
 
+function lkTaakToggleSectie(naam) {
+  // Klikken op huidige open sectie → sluit. Klikken op andere → open die.
+  _taakModalOpenSectie = (_taakModalOpenSectie === naam) ? null : naam;
+  rendererTaakModal(null);
+}
+
 function lkTaakToggleVaardigheid(vaardigheid) {
+  // Bescherming: schrijven kan niet aan staan voor een zinnen-thema
+  if (vaardigheid === 'schrijven' && _taakModalThemaId) {
+    const thema = ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId);
+    if (thema && thema.type === 'zinnen') return;
+  }
   if (_taakModalVaardigheden.has(vaardigheid)) {
     // Niet de laatste vaardigheid uitzetten — er moet er minstens één zijn
     if (_taakModalVaardigheden.size > 1) {
@@ -2420,7 +2602,8 @@ function lkTaakToggleVaardigheid(vaardigheid) {
 
 function lkTaakToggleOefenvorm(vaardigheid, vorm) {
   let set;
-  if (vaardigheid === 'luisteren') set = _taakModalOefenvormenLuisteren;
+  if (vaardigheid === 'luisteren')      set = _taakModalOefenvormenLuisteren;
+  else if (vaardigheid === 'lezen')     set = _taakModalOefenvormenLezen;
   else if (vaardigheid === 'schrijven') set = _taakModalOefenvormenSchrijven;
   else return;
 
@@ -2429,6 +2612,15 @@ function lkTaakToggleOefenvorm(vaardigheid, vorm) {
     if (set.size > 1) set.delete(vorm);
   } else {
     set.add(vorm);
+  }
+  rendererTaakModal(null);
+}
+
+function lkTaakToggleToets(vaardigheid) {
+  if (_taakModalToetsen.has(vaardigheid)) {
+    _taakModalToetsen.delete(vaardigheid);
+  } else {
+    _taakModalToetsen.add(vaardigheid);
   }
   rendererTaakModal(null);
 }
@@ -2453,6 +2645,14 @@ async function lkBewaarTaak() {
     alert('Kies minstens één oefenvorm voor luisteren.');
     return;
   }
+  if (_taakModalVaardigheden.has('lezen') && _taakModalOefenvormenLezen.size === 0) {
+    alert('Kies minstens één oefenvorm voor lezen.');
+    return;
+  }
+  if (_taakModalVaardigheden.has('schrijven') && _taakModalOefenvormenSchrijven.size === 0) {
+    alert('Kies minstens één oefenvorm voor schrijven.');
+    return;
+  }
   const knop = document.querySelector('#lk-taak-modal-bg .lk-cat-modal-knoppen button:last-child');
   if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
   try {
@@ -2461,7 +2661,9 @@ async function lkBewaarTaak() {
       woordIds: [..._taakModalWoordIds],
       vaardigheden: [..._taakModalVaardigheden],
       oefenvormen_luisteren: [..._taakModalOefenvormenLuisteren],
+      oefenvormen_lezen:     [..._taakModalOefenvormenLezen],
       oefenvormen_schrijven: [..._taakModalOefenvormenSchrijven],
+      toetsen:               [..._taakModalToetsen],
       zinscontext: _taakModalZinscontext,
       huidigeFase: 'leren',
       status: 'bezig',
@@ -2474,8 +2676,15 @@ async function lkBewaarTaak() {
     // Lokale lijst bijwerken
     const kind = lkKinderen.find(k => k.code === _taakModalKindCode);
     if (kind) {
-      // Als er een vorige taak was, archiveer die in de lokale geschiedenis-cache
-      if (kind.taak && kind.taak.themaId && Array.isArray(kind.taak.woordIds) && kind.taak.woordIds.length > 0) {
+      // Bewaar de oude taak alleen in de geschiedenis als die NIET meer bezig was
+      // (dus voltooid/moeilijk/haperde). Een nog-bezige taak die wordt bewerkt
+      // moeten we overschrijven, niet archiveren — anders verschijnt dezelfde
+      // taak twee keer in de lijst.
+      const oudeTaakAfgewerkt = kind.taak &&
+                                (kind.taak.status === 'voltooid' ||
+                                 kind.taak.status === 'moeilijk'  ||
+                                 kind.taak.status === 'haperde');
+      if (oudeTaakAfgewerkt && kind.taak.themaId && Array.isArray(kind.taak.woordIds) && kind.taak.woordIds.length > 0) {
         const oudArch = {
           themaId: kind.taak.themaId,
           woordIds: [...kind.taak.woordIds],
@@ -2486,6 +2695,7 @@ async function lkBewaarTaak() {
           perWoord: JSON.parse(JSON.stringify(kind.taak.perWoord || {})),
           foutWoordenLaatsteToets: Array.isArray(kind.taak.foutWoordenLaatsteToets)
                                        ? [...kind.taak.foutWoordenLaatsteToets] : [],
+          toetsResultaten: kind.taak.toetsResultaten ? JSON.parse(JSON.stringify(kind.taak.toetsResultaten)) : null,
           rapportperiodeId: kind.taak.rapportperiodeId || null
         };
         if (!Array.isArray(kind.taakgeschiedenis)) kind.taakgeschiedenis = [];
@@ -2518,6 +2728,49 @@ async function lkTaakWissen() {
     if (typeof lkKindtabsRender === 'function') lkKindtabsRender();
   } catch (e) {
     console.error('Wissen taak mislukt:', e);
+    alert('Kon de taak niet wissen. Probeer opnieuw.');
+  }
+}
+
+// Wis huidige taak direct vanuit de takenlijst, zonder de modal te openen.
+// Wordt aangeroepen via de 🗑️-knop in de rij.
+async function lkTaakWissenDirect(kindCode) {
+  if (!kindCode) return;
+  if (!confirm('Taak wissen? Het kind ziet dan geen taak meer op zijn startpagina.')) return;
+  try {
+    await Voortgang.zetTaakVoorKind(kindCode, null);
+    const kind = lkKinderen.find(k => k.code === kindCode);
+    if (kind) kind.taak = null;
+    if (typeof lkRendererTabel === 'function') lkRendererTabel();
+    if (typeof lkKindtabsRender === 'function') lkKindtabsRender();
+  } catch (e) {
+    console.error('Wissen taak mislukt:', e);
+    alert('Kon de taak niet wissen. Probeer opnieuw.');
+  }
+}
+
+// Wis een specifieke taak uit de geschiedenis (archief) van een kind.
+// Wordt aangeroepen via de 🗑️-knop op een archief-rij.
+async function lkTaakArchiefWissen(kindCode, archiefIdx) {
+  if (!kindCode) return;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (!kind || !Array.isArray(kind.taakgeschiedenis)) return;
+  if (archiefIdx < 0 || archiefIdx >= kind.taakgeschiedenis.length) return;
+  if (!confirm('Deze taak uit de geschiedenis wissen? Dit kan niet ongedaan gemaakt worden.')) return;
+  try {
+    // Verwijder uit lokale kopie
+    kind.taakgeschiedenis.splice(archiefIdx, 1);
+    // Persisteer naar Voortgang/Firestore
+    if (typeof Voortgang.zetTaakgeschiedenisVoorKind === 'function') {
+      await Voortgang.zetTaakgeschiedenisVoorKind(kindCode, kind.taakgeschiedenis);
+    } else {
+      // Fallback: direct naar Firestore via Voortgang's interne db
+      console.warn('zetTaakgeschiedenisVoorKind niet beschikbaar, lokale wijziging blijft enkel in memory');
+    }
+    if (typeof lkRendererTabel === 'function') lkRendererTabel();
+    if (typeof lkKindtabsRender === 'function') lkKindtabsRender();
+  } catch (e) {
+    console.error('Wissen archief-taak mislukt:', e);
     alert('Kon de taak niet wissen. Probeer opnieuw.');
   }
 }
@@ -4869,6 +5122,7 @@ async function lkTaakPdfHuidig(code) {
       status: kind.taak.status || 'bezig',
       perWoord: JSON.parse(JSON.stringify(kind.taak.perWoord || {})),
       foutWoordenLaatsteToets: [...(kind.taak.foutWoordenLaatsteToets || [])],
+      toetsResultaten: kind.taak.toetsResultaten ? JSON.parse(JSON.stringify(kind.taak.toetsResultaten)) : null,
       rapportperiodeId: kind.taak.rapportperiodeId || null
     };
     await RapportEngine.taakPdf(kind, taakSnapshot);
