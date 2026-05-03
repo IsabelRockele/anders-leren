@@ -70,11 +70,32 @@ async function lkInit() {
       Woordenbeheer.init();
       try { await Woordenbeheer.laad(); } catch (e) { console.warn('Woordenbeheer kon niet laden:', e); }
     }
+    // Schooljaren laden VOOR kinderen, zodat we kunnen filteren op actief schooljaar
+    await lkSchooljarenInit();
     await lkLaadKinderen();
     // Vul welkom-stats meteen na het laden van de leerlingen.
     lkVulWelkomStats();
     // Periodes laden + eventueel eerste-keer-modal tonen
     await lkPeriodesInit();
+    // Schooljaar-balk renderen (DOM moet al klaar zijn)
+    if (typeof _lkSchooljaarBalkRenderer === 'function') _lkSchooljaarBalkRenderer();
+    // Check of migratie naar multi-schooljaar nodig is — eenmalig prompt
+    try {
+      const nodig = await Voortgang.migratieNodig();
+      if (nodig && !sessionStorage.getItem('migratie-prompt-getoond')) {
+        sessionStorage.setItem('migratie-prompt-getoond', '1');
+        setTimeout(() => {
+          const wil = confirm(
+            '🔧 Update beschikbaar: multi-schooljaar systeem\n\n' +
+            'Je data is nog op het oude formaat (zonder schooljaar-laag). ' +
+            'We kunnen ze nu migreren — dit voegt een schooljaar-koppeling toe aan al je leerlingen, ' +
+            'periodes en rapporten.\n\n' +
+            'Wil je nu de migratie-modal openen? (Eerst dry-run, dan pas écht uitvoeren — geen risico.)'
+          );
+          if (wil) lkSchooljaarMigratieModal();
+        }, 800);
+      }
+    } catch (e) { /* stil falen */ }
   } else {
     document.getElementById('lk-vak-firebase-niet-ingesteld').style.display = 'block';
     document.getElementById('lk-tabel-wrap').innerHTML = '<p style="opacity:0.6">Configureer eerst Firebase.</p>';
@@ -110,6 +131,7 @@ function lkKiesTab(tab) {
   if (tab === 'taken') lkKindtabsRender('taken');
   if (tab === 'spreken') lkKindtabsRender('spreken');
   if (tab === 'rapporten') lkKindtabsRender('rapporten');
+  if (tab === 'puntenboek') lkKindtabsRender('puntenboek');
 
   // Sluit zijbalk op mobiel na keuze
   lkSluitMenu();
@@ -128,7 +150,8 @@ function lkKiesTab(tab) {
 const _lkKindtabsState = {
   taken: { gekozenCode: null },
   spreken: { gekozenCode: null },
-  rapporten: { gekozenCode: null }
+  rapporten: { gekozenCode: null },
+  puntenboek: { gekozenCode: null }
 };
 
 // Volledige naam: "Voornaam Achternaam", met fallback op het oude 'naam'-veld
@@ -164,11 +187,11 @@ function _lkSorteerKinderenAlfabet() {
   });
 }
 
-// Render kindertabs + content voor een specifieke tab ('taken'|'spreken'|'rapporten')
+// Render kindertabs + content voor een specifieke tab ('taken'|'spreken'|'rapporten'|'puntenboek')
 function lkKindtabsRender(welkeTab) {
-  // Als geen argument: render alle drie (gebruikt na laden van leerlingen)
+  // Als geen argument: render alle (gebruikt na laden van leerlingen)
   if (!welkeTab) {
-    ['taken', 'spreken', 'rapporten'].forEach(t => lkKindtabsRender(t));
+    ['taken', 'spreken', 'rapporten', 'puntenboek'].forEach(t => lkKindtabsRender(t));
     return;
   }
 
@@ -231,6 +254,8 @@ function lkKindtabsRender(welkeTab) {
     inhoudEl.innerHTML = _lkRendererSpreektoetsen(kind);
   } else if (welkeTab === 'rapporten') {
     inhoudEl.innerHTML = _lkRendererRapporten(kind);
+  } else if (welkeTab === 'puntenboek') {
+    inhoudEl.innerHTML = _lkRendererPuntenboek(kind);
   }
 }
 
@@ -458,6 +483,24 @@ function _lkRendererRapporten(kind) {
   return html;
 }
 
+// === Renderer: PUNTENBOEK ===
+function _lkRendererPuntenboek(kind) {
+  if (!kind) return '<p class="lk-kind-leeg">Geen leerling geselecteerd.</p>';
+
+  // Sync placeholder + async laden
+  const html = `
+    <div id="lk-pb-inline" class="lk-pb-inline" data-code="${kind.code}">
+      <div class="lk-rap-inline-laden"><p>⏳ Bezig met laden…</p></div>
+    </div>
+  `;
+  setTimeout(() => {
+    if (typeof _lkPuntenboekLaden === 'function') {
+      _lkPuntenboekLaden(kind);
+    }
+  }, 0);
+  return html;
+}
+
 
 function lkToggleMenu() {
   const zijbalk = document.getElementById('lk-zijbalk');
@@ -678,6 +721,552 @@ async function lkSchoolinstellingen() {
 let _periodes = [];          // alle periodes
 let _actievePeriode = null;  // actieve periode object of null
 
+// =================================================================
+//  SCHOOLJAREN — context-laag bovenop rapportperiodes
+// =================================================================
+
+let _schooljaren = [];        // alle schooljaren
+let _actiefSchooljaar = null; // huidig geselecteerd schooljaar-object
+
+// Init schooljaren-laag. Idempotent: ook veilig om opnieuw aan te roepen.
+async function lkSchooljarenInit() {
+  try {
+    _schooljaren = await Voortgang.alleSchooljaren();
+    // Default: meest recente actieve, anders meest recente, anders null
+    _actiefSchooljaar = _schooljaren.find(s => s.status === 'actief')
+      || _schooljaren[0]
+      || null;
+  } catch (e) {
+    console.warn('Schooljaren laden mislukt:', e);
+    _schooljaren = [];
+    _actiefSchooljaar = null;
+  }
+}
+
+// Wissel naar een ander schooljaar (bv. archief bekijken)
+async function lkWisselSchooljaar(schooljaarId) {
+  if (!schooljaarId) return;
+  const sj = (_schooljaren || []).find(s => s.id === schooljaarId);
+  if (!sj) return;
+  _actiefSchooljaar = sj;
+  // UI bijwerken: kinder-lijst, periode-lijst etc.
+  await lkLaadKinderen();
+  // Re-render alle relevante onderdelen
+  if (typeof _lkPeriodeBalkRenderer === 'function') _lkPeriodeBalkRenderer();
+  if (typeof _lkSchooljaarBalkRenderer === 'function') _lkSchooljaarBalkRenderer();
+}
+
+// Renderer voor schooljaar-balk (parallel aan periode-balk)
+function _lkSchooljaarBalkRenderer() {
+  const el = document.getElementById('lk-schooljaar-naam');
+  if (!el) return;
+  if (!_actiefSchooljaar) {
+    el.innerHTML = '<em style="opacity:0.6">geen schooljaar</em>';
+    return;
+  }
+  const status = _actiefSchooljaar.status === 'archief' ? ' <span class="lk-sj-badge archief">archief</span>' : '';
+  el.innerHTML = `<strong>${_actiefSchooljaar.id}</strong>${status}`;
+}
+
+// Schooljaar-menu open/dicht
+function lkSchooljaarMenuToggle() {
+  const menu = document.getElementById('lk-schooljaar-menu');
+  if (!menu) return;
+  const open = menu.classList.contains('open');
+  if (open) {
+    menu.classList.remove('open');
+    return;
+  }
+  _lkSchooljaarMenuRenderer();
+  menu.classList.add('open');
+  setTimeout(() => {
+    document.addEventListener('click', _lkSchooljaarMenuSluit, { once: true });
+  }, 0);
+}
+
+function _lkSchooljaarMenuSluit(ev) {
+  const menu = document.getElementById('lk-schooljaar-menu');
+  const knop = document.getElementById('lk-schooljaar-knop');
+  if (!menu) return;
+  if (knop && knop.contains(ev.target)) return;
+  if (menu.contains(ev.target)) {
+    setTimeout(() => {
+      document.addEventListener('click', _lkSchooljaarMenuSluit, { once: true });
+    }, 0);
+    return;
+  }
+  menu.classList.remove('open');
+}
+
+function _lkSchooljaarMenuRenderer() {
+  const menu = document.getElementById('lk-schooljaar-menu');
+  if (!menu) return;
+  let html = '';
+
+  if (_schooljaren.length === 0) {
+    html += '<div class="lk-sj-menu-leeg">Nog geen schooljaren ingesteld.</div>';
+  } else {
+    const actieve = _schooljaren.filter(s => s.status === 'actief');
+    const archief = _schooljaren.filter(s => s.status === 'archief');
+
+    if (actieve.length > 0) {
+      html += '<div class="lk-sj-menu-kop">Actief schooljaar</div>';
+      actieve.forEach(s => { html += _lkSchooljaarMenuItem(s); });
+    }
+    if (archief.length > 0) {
+      html += '<div class="lk-sj-menu-kop">Archief</div>';
+      archief.forEach(s => { html += _lkSchooljaarMenuItem(s); });
+    }
+  }
+
+  // Acties
+  html += '<div class="lk-sj-menu-acties">';
+  html += '<button class="lk-knop-mini" onclick="lkSchooljaarNieuwModal()">➕ Nieuw schooljaar starten</button>';
+  // Migratie-knop alleen tonen als nog nodig
+  html += '<button class="lk-knop-mini" id="lk-sj-migratie-knop" onclick="lkSchooljaarMigratieModal()" style="display:none">🔧 Data migreren naar multi-schooljaar</button>';
+  html += '</div>';
+
+  menu.innerHTML = html;
+
+  // Check of migratie nodig is, toon knop indien zo
+  if (typeof Voortgang !== 'undefined' && Voortgang.migratieNodig) {
+    Voortgang.migratieNodig().then(nodig => {
+      const knop = document.getElementById('lk-sj-migratie-knop');
+      if (knop && nodig) knop.style.display = '';
+    }).catch(() => { /* stil falen */ });
+  }
+}
+
+function _lkSchooljaarMenuItem(sj) {
+  const isActief = (_actiefSchooljaar && _actiefSchooljaar.id === sj.id);
+  const badge = sj.status === 'actief'
+    ? '<span class="lk-sj-badge actief">actief</span>'
+    : '<span class="lk-sj-badge archief">archief</span>';
+  const aantal = Array.isArray(sj.kinderen) ? sj.kinderen.length : 0;
+  const periodes = Array.isArray(sj.rapportperiodes) ? sj.rapportperiodes.length : 0;
+  const huidigKlasse = isActief ? ' lk-sj-menu-item-huidig' : '';
+  return `
+    <div class="lk-sj-menu-item${huidigKlasse}" onclick="lkWisselSchooljaar('${sj.id}')">
+      <div class="lk-sj-menu-info">
+        <strong>${sj.id}</strong> ${badge}
+        <span class="lk-sj-kleine">${aantal} leerling${aantal === 1 ? '' : 'en'} · ${periodes} periode${periodes === 1 ? '' : 's'}</span>
+      </div>
+      ${isActief ? '<span class="lk-sj-checkmark">✓</span>' : ''}
+    </div>
+  `;
+}
+
+// =================================================================
+//  Schooljaar aanmaken — eenvoudige modal of doorstroom-wizard
+// =================================================================
+
+// Open eerste-stap modal: kies actie (nieuw + leeg, of doorstroom-wizard)
+function lkSchooljaarNieuwModal() {
+  // Sluit menu
+  const menu = document.getElementById('lk-schooljaar-menu');
+  if (menu) menu.classList.remove('open');
+
+  const oud = document.getElementById('lk-sj-modal-bg');
+  if (oud) oud.remove();
+
+  // Bepaal voorstel-schooljaar (volgende t.o.v. huidig)
+  let voorstelId = '';
+  if (_actiefSchooljaar && _actiefSchooljaar.id) {
+    const m = _actiefSchooljaar.id.match(/^(\d{4})-(\d{4})$/);
+    if (m) {
+      const start = parseInt(m[1]) + 1;
+      voorstelId = `${start}-${start + 1}`;
+    }
+  }
+  if (!voorstelId) {
+    voorstelId = Voortgang.bepaalSchooljaarUitDatum(Date.now());
+  }
+
+  const heeftHuidig = !!_actiefSchooljaar;
+  const heeftKinderen = Array.isArray(lkKinderen) && lkKinderen.length > 0;
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-sj-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+
+  bg.innerHTML = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()">
+      <h2>🎒 Nieuw schooljaar starten</h2>
+      <p class="modal-uitleg">
+        Een nieuw schooljaar betekent een nieuwe lijst leerlingen (eventueel met klaswisseling) en nieuwe rapportperiodes.
+        Het huidige schooljaar wordt automatisch <strong>gearchiveerd</strong> — je kan alle data nog raadplegen, maar niet meer wijzigen.
+      </p>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">Schooljaar</label>
+        <input type="text" class="lk-taak-select" id="sj-id" value="${voorstelId}" placeholder="2026-2027">
+        <p class="lk-school-tip">Format: YYYY-YYYY (loopt van 1 september tot 31 augustus)</p>
+      </div>
+
+      <div class="lk-cat-modal-knoppen" style="flex-direction:column;gap:8px">
+        ${heeftHuidig && heeftKinderen ? `
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166);width:100%;padding:11px" onclick="lkSchooljaarStartDoorstroom()">
+          🎓 Doorstroom-wizard: kies welke leerlingen meegaan
+        </button>` : ''}
+        <button class="lk-knop-mini" style="width:100%;padding:11px" onclick="lkSchooljaarStartLeeg()">
+          ✨ Nieuw schooljaar zonder leerlingen overnemen
+        </button>
+        <button class="lk-knop-mini" style="width:100%" onclick="document.getElementById('lk-sj-modal-bg').remove()">
+          Annuleren
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+  setTimeout(() => {
+    const idEl = document.getElementById('sj-id');
+    if (idEl) idEl.focus();
+  }, 50);
+}
+
+// Optie 1: leeg schooljaar (geen kinderen overnemen)
+async function lkSchooljaarStartLeeg() {
+  const sjId = (document.getElementById('sj-id') || {}).value || '';
+  if (!sjId.match(/^\d{4}-\d{4}$/)) {
+    alert('Schooljaar moet de vorm YYYY-YYYY hebben (bv. 2026-2027).');
+    return;
+  }
+
+  const bevestiging = confirm(
+    `Wil je een nieuw schooljaar "${sjId}" aanmaken zonder leerlingen?\n\n` +
+    `Het huidige schooljaar "${(_actiefSchooljaar && _actiefSchooljaar.id) || '—'}" wordt gearchiveerd. ` +
+    `Je kan later leerlingen toevoegen via de "+ Nieuwe leerling" knop.`
+  );
+  if (!bevestiging) return;
+
+  try {
+    // Archiveer huidig schooljaar
+    if (_actiefSchooljaar) {
+      await Voortgang.archiveerSchooljaar(_actiefSchooljaar.id);
+    }
+    // Maak nieuw aan
+    await Voortgang.maakSchooljaar(sjId, { kinderen: [], klasPerKind: {} });
+    // Cleanup oude schooljaren (max 3)
+    await Voortgang.ruimOudeSchooljarenOp(3);
+    // Refresh
+    await lkSchooljarenInit();
+    if (typeof _lkSchooljaarBalkRenderer === 'function') _lkSchooljaarBalkRenderer();
+    await lkLaadKinderen();
+    document.getElementById('lk-sj-modal-bg').remove();
+  } catch (e) {
+    console.error('Schooljaar aanmaken faalde:', e);
+    alert('Schooljaar aanmaken faalde: ' + (e.message || 'onbekend'));
+  }
+}
+
+// Optie 2: doorstroom-wizard
+function lkSchooljaarStartDoorstroom() {
+  const sjId = (document.getElementById('sj-id') || {}).value || '';
+  if (!sjId.match(/^\d{4}-\d{4}$/)) {
+    alert('Schooljaar moet de vorm YYYY-YYYY hebben (bv. 2026-2027).');
+    return;
+  }
+
+  // Sluit huidige modal
+  const oud = document.getElementById('lk-sj-modal-bg');
+  if (oud) oud.remove();
+
+  // Open doorstroom-wizard
+  _lkSchooljaarDoorstroomModal(sjId);
+}
+
+// =================================================================
+//  Doorstroom-wizard — selectie kinderen + nieuwe klas
+// =================================================================
+
+let _lkDoorstroomState = {
+  schooljaarId: null,
+  geselecteerd: {},  // { kindCode: true/false }
+  klasPerKind: {}    // { kindCode: nieuweKlas }
+};
+
+function _lkSchooljaarDoorstroomModal(schooljaarId) {
+  const oud = document.getElementById('lk-sj-modal-bg');
+  if (oud) oud.remove();
+
+  // Init state: alle huidige kinderen geselecteerd, klas blijft hetzelfde
+  _lkDoorstroomState = {
+    schooljaarId: schooljaarId,
+    geselecteerd: {},
+    klasPerKind: {}
+  };
+  (lkKinderen || []).forEach(k => {
+    _lkDoorstroomState.geselecteerd[k.code] = true;
+    _lkDoorstroomState.klasPerKind[k.code] = k.klas || '';
+  });
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-sj-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) {
+    if (confirm('De doorstroom-wizard sluiten? Niet-bewaarde wijzigingen gaan verloren.')) bg.remove();
+  } };
+
+  bg.innerHTML = `
+    <div class="lk-cat-modal lk-doorstroom-modal" onclick="event.stopPropagation()">
+      <h2>🎓 Doorstroom naar ${schooljaarId}</h2>
+      <p class="modal-uitleg">
+        Vink aan welke leerlingen meegaan naar het nieuwe schooljaar en pas hun klas aan indien nodig.
+        Niet-aangevinkte leerlingen blijven in het archief van ${(_actiefSchooljaar && _actiefSchooljaar.id) || 'huidig schooljaar'}.
+      </p>
+
+      <div class="lk-doorstroom-acties">
+        <button class="lk-knop-mini" onclick="lkDoorstroomKiesAlle(true)">✓ Alle aanvinken</button>
+        <button class="lk-knop-mini" onclick="lkDoorstroomKiesAlle(false)">✗ Alle uitvinken</button>
+      </div>
+
+      <div class="lk-doorstroom-lijst" id="lk-doorstroom-lijst">
+        ${_lkDoorstroomLijstHtml()}
+      </div>
+
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini" onclick="document.getElementById('lk-sj-modal-bg').remove()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkDoorstroomBevestigen()">✓ Schooljaar starten</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+}
+
+function _lkDoorstroomLijstHtml() {
+  if (!lkKinderen || lkKinderen.length === 0) {
+    return '<p class="lk-kind-leeg">Geen leerlingen om mee te nemen.</p>';
+  }
+  // Sorteer op klas, dan op naam
+  const gesorteerd = lkKinderen.slice().sort((a, b) => {
+    const klasA = (a.klas || '').toLowerCase();
+    const klasB = (b.klas || '').toLowerCase();
+    if (klasA !== klasB) return klasA.localeCompare(klasB);
+    return (a.naam || '').localeCompare(b.naam || '');
+  });
+
+  return gesorteerd.map(k => {
+    const aan = !!_lkDoorstroomState.geselecteerd[k.code];
+    const nieuweKlas = _lkDoorstroomState.klasPerKind[k.code] || '';
+    const naam = lkVolledigeNaam ? lkVolledigeNaam(k) : (k.naam || k.code);
+    return `
+      <div class="lk-doorstroom-rij ${aan ? 'aan' : ''}" data-code="${k.code}">
+        <input type="checkbox" ${aan ? 'checked' : ''} onclick="lkDoorstroomToggle('${k.code}')">
+        <span class="lk-doorstroom-naam">${naam}</span>
+        <span class="lk-doorstroom-pijl">${k.klas || '—'} →</span>
+        <input type="text" class="lk-doorstroom-klas" placeholder="nieuwe klas" value="${nieuweKlas}" oninput="lkDoorstroomZetKlas('${k.code}', this.value)" ${aan ? '' : 'disabled'}>
+      </div>
+    `;
+  }).join('');
+}
+
+function lkDoorstroomToggle(kindCode) {
+  _lkDoorstroomState.geselecteerd[kindCode] = !_lkDoorstroomState.geselecteerd[kindCode];
+  const lijst = document.getElementById('lk-doorstroom-lijst');
+  if (lijst) lijst.innerHTML = _lkDoorstroomLijstHtml();
+}
+
+function lkDoorstroomKiesAlle(aan) {
+  Object.keys(_lkDoorstroomState.geselecteerd).forEach(k => {
+    _lkDoorstroomState.geselecteerd[k] = aan;
+  });
+  const lijst = document.getElementById('lk-doorstroom-lijst');
+  if (lijst) lijst.innerHTML = _lkDoorstroomLijstHtml();
+}
+
+function lkDoorstroomZetKlas(kindCode, klas) {
+  _lkDoorstroomState.klasPerKind[kindCode] = klas;
+}
+
+async function lkDoorstroomBevestigen() {
+  const sjId = _lkDoorstroomState.schooljaarId;
+  if (!sjId) return;
+
+  // Verzamel geselecteerde kinderen + hun nieuwe klas
+  const kinderenCodes = [];
+  const klasPerKind = {};
+  Object.keys(_lkDoorstroomState.geselecteerd).forEach(code => {
+    if (_lkDoorstroomState.geselecteerd[code]) {
+      kinderenCodes.push(code);
+      klasPerKind[code] = (_lkDoorstroomState.klasPerKind[code] || '').trim();
+    }
+  });
+
+  const bevestiging = confirm(
+    `Klaar om schooljaar "${sjId}" te starten met ${kinderenCodes.length} leerling${kinderenCodes.length === 1 ? '' : 'en'}?\n\n` +
+    `Het huidige schooljaar wordt gearchiveerd. Niet-meegenomen leerlingen blijven in het archief.`
+  );
+  if (!bevestiging) return;
+
+  const knop = document.querySelector('#lk-sj-modal-bg .lk-cat-modal-knoppen button:last-child');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+
+  try {
+    // 1) Archiveer huidig schooljaar
+    if (_actiefSchooljaar) {
+      await Voortgang.archiveerSchooljaar(_actiefSchooljaar.id);
+    }
+    // 2) Maak nieuw schooljaar aan met geselecteerde kinderen
+    await Voortgang.maakSchooljaar(sjId, { kinderen: kinderenCodes, klasPerKind: klasPerKind });
+    // 3) Update kinderen: nieuwe actiefInSchooljaar + nieuwe klas
+    for (const code of kinderenCodes) {
+      const k = lkKinderen.find(x => x.code === code);
+      const nieuweKlas = klasPerKind[code] || '';
+      try {
+        await Voortgang.wijzigKindGegevens(
+          code,
+          k ? (k.voornaam || '') : '',
+          k ? (k.achternaam || '') : '',
+          nieuweKlas
+        );
+      } catch (e) {
+        console.warn(`Klas updaten faalde voor ${code}:`, e);
+      }
+    }
+    // 4) Cleanup oude schooljaren
+    await Voortgang.ruimOudeSchooljarenOp(3);
+    // 5) Refresh UI
+    await lkSchooljarenInit();
+    if (typeof _lkSchooljaarBalkRenderer === 'function') _lkSchooljaarBalkRenderer();
+    await lkLaadKinderen();
+    document.getElementById('lk-sj-modal-bg').remove();
+    // Bevestiging
+    setTimeout(() => alert(`Schooljaar ${sjId} is succesvol gestart!`), 100);
+  } catch (e) {
+    console.error('Doorstroom faalde:', e);
+    alert('Doorstroom faalde: ' + (e.message || 'onbekend'));
+    if (knop) { knop.disabled = false; knop.textContent = '✓ Schooljaar starten'; }
+  }
+}
+
+// =================================================================
+//  Migratie-modal
+// =================================================================
+
+function lkSchooljaarMigratieModal() {
+  // Sluit menu
+  const menu = document.getElementById('lk-schooljaar-menu');
+  if (menu) menu.classList.remove('open');
+
+  const oud = document.getElementById('lk-sj-modal-bg');
+  if (oud) oud.remove();
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-sj-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+  bg.innerHTML = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()">
+      <h2>🔧 Data migreren naar multi-schooljaar</h2>
+      <p class="modal-uitleg">
+        We voegen een schooljaar-laag toe aan je bestaande data: leerlingen, rapportperiodes en rapporten worden gekoppeld aan het juiste schooljaar.
+        Eerst doen we een <strong>dry-run</strong> (geen wijzigingen) zodat we kunnen zien wat er gaat gebeuren.
+      </p>
+
+      <div id="lk-migratie-resultaat" style="margin-top:14px"></div>
+
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini" onclick="document.getElementById('lk-sj-modal-bg').remove()">Sluiten</button>
+        <button class="lk-knop-mini" id="lk-migratie-dry-knop" onclick="lkMigratieDryRun()">🔍 Dry-run</button>
+        <button class="lk-knop-mini" id="lk-migratie-echt-knop" style="background:var(--kleur-zisa,#ffd166);display:none" onclick="lkMigratieEcht()">✓ Migratie nu echt uitvoeren</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+}
+
+async function lkMigratieDryRun() {
+  const knop = document.getElementById('lk-migratie-dry-knop');
+  const resEl = document.getElementById('lk-migratie-resultaat');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+  if (resEl) resEl.innerHTML = '<p>⏳ Bezig met dry-run...</p>';
+
+  try {
+    const rapport = await Voortgang.migreerNaarMultiSchooljaar(true);
+    if (resEl) resEl.innerHTML = _formatMigratieRapport(rapport, true);
+    // Toon de "echt uitvoeren"-knop
+    const echtKnop = document.getElementById('lk-migratie-echt-knop');
+    if (echtKnop) echtKnop.style.display = '';
+    if (knop) { knop.textContent = '🔍 Dry-run opnieuw'; knop.disabled = false; }
+  } catch (e) {
+    console.error('Dry-run faalde:', e);
+    if (resEl) resEl.innerHTML = `<p style="color:#c62828">⚠️ Dry-run faalde: ${e.message}</p>`;
+    if (knop) { knop.textContent = '🔍 Dry-run'; knop.disabled = false; }
+  }
+}
+
+async function lkMigratieEcht() {
+  const bevestiging = confirm(
+    'Migratie nu écht uitvoeren?\n\n' +
+    'Dit schrijft naar Firestore. Zorg dat je een backup hebt gemaakt.\n\n' +
+    'Doorgaan?'
+  );
+  if (!bevestiging) return;
+
+  const knop = document.getElementById('lk-migratie-echt-knop');
+  const resEl = document.getElementById('lk-migratie-resultaat');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+
+  try {
+    const rapport = await Voortgang.migreerNaarMultiSchooljaar(false);
+    if (resEl) resEl.innerHTML = _formatMigratieRapport(rapport, false);
+    // Refresh schooljaren
+    await lkSchooljarenInit();
+    if (typeof _lkSchooljaarBalkRenderer === 'function') _lkSchooljaarBalkRenderer();
+    await lkLaadKinderen();
+    if (knop) { knop.textContent = '✓ Migratie voltooid'; }
+  } catch (e) {
+    console.error('Migratie faalde:', e);
+    if (resEl) resEl.innerHTML += `<p style="color:#c62828">⚠️ Migratie faalde: ${e.message}</p>`;
+    if (knop) { knop.textContent = '✓ Migratie nu echt uitvoeren'; knop.disabled = false; }
+  }
+}
+
+function _formatMigratieRapport(rapport, isDryRun) {
+  const titel = isDryRun ? '🔍 Dry-run resultaat' : '✓ Migratie uitgevoerd';
+  let html = `<div class="lk-migratie-rapport">
+    <h3>${titel}</h3>`;
+
+  if (rapport.schooljarenAangemaakt.length > 0) {
+    html += '<p><strong>Schooljaren aangemaakt:</strong></p><ul>';
+    rapport.schooljarenAangemaakt.forEach(sj => {
+      html += `<li>${sj.id} (${sj.periodes} periodes, status: ${sj.status})</li>`;
+    });
+    html += '</ul>';
+  }
+  html += `<p>📋 ${rapport.periodesGemigreerd} rapportperiodes ${isDryRun ? 'zouden gemigreerd worden' : 'gemigreerd'}</p>`;
+  html += `<p>📄 ${rapport.rapportenGemigreerd} rapporten ${isDryRun ? 'zouden gemigreerd worden' : 'gemigreerd'}</p>`;
+  html += `<p>👥 ${rapport.kinderenGemigreerd} leerlingen ${isDryRun ? 'zouden bijgewerkt worden' : 'bijgewerkt'}</p>`;
+
+  if (rapport.waarschuwingen.length > 0) {
+    html += '<p><strong style="color:#f57c00">⚠️ Waarschuwingen:</strong></p><ul>';
+    rapport.waarschuwingen.forEach(w => { html += `<li>${w}</li>`; });
+    html += '</ul>';
+  }
+  if (rapport.fouten.length > 0) {
+    html += '<p><strong style="color:#c62828">❌ Fouten:</strong></p><ul>';
+    rapport.fouten.forEach(f => { html += `<li>${f}</li>`; });
+    html += '</ul>';
+  }
+  if (rapport.fouten.length === 0 && rapport.waarschuwingen.length === 0) {
+    html += '<p style="color:#2e7d32">✓ Geen problemen gedetecteerd.</p>';
+  }
+  html += '</div>';
+  return html;
+}
+
+// Helper: filter een lijst kinderen op het actieve schooljaar
+function lkFilterKinderenOpActiefSchooljaar(kinderen) {
+  if (!_actiefSchooljaar) return kinderen;
+  return Voortgang.filterKinderenOpSchooljaar(kinderen, _actiefSchooljaar);
+}
+
+// Helper: ID van actief schooljaar (of null)
+function lkActiefSchooljaarId() {
+  return _actiefSchooljaar ? _actiefSchooljaar.id : null;
+}
+
 // Init bij laden van leerkracht-pagina: zorg dat er minstens één periode is
 async function lkPeriodesInit() {
   try {
@@ -787,11 +1376,17 @@ function _lkPeriodeMenuRenderer() {
 function _lkPeriodeMenuItem(p, isActief) {
   const datums = `${_lkPeriodeDatumKort(p.startDatum)} – ${_lkPeriodeDatumKort(p.eindDatum)}`;
   const badge = isActief ? '<span class="lk-periode-badge actief">actief</span>' : '<span class="lk-periode-badge archief">archief</span>';
+  const label = p.nummer ? `Rapportperiode ${p.nummer}` : p.naam;
+  const sjLabel = p.schooljaar ? ` <small class="lk-periode-sj">· ${p.schooljaar}</small>` : '';
   return `
     <div class="lk-periode-menu-item">
       <div class="lk-periode-menu-info">
-        <strong>${p.naam}</strong> ${badge}
+        <strong>${label}</strong> ${badge}${sjLabel}
         <span class="lk-periode-datums">${datums}</span>
+        ${p.naam && p.naam !== label ? `<small class="lk-periode-bijnaam">"${p.naam}"</small>` : ''}
+      </div>
+      <div class="lk-periode-menu-acties-rij">
+        <button class="lk-knop-mini" title="Bewerken" onclick="lkPeriodeBewerkenModal('${p.id}')">✏️</button>
       </div>
     </div>
   `;
@@ -897,6 +1492,20 @@ async function lkPeriodeNieuwBewaren() {
     return;
   }
 
+  // Bevestigings-popup als er een actieve periode is die wordt afgesloten
+  if (_actievePeriode) {
+    const oudeNaam = _actievePeriode.nummer
+      ? `Rapportperiode ${_actievePeriode.nummer}`
+      : _actievePeriode.naam;
+    const bevestiging = confirm(
+      `Hierdoor wordt "${oudeNaam}" afgesloten.\n\n` +
+      `Rapporten in die periode worden alleen-lezen — je kan ze nog bekijken en de PDF's downloaden, ` +
+      `maar niet meer wijzigen (tenzij je de periode later weer heropent).\n\n` +
+      `Doorgaan met het aanmaken van de nieuwe periode?`
+    );
+    if (!bevestiging) return;
+  }
+
   const knop = document.querySelector('#lk-periode-modal-bg .lk-cat-modal-knoppen button:last-child');
   if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
 
@@ -911,6 +1520,7 @@ async function lkPeriodeNieuwBewaren() {
     _periodes = await Voortgang.alleRapportperiodes();
     _actievePeriode = nieuw;
     _lkPeriodeBalkRenderer();
+    if (typeof _lkPeriodeMenuRenderer === 'function') _lkPeriodeMenuRenderer();
     // Sluit modal
     const bg = document.getElementById('lk-periode-modal-bg');
     if (bg) bg.remove();
@@ -981,6 +1591,86 @@ function _lkPeriodeEersteKeer() {
   }, 50);
 }
 
+// === Modal: bestaande periode bewerken (naam + datums) ===
+function lkPeriodeBewerkenModal(periodeId) {
+  const periode = (_periodes || []).find(p => p.id === periodeId);
+  if (!periode) return;
+
+  // Sluit menu
+  const menu = document.getElementById('lk-periode-menu');
+  if (menu) menu.classList.remove('open');
+
+  const oud = document.getElementById('lk-periode-modal-bg');
+  if (oud) oud.remove();
+
+  const startVoor = new Date(periode.startDatum).toISOString().slice(0, 10);
+  const eindVoor = new Date(periode.eindDatum).toISOString().slice(0, 10);
+  const naamSafe = (periode.naam || '').replace(/"/g, '&quot;');
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-periode-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+
+  bg.innerHTML = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()">
+      <h2>✏️ Periode bewerken</h2>
+      <p class="modal-uitleg">
+        Pas naam of datums aan. Het schooljaar wordt automatisch bepaald uit de startdatum.
+      </p>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">Naam</label>
+        <input type="text" class="lk-taak-select" id="periode-bewerk-naam" value="${naamSafe}">
+      </div>
+
+      <div class="lk-taak-veld" style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <label class="lk-taak-label">Startdatum</label>
+          <input type="date" class="lk-taak-select" id="periode-bewerk-start" value="${startVoor}">
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label class="lk-taak-label">Einddatum</label>
+          <input type="date" class="lk-taak-select" id="periode-bewerk-eind" value="${eindVoor}">
+        </div>
+      </div>
+
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini" onclick="document.getElementById('lk-periode-modal-bg').remove()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkPeriodeBewerkenBewaren('${periode.id}')">💾 Opslaan</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+  setTimeout(() => {
+    const naamEl = document.getElementById('periode-bewerk-naam');
+    if (naamEl) naamEl.focus();
+  }, 50);
+}
+
+async function lkPeriodeBewerkenBewaren(periodeId) {
+  const naam = (document.getElementById('periode-bewerk-naam') || {}).value || '';
+  const startStr = (document.getElementById('periode-bewerk-start') || {}).value;
+  const eindStr = (document.getElementById('periode-bewerk-eind') || {}).value;
+  if (!naam.trim()) { alert('Naam is verplicht.'); return; }
+  if (!startStr || !eindStr) { alert('Start- en einddatum zijn verplicht.'); return; }
+  const startDatum = new Date(startStr).getTime();
+  const eindDatum = new Date(eindStr).getTime();
+  if (eindDatum <= startDatum) { alert('Einddatum moet na de startdatum liggen.'); return; }
+
+  try {
+    await Voortgang.wijzigRapportperiode(periodeId, naam.trim(), startDatum, eindDatum);
+    // Periodes herladen
+    _periodes = await Voortgang.alleRapportperiodes();
+    _actievePeriode = _periodes.find(p => p.status === 'actief') || null;
+    if (typeof _lkPeriodeBalkRenderer === 'function') _lkPeriodeBalkRenderer();
+    if (typeof _lkPeriodeMenuRenderer === 'function') _lkPeriodeMenuRenderer();
+    document.getElementById('lk-periode-modal-bg').remove();
+  } catch (e) {
+    alert('Bewerken mislukt: ' + (e.message || 'onbekend'));
+  }
+}
+
 // === Periode afsluiten (zonder nieuwe te starten) ===
 function lkPeriodeSluitenBevestig(periodeId) {
   // Sluit menu
@@ -1015,7 +1705,13 @@ function lkActievePeriodeId() {
 
 async function lkLaadKinderen() {
   try {
-    lkKinderen = await Voortgang.alleKinderen();
+    const alleKinderen = await Voortgang.alleKinderen();
+    // Filter op actief schooljaar als gezet (anders backwards-compat: alle kinderen)
+    if (_actiefSchooljaar && Array.isArray(_actiefSchooljaar.kinderen)) {
+      lkKinderen = lkFilterKinderenOpActiefSchooljaar(alleKinderen);
+    } else {
+      lkKinderen = alleKinderen;
+    }
     lkRendererTabel();
     lkRendererAandachtsstrook();
     // Kindertabs in de andere tabbladen meteen herrenderen
@@ -3937,6 +4633,462 @@ async function genereerMixOplossing() {
 }
 
 // =================================================================
+//  PUNTENBOEK — eigen toetsen per kind per rapportperiode
+// =================================================================
+
+// State per kind: _pbState[kindCode] = { periodeId, online, eigen, geladen, bezigMetLaden }
+let _pbState = {};
+let _pbHuidigKindCode = null;
+
+// Welke vaardigheid is opengeklapt? Per kind apart.
+let _pbOpenVaardigheid = {};
+
+function _pbInitState(kindCode) {
+  if (_pbState[kindCode]) return _pbState[kindCode];
+  _pbState[kindCode] = {
+    periodeId: null,
+    online: { luisteren: [], lezen: [], schrijven: [], spreken: [] },
+    eigen: [],
+    geladen: false,
+    bezigMetLaden: false
+  };
+  return _pbState[kindCode];
+}
+
+async function _lkPuntenboekLaden(kind) {
+  if (!kind || !kind.code) return;
+  _pbHuidigKindCode = kind.code;
+  const s = _pbInitState(kind.code);
+
+  // Default-periode = actieve, anders meest recente
+  if (!s.periodeId) {
+    if (_actievePeriode) s.periodeId = _actievePeriode.id;
+    else if (_periodes && _periodes.length > 0) s.periodeId = _periodes[0].id;
+    else {
+      _lkPbRenderError(kind, 'Geen rapportperiode aangemaakt. Maak eerst een periode aan in de balk bovenaan.');
+      return;
+    }
+  }
+
+  if (s.geladen) {
+    _lkPbRender(kind);
+    return;
+  }
+  if (s.bezigMetLaden) return;
+  s.bezigMetLaden = true;
+
+  await _pbLaadDataVoorPeriode(kind.code, s.periodeId);
+  s.bezigMetLaden = false;
+  s.geladen = true;
+  if (_pbHuidigKindCode === kind.code) _lkPbRender(kind);
+}
+
+function _lkPbRenderError(kind, melding) {
+  const cont = document.getElementById('lk-pb-inline');
+  if (!cont || cont.getAttribute('data-code') !== kind.code) return;
+  cont.innerHTML = `<p class="lk-kind-leeg">${melding}</p>`;
+}
+
+async function _pbLaadDataVoorPeriode(kindCode, periodeId) {
+  const s = _pbInitState(kindCode);
+  const periode = (_periodes || []).find(p => p.id === periodeId);
+
+  // Online toetsen ophalen + eigen toetsen ophalen, parallel
+  try {
+    const [online, eigen] = await Promise.all([
+      Voortgang.haalOnlineToetsenVoorKindPeriode(kindCode, periodeId, periode),
+      Voortgang.haalEigenToetsenVoorKindPeriode(kindCode, periodeId)
+    ]);
+    s.online = online || { luisteren: [], lezen: [], schrijven: [], spreken: [] };
+    s.eigen = eigen || [];
+  } catch (e) {
+    console.warn('Puntenboek-data laden mislukt:', e);
+    s.online = { luisteren: [], lezen: [], schrijven: [], spreken: [] };
+    s.eigen = [];
+  }
+}
+
+async function lkPbWisselPeriode(kindCode, periodeId) {
+  if (!periodeId) return;
+  const s = _pbInitState(kindCode);
+  if (s.periodeId === periodeId) return;
+  s.periodeId = periodeId;
+  s.geladen = false;
+  // Toon laden-melding
+  const cont = document.getElementById('lk-pb-inline');
+  if (cont && cont.getAttribute('data-code') === kindCode) {
+    cont.innerHTML = '<div class="lk-rap-inline-laden"><p>⏳ Bezig met laden…</p></div>';
+  }
+  await _pbLaadDataVoorPeriode(kindCode, periodeId);
+  s.geladen = true;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind && _pbHuidigKindCode === kindCode) _lkPbRender(kind);
+}
+
+function _lkPbRender(kind) {
+  const cont = document.getElementById('lk-pb-inline');
+  if (!cont || cont.getAttribute('data-code') !== kind.code) return;
+
+  const s = _pbInitState(kind.code);
+  const periodes = _periodes || [];
+  const naam = kind.naam || kind.code;
+
+  // Filter op actief schooljaar
+  const sjId = (typeof _actiefSchooljaar !== 'undefined' && _actiefSchooljaar) ? _actiefSchooljaar.id : null;
+  let zichtbarePeriodes = periodes;
+  if (sjId && Voortgang.filterPeriodesOpSchooljaar) {
+    zichtbarePeriodes = Voortgang.filterPeriodesOpSchooljaar(periodes, sjId);
+  }
+
+  // Sorteer: actief eerst, dan archief op datum desc
+  zichtbarePeriodes = zichtbarePeriodes.slice().sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'actief' ? -1 : 1;
+    return (b.startDatum || 0) - (a.startDatum || 0);
+  });
+
+  const periodeOpties = zichtbarePeriodes.map(p => {
+    const sel = (p.id === s.periodeId) ? 'selected' : '';
+    const label = p.nummer
+      ? `Rapportperiode ${p.nummer}${p.status === 'afgesloten' ? ' (afgesloten)' : ''}`
+      : `${p.naam}${p.status === 'afgesloten' ? ' (afgesloten)' : ''}`;
+    return `<option value="${p.id}" ${sel}>${label}</option>`;
+  }).join('');
+
+  // Render 4 vaardigheids-blokken
+  const vaardigheden = [
+    { sl: 'luisteren', icoon: '👂', naam: 'Luisteren' },
+    { sl: 'lezen',     icoon: '👁️', naam: 'Lezen' },
+    { sl: 'schrijven', icoon: '✍️', naam: 'Schrijven' },
+    { sl: 'spreken',   icoon: '🗣️', naam: 'Spreken' }
+  ];
+
+  const blokken = vaardigheden.map(v => _lkPbVaardigheidBlok(kind.code, v, s)).join('');
+
+  cont.innerHTML = `
+    <div class="lk-pb-kop">
+      <h3>📓 Puntenboek voor ${naam}</h3>
+      <div class="lk-pb-periode">
+        <label>Periode:</label>
+        <select class="lk-rap-periode-select" onchange="lkPbWisselPeriode('${kind.code}', this.value)">
+          ${periodeOpties}
+        </select>
+      </div>
+    </div>
+
+    <p class="lk-rap-inline-uitleg">
+      Online toetsen verschijnen automatisch. Voeg eigen toetsen toe (papieren toets, dictee, …) — ze tellen mee voor de sterren in het rapport volgens hun gewicht.
+      Een opmerking koppelen aan "wat gaat goed", "groeipunten" of "werkhouding"? Dan verschijnt ze als suggestie in het rapport.
+    </p>
+
+    ${blokken}
+  `;
+}
+
+function _lkPbVaardigheidBlok(kindCode, v, s) {
+  const online = s.online[v.sl] || [];
+  const eigen = (s.eigen || []).filter(t => t.vaardigheid === v.sl);
+  const totaalToetsen = online.length + eigen.length;
+
+  // Bereken totaal-percentage met gewichten
+  let gewogenJuist = 0;
+  let gewogenTotaal = 0;
+  online.forEach(t => {
+    gewogenJuist += (t.score || 0) * 1;
+    gewogenTotaal += (t.maximum || 0) * 1;
+  });
+  eigen.forEach(t => {
+    const g = (typeof t.gewicht === 'number' && t.gewicht > 0) ? t.gewicht : 1;
+    gewogenJuist += (parseFloat(t.score) || 0) * g;
+    gewogenTotaal += (parseFloat(t.maximum) || 0) * g;
+  });
+  const pct = gewogenTotaal > 0 ? Math.round(gewogenJuist / gewogenTotaal * 100) : null;
+
+  // Open/dicht state
+  const open = !!(_pbOpenVaardigheid[kindCode] && _pbOpenVaardigheid[kindCode][v.sl]);
+
+  // Toets-rijen — alleen renderen als open
+  let rijenHtml = '';
+  if (open) {
+    const alleRijen = [
+      ...online.map(t => _lkPbToetsRij(kindCode, t, true)),
+      ...eigen.map(t => _lkPbToetsRij(kindCode, t, false))
+    ];
+    rijenHtml = alleRijen.length > 0
+      ? `<div class="lk-pb-toetsen-tabel">
+          <div class="lk-pb-toetsen-kop">
+            <span class="kop-naam">Naam</span>
+            <span class="kop-datum">Datum</span>
+            <span class="kop-score">Score</span>
+            <span class="kop-gewicht">Gewicht</span>
+            <span class="kop-pct">%</span>
+            <span class="kop-acties"></span>
+          </div>
+          ${alleRijen.join('')}
+         </div>`
+      : '<p class="lk-pb-leeg">Nog geen toetsen voor deze vaardigheid.</p>';
+    // Knop "+ eigen toets toevoegen"
+    rijenHtml += `<button class="lk-knop-mini lk-pb-voeg-toe" onclick="lkPbNieuwModal('${kindCode}', '${v.sl}')">➕ Eigen toets toevoegen</button>`;
+  }
+
+  // Header tekst (totaal-percentage)
+  const pctTekst = pct !== null ? `<span class="lk-pb-blok-pct">${pct}%</span>` : '<span class="lk-pb-blok-pct leeg">geen toetsen</span>';
+
+  return `
+    <div class="lk-pb-blok ${open ? 'open' : ''}">
+      <div class="lk-pb-blok-header" onclick="lkPbToggle('${kindCode}', '${v.sl}')">
+        <span class="lk-pb-blok-icoon">${v.icoon}</span>
+        <span class="lk-pb-blok-naam">${v.naam}</span>
+        <span class="lk-pb-blok-stat">${totaalToetsen} toets${totaalToetsen === 1 ? '' : 'en'}</span>
+        ${pctTekst}
+        <span class="lk-pb-blok-pijl">${open ? '▴' : '▾'}</span>
+      </div>
+      ${open ? `<div class="lk-pb-blok-inhoud">${rijenHtml}</div>` : ''}
+    </div>
+  `;
+}
+
+function _lkPbToetsRij(kindCode, t, isOnline) {
+  const dt = t.datum ? new Date(t.datum) : null;
+  const datumStr = dt ? `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getFullYear()).slice(2)}` : '—';
+  const score = t.score !== undefined && t.score !== null ? t.score : '?';
+  const max = t.maximum !== undefined && t.maximum !== null ? t.maximum : '?';
+  const gewicht = (typeof t.gewicht === 'number' && t.gewicht > 0) ? t.gewicht : 1;
+  const pct = (parseFloat(t.maximum) > 0) ? Math.round(parseFloat(t.score) / parseFloat(t.maximum) * 100) : null;
+  const naamHtml = `${(t.naam || '').replace(/</g, '&lt;')}${isOnline ? ' <span class="lk-pb-online-tag">online</span>' : ''}`;
+  const opmerkingHtml = (!isOnline && t.opmerking)
+    ? `<div class="lk-pb-opmerking">💬 ${(t.opmerking || '').replace(/</g, '&lt;')}${t.opmerkingCategorie ? ` <span class="lk-pb-opm-cat">→ ${_pbCatLabel(t.opmerkingCategorie)}</span>` : ''}</div>`
+    : '';
+  const acties = !isOnline
+    ? `<button class="lk-knop-mini" title="Bewerken" onclick="lkPbBewerken('${kindCode}', '${t.id}')">✏️</button>
+       <button class="lk-knop-mini gevaar" title="Verwijderen" onclick="lkPbVerwijder('${kindCode}', '${t.id}')">🗑️</button>`
+    : '';
+  return `
+    <div class="lk-pb-rij ${isOnline ? 'online' : 'eigen'}">
+      <div class="lk-pb-rij-hoofd">
+        <span class="kop-naam">${naamHtml}</span>
+        <span class="kop-datum">${datumStr}</span>
+        <span class="kop-score">${score}/${max}</span>
+        <span class="kop-gewicht">${gewicht}×</span>
+        <span class="kop-pct">${pct !== null ? pct + '%' : '—'}</span>
+        <span class="kop-acties">${acties}</span>
+      </div>
+      ${opmerkingHtml}
+    </div>
+  `;
+}
+
+function _pbCatLabel(cat) {
+  if (cat === 'watGaatGoed') return '✨ Wat gaat goed';
+  if (cat === 'groeipunten') return '🌱 Groeipunten';
+  if (cat === 'werkhouding') return '💪 Werkhouding';
+  return '';
+}
+
+function lkPbToggle(kindCode, vaardigheid) {
+  if (!_pbOpenVaardigheid[kindCode]) _pbOpenVaardigheid[kindCode] = {};
+  _pbOpenVaardigheid[kindCode][vaardigheid] = !_pbOpenVaardigheid[kindCode][vaardigheid];
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) _lkPbRender(kind);
+}
+
+// =================================================================
+//  Modal: nieuwe / bewerken eigen toets
+// =================================================================
+
+function lkPbNieuwModal(kindCode, vaardigheid, bestaandeToetsId) {
+  const oud = document.getElementById('lk-pb-modal-bg');
+  if (oud) oud.remove();
+
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (!kind) return;
+  const s = _pbInitState(kindCode);
+
+  // Indien bewerken: zoek bestaande
+  let bestaand = null;
+  if (bestaandeToetsId) {
+    bestaand = (s.eigen || []).find(t => t.id === bestaandeToetsId);
+  }
+
+  const naamInit = bestaand ? bestaand.naam : '';
+  const datumInit = bestaand && bestaand.datum
+    ? new Date(bestaand.datum).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const scoreInit = bestaand ? bestaand.score : '';
+  const maxInit = bestaand ? bestaand.maximum : 10;
+  const gewichtInit = bestaand && typeof bestaand.gewicht === 'number' ? bestaand.gewicht : 1;
+  const opmerkingInit = bestaand ? (bestaand.opmerking || '') : '';
+  const opmCatInit = bestaand ? bestaand.opmerkingCategorie : null;
+  const vaardig = bestaand ? bestaand.vaardigheid : vaardigheid;
+
+  const vaardigLabel = {
+    luisteren: '👂 Luisteren',
+    lezen: '👁️ Lezen',
+    schrijven: '✍️ Schrijven',
+    spreken: '🗣️ Spreken'
+  };
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-pb-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+
+  bg.innerHTML = `
+    <div class="lk-cat-modal" onclick="event.stopPropagation()">
+      <h2>${bestaand ? '✏️ Toets bewerken' : '➕ Eigen toets toevoegen'}</h2>
+      <p class="modal-uitleg">
+        ${vaardigLabel[vaardig] || vaardig} — leerling: <strong>${kind.naam || kind.code}</strong>
+      </p>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">Naam van de toets</label>
+        <input type="text" class="lk-taak-select" id="pb-naam" value="${(naamInit || '').replace(/"/g, '&quot;')}" placeholder="bv. Dictee thema dieren">
+      </div>
+
+      <div class="lk-taak-veld" style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:130px">
+          <label class="lk-taak-label">Datum</label>
+          <input type="date" class="lk-taak-select" id="pb-datum" value="${datumInit}">
+        </div>
+        <div style="flex:1;min-width:90px">
+          <label class="lk-taak-label">Score</label>
+          <input type="number" class="lk-taak-select" id="pb-score" value="${scoreInit}" min="0" step="0.5" placeholder="bv. 8">
+        </div>
+        <div style="flex:1;min-width:70px">
+          <label class="lk-taak-label">Op</label>
+          <input type="number" class="lk-taak-select" id="pb-max" value="${maxInit}" min="1" step="1" placeholder="10">
+        </div>
+        <div style="flex:1;min-width:90px">
+          <label class="lk-taak-label">Gewicht</label>
+          <select class="lk-taak-select" id="pb-gewicht">
+            <option value="0.5" ${gewichtInit == 0.5 ? 'selected' : ''}>0.5× (telt half)</option>
+            <option value="1" ${gewichtInit == 1 ? 'selected' : ''}>1× (normaal)</option>
+            <option value="1.5" ${gewichtInit == 1.5 ? 'selected' : ''}>1.5×</option>
+            <option value="2" ${gewichtInit == 2 ? 'selected' : ''}>2× (telt dubbel)</option>
+            <option value="3" ${gewichtInit == 3 ? 'selected' : ''}>3× (telt drievoudig)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">Opmerking <small>(optioneel)</small></label>
+        <textarea class="lk-spr-notitie" rows="2" id="pb-opmerking" placeholder="Bv. Sara werkte zelfstandig en heel netjes.">${(opmerkingInit || '').replace(/</g, '&lt;')}</textarea>
+      </div>
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label">Koppel opmerking aan rapport <small>(optioneel)</small></label>
+        <div class="lk-pb-opm-cats">
+          <label class="lk-pb-opm-cat-keuze ${opmCatInit === null || opmCatInit === undefined ? 'aan' : ''}">
+            <input type="radio" name="pb-opm-cat" value="" ${opmCatInit == null ? 'checked' : ''}>
+            <span>Niet koppelen</span>
+          </label>
+          <label class="lk-pb-opm-cat-keuze ${opmCatInit === 'watGaatGoed' ? 'aan' : ''}">
+            <input type="radio" name="pb-opm-cat" value="watGaatGoed" ${opmCatInit === 'watGaatGoed' ? 'checked' : ''}>
+            <span>✨ Wat gaat goed</span>
+          </label>
+          <label class="lk-pb-opm-cat-keuze ${opmCatInit === 'groeipunten' ? 'aan' : ''}">
+            <input type="radio" name="pb-opm-cat" value="groeipunten" ${opmCatInit === 'groeipunten' ? 'checked' : ''}>
+            <span>🌱 Groeipunten</span>
+          </label>
+          <label class="lk-pb-opm-cat-keuze ${opmCatInit === 'werkhouding' ? 'aan' : ''}">
+            <input type="radio" name="pb-opm-cat" value="werkhouding" ${opmCatInit === 'werkhouding' ? 'checked' : ''}>
+            <span>💪 Werkhouding</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="lk-cat-modal-knoppen">
+        <button class="lk-knop-mini" onclick="document.getElementById('lk-pb-modal-bg').remove()">Annuleren</button>
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkPbBewaren('${kindCode}', '${vaardig}', ${bestaand ? `'${bestaand.id}'` : 'null'})">💾 ${bestaand ? 'Opslaan' : 'Toevoegen'}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+  setTimeout(() => {
+    const naamEl = document.getElementById('pb-naam');
+    if (naamEl) naamEl.focus();
+  }, 50);
+}
+
+function lkPbBewerken(kindCode, toetsId) {
+  const s = _pbInitState(kindCode);
+  const t = (s.eigen || []).find(x => x.id === toetsId);
+  if (!t) return;
+  lkPbNieuwModal(kindCode, t.vaardigheid, toetsId);
+}
+
+async function lkPbBewaren(kindCode, vaardigheid, bestaandeId) {
+  const naam = (document.getElementById('pb-naam') || {}).value || '';
+  const datumStr = (document.getElementById('pb-datum') || {}).value || '';
+  const scoreStr = (document.getElementById('pb-score') || {}).value || '';
+  const maxStr = (document.getElementById('pb-max') || {}).value || '';
+  const gewichtStr = (document.getElementById('pb-gewicht') || {}).value || '1';
+  const opmerking = (document.getElementById('pb-opmerking') || {}).value || '';
+  const opmCatRadio = document.querySelector('input[name="pb-opm-cat"]:checked');
+  const opmCat = opmCatRadio ? opmCatRadio.value : '';
+
+  if (!naam.trim()) { alert('Geef de toets een naam.'); return; }
+  if (!datumStr) { alert('Vul een datum in.'); return; }
+  const score = parseFloat(scoreStr);
+  const max = parseFloat(maxStr);
+  if (isNaN(score) || score < 0) { alert('Score moet een getal zijn (0 of meer).'); return; }
+  if (isNaN(max) || max <= 0) { alert('Het maximum moet een positief getal zijn.'); return; }
+  if (score > max) { alert('Score mag niet groter zijn dan het maximum.'); return; }
+  const gewicht = parseFloat(gewichtStr) || 1;
+
+  const s = _pbInitState(kindCode);
+
+  const knop = document.querySelector('#lk-pb-modal-bg .lk-cat-modal-knoppen button:last-child');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+
+  try {
+    const datum = new Date(datumStr).getTime();
+    const toetsData = {
+      id: bestaandeId !== 'null' && bestaandeId ? bestaandeId : undefined,
+      kindCode: kindCode,
+      vaardigheid: vaardigheid,
+      naam: naam.trim(),
+      datum: datum,
+      score: score,
+      maximum: max,
+      gewicht: gewicht,
+      opmerking: opmerking.trim(),
+      opmerkingCategorie: opmCat || null,
+      rapportperiodeId: s.periodeId,
+      schooljaar: Voortgang.bepaalSchooljaarUitDatum(datum)
+    };
+    await Voortgang.bewaarEigenToets(toetsData);
+    document.getElementById('lk-pb-modal-bg').remove();
+    // Refresh data
+    s.geladen = false;
+    await _pbLaadDataVoorPeriode(kindCode, s.periodeId);
+    s.geladen = true;
+    const kind = lkKinderen.find(k => k.code === kindCode);
+    if (kind) _lkPbRender(kind);
+  } catch (e) {
+    console.error('Eigen toets bewaren mislukt:', e);
+    alert('Bewaren mislukt: ' + (e.message || 'onbekend'));
+    if (knop) { knop.disabled = false; knop.textContent = bestaandeId && bestaandeId !== 'null' ? '💾 Opslaan' : '💾 Toevoegen'; }
+  }
+}
+
+async function lkPbVerwijder(kindCode, toetsId) {
+  const s = _pbInitState(kindCode);
+  const t = (s.eigen || []).find(x => x.id === toetsId);
+  if (!t) return;
+  if (!confirm(`Weet je zeker dat je de toets "${t.naam}" wil verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
+  try {
+    await Voortgang.verwijderEigenToets(toetsId);
+    s.geladen = false;
+    await _pbLaadDataVoorPeriode(kindCode, s.periodeId);
+    s.geladen = true;
+    const kind = lkKinderen.find(k => k.code === kindCode);
+    if (kind) _lkPbRender(kind);
+  } catch (e) {
+    console.error('Verwijderen mislukt:', e);
+    alert('Verwijderen mislukt: ' + (e.message || 'onbekend'));
+  }
+}
+// =================================================================
 //  RAPPORT — inline werkomgeving in uitklap-paneel per leerling
 // =================================================================
 //
@@ -3998,6 +5150,9 @@ function _rapInitState(kindCode) {
     feedbackVink: { watGaatGoed: [], groeipunten: [], werkhouding: [] },
     feedbackTekst: { watGaatGoed: {}, groeipunten: {}, werkhouding: {} },
     aiZinnen: { watGaatGoed: [], groeipunten: [], werkhouding: [] },
+    // Opmerkingen uit puntenboek per categorie: [{ tekst, toetsId, toetsNaam }]
+    pbOpmerkingen: { watGaatGoed: [], groeipunten: [], werkhouding: [] },
+    pbVink: { watGaatGoed: [], groeipunten: [], werkhouding: [] }, // welke pb-opmerkingen zijn aangevinkt
     geladen: false,
     bezigMetLaden: false
   };
@@ -4011,6 +5166,8 @@ function _rapResetStateVoorPeriode(kindCode) {
   s.feedbackVink = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
   s.feedbackTekst = { watGaatGoed: {}, groeipunten: {}, werkhouding: {} };
   s.aiZinnen = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
+  s.pbOpmerkingen = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
+  s.pbVink = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
   s.geladen = false;
 }
 
@@ -4086,7 +5243,7 @@ async function _rapLaadDataVoorKindPeriode(kindCode, periodeId, kindNaam) {
   const s = _rapInitState(kindCode);
   const periode = (_periodes || []).find(p => p.id === periodeId);
 
-  // 1) Sterren berekenen
+  // 1) Sterren berekenen (telt nu ook eigen toetsen mee via Voortgang)
   let berekend = null;
   try {
     berekend = await Voortgang.berekenRapportSterren(kindCode, periodeId, periode);
@@ -4098,7 +5255,22 @@ async function _rapLaadDataVoorKindPeriode(kindCode, periodeId, kindNaam) {
   s.toetsdata = berekend.toetsdata || {};
   s.foutWoorden = berekend.foutWoorden || {};
 
-  // 2) Opgeslagen rapport ophalen
+  // 2) Puntenboek-opmerkingen ophalen (per categorie)
+  s.pbOpmerkingen = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
+  try {
+    const eigenToetsen = await Voortgang.haalEigenToetsenVoorKindPeriode(kindCode, periodeId);
+    eigenToetsen.forEach(t => {
+      if (t.opmerking && t.opmerkingCategorie && s.pbOpmerkingen[t.opmerkingCategorie]) {
+        s.pbOpmerkingen[t.opmerkingCategorie].push({
+          tekst: t.opmerking,
+          toetsId: t.id,
+          toetsNaam: t.naam || ''
+        });
+      }
+    });
+  } catch (e) { /* stil falen */ }
+
+  // 3) Opgeslagen rapport ophalen
   let opgeslagen = null;
   try {
     opgeslagen = await Voortgang.haalRapportOpVoorKind(kindCode, periodeId);
@@ -4116,22 +5288,31 @@ async function _rapLaadDataVoorKindPeriode(kindCode, periodeId, kindNaam) {
       ['watGaatGoed', 'groeipunten', 'werkhouding'].forEach(cat => {
         const opgeslagenZinnen = Array.isArray(opgeslagen.feedback[cat]) ? opgeslagen.feedback[cat] : [];
         const standaarden = (_RAP_STANDAARDZINNEN[cat] || []).map(z => _rapVervangNaam(z, kindNaam));
+        const pbTeksten = (s.pbOpmerkingen[cat] || []).map(o => o.tekst);
         opgeslagenZinnen.forEach(zin => {
+          // 1) Standaardzin?
           const stIdx = standaarden.indexOf(zin);
           if (stIdx >= 0) {
             s.feedbackVink[cat].push('std-' + stIdx);
-          } else {
-            // Bewerkte standaardzin? Probeer fuzzy via voorvoegsel
-            const bewerkteVan = standaarden.findIndex(st => zin.startsWith(st.slice(0, 15)));
-            if (bewerkteVan >= 0 && !s.feedbackVink[cat].includes('std-' + bewerkteVan)) {
-              s.feedbackVink[cat].push('std-' + bewerkteVan);
-              s.feedbackTekst[cat]['std-' + bewerkteVan] = zin;
-            } else {
-              const aiIdx = s.aiZinnen[cat].length;
-              s.aiZinnen[cat].push(zin);
-              s.feedbackVink[cat].push('ai-' + aiIdx);
-            }
+            return;
           }
+          // 2) Puntenboek-opmerking?
+          const pbIdx = pbTeksten.indexOf(zin);
+          if (pbIdx >= 0) {
+            s.pbVink[cat].push('pb-' + pbIdx);
+            return;
+          }
+          // 3) Bewerkte standaardzin?
+          const bewerkteVan = standaarden.findIndex(st => zin.startsWith(st.slice(0, 15)));
+          if (bewerkteVan >= 0 && !s.feedbackVink[cat].includes('std-' + bewerkteVan)) {
+            s.feedbackVink[cat].push('std-' + bewerkteVan);
+            s.feedbackTekst[cat]['std-' + bewerkteVan] = zin;
+            return;
+          }
+          // 4) Anders → AI-zin
+          const aiIdx = s.aiZinnen[cat].length;
+          s.aiZinnen[cat].push(zin);
+          s.feedbackVink[cat].push('ai-' + aiIdx);
         });
       });
     }
@@ -4159,11 +5340,49 @@ function _lkRapInlineRender(kind) {
   const periodes = _periodes || [];
   const naam = kind.naam || kind.code;
 
-  // Periode-dropdown
-  const periodeOpties = periodes.map(p => {
+  // Filter periodes op huidig schooljaar (als gezet)
+  const sjId = (typeof _actiefSchooljaar !== 'undefined' && _actiefSchooljaar) ? _actiefSchooljaar.id : null;
+  let zichtbarePeriodes = periodes;
+  if (sjId && Voortgang.filterPeriodesOpSchooljaar) {
+    zichtbarePeriodes = Voortgang.filterPeriodesOpSchooljaar(periodes, sjId);
+  }
+
+  // Standaard: verberg afgesloten periodes — toon alleen actieve.
+  // Met "Toon archief" knop kunnen ze toch tevoorschijn komen.
+  const toonArchief = !!s.toonArchief;
+  let dropdownPeriodes = toonArchief
+    ? zichtbarePeriodes
+    : zichtbarePeriodes.filter(p => p.status === 'actief');
+
+  // Als de huidige periode toch in archief zit, voeg die altijd toe (anders mismatch)
+  const huidigePeriode = zichtbarePeriodes.find(p => p.id === s.periodeId);
+  if (huidigePeriode && !dropdownPeriodes.includes(huidigePeriode)) {
+    dropdownPeriodes = [huidigePeriode, ...dropdownPeriodes];
+  }
+
+  // Sorteer: actieve eerst, dan archief op startDatum desc
+  dropdownPeriodes = dropdownPeriodes.slice().sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'actief' ? -1 : 1;
+    return (b.startDatum || 0) - (a.startDatum || 0);
+  });
+
+  // Periode-dropdown HTML
+  const periodeOpties = dropdownPeriodes.map(p => {
     const sel = (p.id === s.periodeId) ? 'selected' : '';
-    return `<option value="${p.id}" ${sel}>${p.naam}</option>`;
+    const label = p.nummer
+      ? `Rapportperiode ${p.nummer}${p.status === 'afgesloten' ? ' (afgesloten)' : ''}`
+      : `${p.naam}${p.status === 'afgesloten' ? ' (afgesloten)' : ''}`;
+    return `<option value="${p.id}" ${sel}>${label}</option>`;
   }).join('');
+
+  // Bestaan er afgesloten periodes voor archief-knop?
+  const heeftArchief = zichtbarePeriodes.some(p => p.status === 'afgesloten');
+  const archiefKnop = heeftArchief
+    ? `<button class="lk-rap-archief-toggle" onclick="lkRapInlineToggleArchief('${kind.code}')">${toonArchief ? '🔓 Verberg archief' : '📁 Toon archief'}</button>`
+    : '';
+
+  // Is de huidige periode afgesloten? → alleen-lezen modus
+  const isAfgesloten = !!(huidigePeriode && huidigePeriode.status === 'afgesloten');
 
   // Sterren-rijen
   const sterrenRijen = [
@@ -4172,12 +5391,43 @@ function _lkRapInlineRender(kind) {
     { sl: 'schrijven',   icoon: '✍️', naam: 'Schrijven',   manueel: false },
     { sl: 'spreken',     icoon: '🗣️', naam: 'Spreken',     manueel: false },
     { sl: 'werkhouding', icoon: '🎯', naam: 'Werkhouding', manueel: true  }
-  ].map(v => _rapRenderSterRij(kind.code, v.sl, v.icoon, v.naam, v.manueel)).join('');
+  ].map(v => _rapRenderSterRij(kind.code, v.sl, v.icoon, v.naam, v.manueel, isAfgesloten)).join('');
 
   // 3 feedback-categorieën
-  const catGoed  = _rapRenderCategorie(kind.code, naam, 'watGaatGoed', '✨ Wat gaat goed', '#4CAF50');
-  const catGroei = _rapRenderCategorie(kind.code, naam, 'groeipunten', '🌱 Groeipunten', '#FFB74D');
-  const catWerk  = _rapRenderCategorie(kind.code, naam, 'werkhouding', '💪 Werkhouding & zelfstandigheid', '#FF8C42');
+  const catGoed  = _rapRenderCategorie(kind.code, naam, 'watGaatGoed', '✨ Wat gaat goed', '#4CAF50', isAfgesloten);
+  const catGroei = _rapRenderCategorie(kind.code, naam, 'groeipunten', '🌱 Groeipunten', '#FFB74D', isAfgesloten);
+  const catWerk  = _rapRenderCategorie(kind.code, naam, 'werkhouding', '💪 Werkhouding & zelfstandigheid', '#FF8C42', isAfgesloten);
+
+  // Banner + uitleg op basis van status
+  let banner = '';
+  if (isAfgesloten) {
+    const datumAf = huidigePeriode.afgeslotenOp
+      ? new Date(huidigePeriode.afgeslotenOp).toLocaleDateString('nl-BE')
+      : '';
+    banner = `
+      <div class="lk-rap-inline-banner archief">
+        🔒 Deze rapportperiode is afgesloten${datumAf ? ' op ' + datumAf : ''}.
+        Je kan het rapport bekijken en de PDF opnieuw downloaden, maar niet meer wijzigen.
+        <button class="lk-knop-mini-link" onclick="lkRapInlineHeropen('${kind.code}', '${huidigePeriode.id}')">🔓 Heropen periode om te wijzigen</button>
+      </div>
+    `;
+  } else {
+    banner = `
+      <p class="lk-rap-inline-uitleg">
+        Pas de sterren aan en vink feedback-zinnen aan. Klik op <strong>💾 Bewaar</strong> om je voortgang te bewaren — je kan over meerdere dagen blijven werken aan dit rapport.
+      </p>
+    `;
+  }
+
+  // Knoppen onderaan
+  const knoppen = isAfgesloten
+    ? `<button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkRapInlineGenereer('${kind.code}')">📄 Download PDF opnieuw</button>`
+    : `<button class="lk-knop-mini" onclick="lkRapInlineBewaar('${kind.code}')">💾 Bewaar</button>
+       <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkRapInlineGenereer('${kind.code}')">📄 Genereer PDF</button>`;
+
+  const sterrenTitel = isAfgesloten
+    ? `<div class="lk-rap-sterren-titel">Sterren <small>(alleen-lezen)</small></div>`
+    : `<div class="lk-rap-sterren-titel">Sterren <small>(klik op de sterren om aan te passen)</small></div>`;
 
   cont.innerHTML = `
     <div class="lk-rap-inline-kop">
@@ -4187,15 +5437,14 @@ function _lkRapInlineRender(kind) {
         <select class="lk-rap-periode-select" onchange="lkRapInlineWisselPeriode('${kind.code}', this.value)">
           ${periodeOpties}
         </select>
+        ${archiefKnop}
       </div>
     </div>
 
-    <p class="lk-rap-inline-uitleg">
-      Pas de sterren aan en vink feedback-zinnen aan. Klik op <strong>💾 Bewaar</strong> om je voortgang te bewaren — je kan over meerdere dagen blijven werken aan dit rapport.
-    </p>
+    ${banner}
 
-    <div class="lk-rap-sterren-blok">
-      <div class="lk-rap-sterren-titel">Sterren <small>(klik op de sterren om aan te passen)</small></div>
+    <div class="lk-rap-sterren-blok ${isAfgesloten ? 'archief-modus' : ''}">
+      ${sterrenTitel}
       ${sterrenRijen}
     </div>
 
@@ -4204,14 +5453,13 @@ function _lkRapInlineRender(kind) {
     ${catWerk}
 
     <div class="lk-rap-inline-knoppen">
-      <button class="lk-knop-mini" onclick="lkRapInlineBewaar('${kind.code}')">💾 Bewaar</button>
-      <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkRapInlineGenereer('${kind.code}')">📄 Genereer PDF</button>
+      ${knoppen}
     </div>
   `;
 }
 
 // Render één sterren-rij
-function _rapRenderSterRij(kindCode, sl, icoon, naam, manueel) {
+function _rapRenderSterRij(kindCode, sl, icoon, naam, manueel, isAfgesloten) {
   const s = _rapInitState(kindCode);
   const aantal = s.sterren[sl];
   const auto = s.sterrenAuto[sl];
@@ -4221,7 +5469,9 @@ function _rapRenderSterRij(kindCode, sl, icoon, naam, manueel) {
   let sterren = '';
   for (let i = 1; i <= 4; i++) {
     const aan = (aantal !== null && aantal !== undefined && i <= aantal);
-    sterren += `<span class="lk-rap-ster ${aan ? 'aan' : ''}" onclick="lkRapInlineKliksterren('${kindCode}', '${sl}', ${i})">★</span>`;
+    const onclick = isAfgesloten ? '' : `onclick="lkRapInlineKliksterren('${kindCode}', '${sl}', ${i})"`;
+    const cls = isAfgesloten ? 'lk-rap-ster vergrendeld' : 'lk-rap-ster';
+    sterren += `<span class="${cls} ${aan ? 'aan' : ''}" ${onclick}>★</span>`;
   }
 
   let sub = '';
@@ -4234,7 +5484,7 @@ function _rapRenderSterRij(kindCode, sl, icoon, naam, manueel) {
   }
 
   let resetKnop = '';
-  if (!manueel && heeftData && aantal !== auto) {
+  if (!isAfgesloten && !manueel && heeftData && aantal !== auto) {
     resetKnop = `<button class="lk-rap-ster-reset" title="Terug naar berekende waarde" onclick="lkRapInlineResetSterren('${kindCode}', '${sl}')">↻</button>`;
   }
 
@@ -4250,11 +5500,53 @@ function _rapRenderSterRij(kindCode, sl, icoon, naam, manueel) {
 }
 
 // Render één feedback-categorie met checkboxes + AI-knop
-function _rapRenderCategorie(kindCode, naam, cat, titel, kleur) {
+function _rapRenderCategorie(kindCode, naam, cat, titel, kleur, isAfgesloten) {
   const s = _rapInitState(kindCode);
   const standaarden = _RAP_STANDAARDZINNEN[cat] || [];
   const aiZinnen = s.aiZinnen[cat] || [];
   const vinkjes = s.feedbackVink[cat] || [];
+  const pbOpm = (s.pbOpmerkingen && s.pbOpmerkingen[cat]) || [];
+  const pbVinkjes = (s.pbVink && s.pbVink[cat]) || [];
+
+  // Bij afgesloten modus: toon enkel de aangevinkte zinnen als rustige lees-lijst
+  if (isAfgesloten) {
+    const aangevinkteTeksten = [];
+    standaarden.forEach((zin, idx) => {
+      const id = 'std-' + idx;
+      if (vinkjes.includes(id)) {
+        const bewerkt = s.feedbackTekst[cat][id];
+        aangevinkteTeksten.push(bewerkt || _rapVervangNaam(zin, naam));
+      }
+    });
+    aiZinnen.forEach((zin, idx) => {
+      const id = 'ai-' + idx;
+      if (vinkjes.includes(id) && zin && zin.trim()) {
+        aangevinkteTeksten.push(zin);
+      }
+    });
+    pbOpm.forEach((o, idx) => {
+      const id = 'pb-' + idx;
+      if (pbVinkjes.includes(id) && o.tekst && o.tekst.trim()) {
+        aangevinkteTeksten.push(o.tekst);
+      }
+    });
+
+    if (aangevinkteTeksten.length === 0) {
+      return ''; // geen lege categorie tonen in lees-modus
+    }
+
+    const bullets = aangevinkteTeksten.map(t => {
+      const safe = (t || '').replace(/</g, '&lt;');
+      return `<li>${safe}</li>`;
+    }).join('');
+
+    return `
+      <div class="lk-rap-cat-blok lk-rap-cat-blok-leesmodus">
+        <div class="lk-rap-cat-titel" style="color:${kleur}">${titel}</div>
+        <ul class="lk-rap-cat-leeslijst">${bullets}</ul>
+      </div>
+    `;
+  }
 
   const stdHtml = standaarden.map((zin, idx) => {
     const id = 'std-' + idx;
@@ -4283,12 +5575,39 @@ function _rapRenderCategorie(kindCode, naam, cat, titel, kleur) {
     `;
   }).join('');
 
+  // Puntenboek-opmerkingen (uit eigen toetsen voor deze categorie)
+  let pbHtml = '';
+  if (pbOpm.length > 0) {
+    pbHtml = '<div class="lk-rap-pb-blok">';
+    pbHtml += '<div class="lk-rap-pb-kop">📓 Uit het puntenboek:</div>';
+    pbHtml += pbOpm.map((o, idx) => {
+      const id = 'pb-' + idx;
+      const aangevinkt = pbVinkjes.includes(id);
+      const tekstSafe = (o.tekst || '').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      const bron = o.toetsNaam ? `<small class="lk-rap-pb-bron">uit "${(o.toetsNaam || '').replace(/</g, '&lt;')}"</small>` : '';
+      return `
+        <div class="lk-rap-zin lk-rap-zin-pb ${aangevinkt ? 'aangevinkt' : ''}">
+          <input type="checkbox" id="rap-${kindCode}-${cat}-${id}" ${aangevinkt ? 'checked' : ''} onclick="lkRapInlinePbVink('${kindCode}', '${cat}', '${id}')">
+          <div class="lk-rap-pb-tekst-blok">
+            <input type="text" class="lk-rap-zin-tekst" value="${tekstSafe}" oninput="lkRapInlineBewerkPbOpm('${kindCode}', '${cat}', ${idx}, this.value)" ${aangevinkt ? '' : 'disabled'}>
+            ${bron}
+          </div>
+        </div>
+      `;
+    }).join('');
+    pbHtml += '</div>';
+  }
+
   return `
     <div class="lk-rap-cat-blok">
       <div class="lk-rap-cat-titel" style="color:${kleur}">${titel}</div>
       ${stdHtml}
       ${aiHtml}
-      <button class="lk-rap-suggestie-knop" onclick="lkRapInlineAiSuggestie('${kindCode}', '${cat}')">✨ Suggesties van Claude</button>
+      ${pbHtml}
+      <div class="lk-rap-cat-knoppen">
+        <button class="lk-rap-eigen-knop" onclick="lkRapInlineEigenZinToevoegen('${kindCode}', '${cat}')">➕ Eigen zin toevoegen</button>
+        <button class="lk-rap-suggestie-knop" onclick="lkRapInlineAiSuggestie('${kindCode}', '${cat}')">✨ Suggesties van Claude</button>
+      </div>
     </div>
   `;
 }
@@ -4377,6 +5696,91 @@ function lkRapInlineWisAiZin(kindCode, cat, idx) {
   s.feedbackVink[cat] = nieuw;
   const kind = lkKinderen.find(k => k.code === kindCode);
   if (kind) _lkRapInlineRender(kind);
+}
+
+// Voeg een lege eigen zin toe aan een categorie — vrij tekstveld voor de juf
+// Behind the scenes opslagen als 'ai-zin' (hergebruikt aiZinnen-array).
+function lkRapInlineEigenZinToevoegen(kindCode, cat) {
+  const s = _rapInitState(kindCode);
+  // Voeg een lege string toe → wordt na render een leeg input-veld dat aangevinkt is
+  const idx = s.aiZinnen[cat].length;
+  s.aiZinnen[cat].push('');
+  // Meteen aanvinken zodat juf direct kan typen
+  s.feedbackVink[cat].push('ai-' + idx);
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) {
+    _lkRapInlineRender(kind);
+    // Focus op het nieuwe veld zetten (na render)
+    setTimeout(() => {
+      const el = document.getElementById(`rap-${kindCode}-${cat}-ai-${idx}`);
+      if (el) {
+        const tekstInput = el.parentElement && el.parentElement.querySelector('.lk-rap-zin-tekst');
+        if (tekstInput) tekstInput.focus();
+      }
+    }, 50);
+  }
+}
+
+// Vink/ontvink een puntenboek-opmerking
+function lkRapInlinePbVink(kindCode, cat, id) {
+  const s = _rapInitState(kindCode);
+  if (!s.pbVink) s.pbVink = { watGaatGoed: [], groeipunten: [], werkhouding: [] };
+  const lijst = s.pbVink[cat] || [];
+  const idx = lijst.indexOf(id);
+  if (idx >= 0) lijst.splice(idx, 1);
+  else lijst.push(id);
+  s.pbVink[cat] = lijst;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) _lkRapInlineRender(kind);
+}
+
+// Bewerk een puntenboek-opmerking inline (alleen lokaal in rapport — niet in puntenboek zelf)
+function lkRapInlineBewerkPbOpm(kindCode, cat, idx, tekst) {
+  const s = _rapInitState(kindCode);
+  if (s.pbOpmerkingen && s.pbOpmerkingen[cat] && s.pbOpmerkingen[cat][idx]) {
+    s.pbOpmerkingen[cat][idx].tekst = tekst;
+  }
+}
+
+// Toon/verberg afgesloten periodes in dropdown
+function lkRapInlineToggleArchief(kindCode) {
+  const s = _rapInitState(kindCode);
+  s.toonArchief = !s.toonArchief;
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (kind) _lkRapInlineRender(kind);
+}
+
+// Heropen een afgesloten periode (juf wil toch nog wijzigen)
+async function lkRapInlineHeropen(kindCode, periodeId) {
+  if (!periodeId) return;
+  const periode = (_periodes || []).find(p => p.id === periodeId);
+  if (!periode) return;
+
+  const bevestiging = confirm(
+    `Weet je zeker dat je "${periode.naam}" wil heropenen?\n\n` +
+    `LET OP: alle rapporten in deze periode zullen weer bewerkbaar zijn voor jou. ` +
+    `De huidige actieve periode wordt automatisch afgesloten.`
+  );
+  if (!bevestiging) return;
+
+  try {
+    // Sluit huidige actieve periode eerst (als er één is en het niet deze is)
+    if (_actievePeriode && _actievePeriode.id !== periodeId) {
+      await Voortgang.sluitRapportperiode(_actievePeriode.id);
+    }
+    // Heropen deze periode
+    await Voortgang.heropenRapportperiode(periodeId);
+    // Periodes herladen
+    _periodes = await Voortgang.alleRapportperiodes();
+    _actievePeriode = _periodes.find(p => p.status === 'actief') || null;
+    if (typeof _lkPeriodeBalkRenderer === 'function') _lkPeriodeBalkRenderer();
+    // Re-render
+    const kind = lkKinderen.find(k => k.code === kindCode);
+    if (kind) _lkRapInlineRender(kind);
+  } catch (e) {
+    console.error('Heropenen mislukt:', e);
+    alert('Heropenen mislukt: ' + (e.message || 'onbekend'));
+  }
 }
 
 // =================================================================
@@ -4485,6 +5889,16 @@ function _rapVerzamelFeedback(kindCode, kindNaam) {
         const idx = parseInt(id.slice(3));
         const tekst = s.aiZinnen[cat][idx];
         if (tekst && tekst.trim()) result[cat].push(tekst.trim());
+      }
+    });
+    // Puntenboek-opmerkingen die aangevinkt zijn
+    const pbVinkjes = (s.pbVink && s.pbVink[cat]) || [];
+    const pbOpm = (s.pbOpmerkingen && s.pbOpmerkingen[cat]) || [];
+    pbVinkjes.forEach(id => {
+      if (id.startsWith('pb-')) {
+        const idx = parseInt(id.slice(3));
+        const o = pbOpm[idx];
+        if (o && o.tekst && o.tekst.trim()) result[cat].push(o.tekst.trim());
       }
     });
   });
