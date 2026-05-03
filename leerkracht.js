@@ -2937,31 +2937,30 @@ function wbSluitModal() {
 //  WERKBLADEN
 // =================================================================
 
-// Niveau bepaalt welke OEFENVORMEN aan staan, niet welke woorden
+// Niveaus dienen als groepering/label boven de oefeningen-lijst.
+// Leerkracht vinkt zelf aan welke oefeningen ze wil — er is geen "niveau-modus"
+// meer; ze kan vrij combineren over alle drie de niveaus heen.
 const WB_NIVEAU_BUNDELS = {
   basis: {
-    naam: 'Basis',
+    naam: '🌱 Basis',
     hint: 'Eenvoudige oefeningen om woorden te herkennen.',
-    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'kaartjes']
+    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'kaartjes', 'categoriseerBasis']
   },
   uitbreiding: {
-    naam: 'Uitbreiding',
+    naam: '🌿 Uitbreiding',
     hint: 'Schrijven met hulp: voorbeeld of woordkeuze.',
-    oefeningen: ['overschrijf', 'kiesschrijf', 'letter']
+    oefeningen: ['overschrijf', 'kiesschrijf', 'letter', 'categoriseerUitbreiding']
   },
   verdieping: {
-    naam: 'Verdieping',
+    naam: '🌳 Verdieping',
     hint: 'Zelfstandig produceren zonder steun.',
-    oefeningen: ['zelfschrijven', 'woordzoeker']
-  },
-  vrij: {
-    naam: 'Zelf kiezen',
-    hint: 'Kies hieronder zelf de gewenste oefeningen.',
-    oefeningen: []
+    oefeningen: ['zelfschrijven', 'woordzoeker', 'categoriseerVerdieping']
   }
 };
 
-const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
+const WB_NIVEAU_VOLGORDE = ['basis', 'uitbreiding', 'verdieping'];
+
+const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
 const WB_OEFENING_LABELS = {
   koppel: '👁️ → 🔗 Koppel beeld en woord',
@@ -2973,28 +2972,82 @@ const WB_OEFENING_LABELS = {
   knip: '✂️ → 📋 Knip en plak',
   kleurkoppel: '👁️ → 🎨 Kleur dezelfde paren',
   woordzoeker: '👁️ → 🔍 Woordzoeker',
-  kaartjes: '🃏 Woordkaartjes'
+  kaartjes: '🃏 Woordkaartjes',
+  categoriseerBasis: '🏷️ Welk hoort er niet bij?',
+  categoriseerUitbreiding: '🏷️ Sorteer in 2 groepen (kleuren)',
+  categoriseerVerdieping: '🏷️ Sorteer in 3+ groepen (schrijven)'
 };
 
 // Labels voor categorieën — gebruikt in chips
 const CATEGORIE_LABELS = {
+  // Klas (oud)
   voorwerpen:  { label: 'voorwerpen',  emoji: '📦' },
   werkwoorden: { label: 'werkwoorden', emoji: '🏃' },
   personen:    { label: 'personen',    emoji: '👤' },
   plaatsen:    { label: 'plaatsen',    emoji: '📍' },
-  situaties:   { label: 'situaties',   emoji: '🕒' }
+  situaties:   { label: 'situaties',   emoji: '🤫' },
+  // Lichaam & kleding
+  lichaam:     { label: 'lichaam',     emoji: '👤' },
+  kleren:      { label: 'kleren',      emoji: '👕' },
+  // Eten & drinken
+  eten:        { label: 'eten',        emoji: '🥪' },
+  drinken:     { label: 'drinken',     emoji: '🥛' },
+  bestek:      { label: 'bestek',      emoji: '🍽️' },
+  // Familie & gevoelens
+  familie:     { label: 'familie',     emoji: '👨‍👩‍👧' },
+  gevoelens:   { label: 'gevoelens',   emoji: '😊' },
+  // Dieren & natuur
+  dieren:      { label: 'dieren',      emoji: '🐶' },
+  natuur:      { label: 'natuur',      emoji: '🌳' },
+  weer:        { label: 'weer',        emoji: '☀️' },
+  // Cijfers
+  getallen:    { label: 'getallen',    emoji: '🔢' },
+  hoeveelheid: { label: 'hoeveelheid', emoji: '➕' },
+  // Thuis
+  kamers:      { label: 'kamers',      emoji: '🏠' },
+  meubels:     { label: 'meubels',     emoji: '🛏️' },
+  keukenspullen: { label: 'keukenspullen', emoji: '🍳' },
+  // Wat doe ik?
+  'op-school':      { label: 'op school',     emoji: '📚' },
+  thuis:            { label: 'thuis',         emoji: '🏠' },
+  'sociale-acties': { label: 'samen',         emoji: '🤝' }
 };
 
 let werkbladPerThema = new Map();
 let werkbladThemaIds = [];
 let werkbladTabAlGetoond = false;
 
+// Modus voor sectie 2: 'per-thema' (default) of 'mix'.
+// Alleen relevant bij ≥2 thema's. Bij 1 thema is er geen keuze.
+let werkbladModus = 'per-thema';
+
+// === Mix-paneel state ===
+// Wordt zichtbaar zodra ≥2 thema's aangevinkt zijn. Eén gemeenschappelijke
+// oefeningen-set toegepast op een gemengde woordenpool uit alle thema's.
+const WB_MIX_AANTAL_OPTIES = [8, 12, 16, 20];
+const WB_MIX_NIVEAU_OPTIES = [
+  { key: 'basis',                 label: '🌱 alleen basis' },
+  { key: 'basis-uitbreiding',     label: '🌱 + 🌿 basis & uitbreiding' },
+  { key: 'alle',                  label: '🌱 + 🌿 + 🌳 alle niveaus' }
+];
+let werkbladMix = {
+  oefeningen: new Set(),
+  aantalWoorden: 12,
+  niveauFilter: 'basis-uitbreiding',
+  // Hoe categoriseren werkt in mix: 'thema' (elk thema = eigen groep) of
+  // 'woord-categorie' (gebruik gemeenschappelijke woord-cats; alleen mogelijk als
+  // alle thema's minstens 1 cat delen)
+  categorieMode: 'thema'
+};
+
 function nieuwThemaConfig(thema) {
   // Default: alle categorieën die in dit thema bestaan zijn aan
   const cats = (thema && thema.categorieen) ? new Set(thema.categorieen) : new Set();
   return {
+    // niveau is legacy-veld — niet meer gebruikt voor filtering, alle oefeningen
+    // zijn altijd zichtbaar en aanvinkbaar onder hun groepslabel
     niveau: 'basis',
-    oefeningen: new Set(WB_NIVEAU_BUNDELS.basis.oefeningen),
+    oefeningen: new Set(),  // niets default aangevinkt — leerkracht kiest zelf
     categorieen: cats
   };
 }
@@ -3005,22 +3058,11 @@ function initWerkbladTab() {
   rendererWerkbladThemas();
 }
 
-function kiesThemaNiveau(themaId, niveau) {
-  const cfg = werkbladPerThema.get(themaId);
-  if (!cfg) return;
-  cfg.niveau = niveau;
-  if (niveau !== 'vrij') {
-    cfg.oefeningen = new Set(WB_NIVEAU_BUNDELS[niveau].oefeningen);
-  }
-  rendererThemaPaneel(themaId);
-}
-
 function toggleThemaOefening(themaId, oefKey) {
   const cfg = werkbladPerThema.get(themaId);
   if (!cfg) return;
   if (cfg.oefeningen.has(oefKey)) cfg.oefeningen.delete(oefKey);
   else cfg.oefeningen.add(oefKey);
-  cfg.niveau = 'vrij';
   rendererThemaPaneel(themaId);
 }
 
@@ -3030,6 +3072,45 @@ function toggleThemaCategorie(themaId, cat) {
   if (cfg.categorieen.has(cat)) cfg.categorieen.delete(cat);
   else cfg.categorieen.add(cat);
   rendererThemaPaneel(themaId);
+}
+
+// === Mix-paneel handlers ===
+// Rerender via rendererThemaPanelen() zodat de container eerst leeggemaakt wordt
+// (rendererMixPaneel is een appender en zou anders dubbel renderen).
+function toggleMixOefening(oefKey) {
+  if (werkbladMix.oefeningen.has(oefKey)) werkbladMix.oefeningen.delete(oefKey);
+  else werkbladMix.oefeningen.add(oefKey);
+  rendererThemaPanelen();
+}
+
+function kiesMixAantal(aantal) {
+  werkbladMix.aantalWoorden = aantal;
+  rendererThemaPanelen();
+}
+
+function kiesMixNiveauFilter(filter) {
+  werkbladMix.niveauFilter = filter;
+  rendererThemaPanelen();
+}
+
+function kiesMixCategorieMode(mode) {
+  werkbladMix.categorieMode = mode;
+  rendererThemaPanelen();
+}
+
+// Helper: vind categorieën die in alle gekozen woord-thema's voorkomen.
+// Returns lijst van categorie-keys (kan leeg zijn als er geen overlap is).
+// Zinnen-thema's tellen niet mee — die hebben geen categorieën.
+function _mixGemeenschappelijkeCategorieen(themas) {
+  const woordThemas = themas.filter(t => t.type !== 'zinnen' && Array.isArray(t.categorieen) && t.categorieen.length > 0);
+  if (woordThemas.length < themas.length) return []; // niet álle thema's hebben cats
+  if (woordThemas.length === 0) return [];
+  // Intersectie nemen
+  let gemeen = new Set(woordThemas[0].categorieen);
+  woordThemas.slice(1).forEach(t => {
+    gemeen = new Set(t.categorieen.filter(c => gemeen.has(c)));
+  });
+  return Array.from(gemeen);
 }
 
 function rendererWerkbladThemas() {
@@ -3067,6 +3148,11 @@ function rendererWerkbladThemas() {
   rendererThemaPanelen();
 }
 
+function kiesWerkbladModus(modus) {
+  werkbladModus = modus;
+  rendererThemaPanelen();
+}
+
 function rendererThemaPanelen() {
   const container = document.getElementById('werkblad-thema-panelen');
   if (!container) return;
@@ -3077,15 +3163,215 @@ function rendererThemaPanelen() {
     return;
   }
 
-  werkbladThemaIds.forEach(themaId => {
-    const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
-    if (!thema) return;
+  // Bij 1 thema: geen modus-keuze, gewoon het per-thema-paneel
+  if (werkbladThemaIds.length === 1) {
+    const themaId = werkbladThemaIds[0];
     const paneel = document.createElement('div');
     paneel.className = 'thema-paneel';
     paneel.id = 'paneel-' + themaId;
     container.appendChild(paneel);
     rendererThemaPaneel(themaId);
+    return;
+  }
+
+  // Bij ≥2 thema's: modus-keuze bovenaan
+  const modusKeuze = document.createElement('div');
+  modusKeuze.className = 'werkblad-modus-keuze';
+  modusKeuze.innerHTML = `
+    <div class="werkblad-modus-vraag">Hoe wil je de werkbundel?</div>
+    <div class="werkblad-modus-knoppen">
+      <button class="werkblad-modus-knop ${werkbladModus === 'per-thema' ? 'actief' : ''}" onclick="kiesWerkbladModus('per-thema')">
+        <span class="modus-icoon">📚</span>
+        <span class="modus-titel">Oefeningen per thema</span>
+        <span class="modus-uitleg">Elk thema krijgt eigen pagina's met oefeningen</span>
+      </button>
+      <button class="werkblad-modus-knop ${werkbladModus === 'mix' ? 'actief' : ''}" onclick="kiesWerkbladModus('mix')">
+        <span class="modus-icoon">🎲</span>
+        <span class="modus-titel">Thema's gemengd per oefening</span>
+        <span class="modus-uitleg">Eén werkblad met woorden uit alle thema's door elkaar</span>
+      </button>
+    </div>
+  `;
+  container.appendChild(modusKeuze);
+
+  if (werkbladModus === 'per-thema') {
+    werkbladThemaIds.forEach(themaId => {
+      const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+      if (!thema) return;
+      const paneel = document.createElement('div');
+      paneel.className = 'thema-paneel';
+      paneel.id = 'paneel-' + themaId;
+      container.appendChild(paneel);
+      rendererThemaPaneel(themaId);
+    });
+  } else {
+    // Mix-modus: alleen mix-paneel zichtbaar
+    rendererMixPaneel();
+  }
+}
+
+// Render het mix-paneel.
+// Wordt aangeroepen wanneer werkbladModus === 'mix' EN ≥2 thema's geselecteerd.
+// Het paneel wordt inline toegevoegd aan #werkblad-thema-panelen door de caller
+// (rendererThemaPanelen).
+function rendererMixPaneel() {
+  const container = document.getElementById('werkblad-thema-panelen');
+  if (!container) return;
+  if (werkbladThemaIds.length < 2 || werkbladModus !== 'mix') return;
+
+  // Maak het mix-paneel aan en append het in de container
+  const paneel = document.createElement('div');
+  paneel.id = 'werkblad-mix-paneel';
+  paneel.className = 'werkblad-mix-paneel';
+  container.appendChild(paneel);
+
+  // Bepaal of er zinnen-thema's tussen zitten — dan filter ongeschikte oefeningen
+  const themas = werkbladThemaIds.map(id => ALLE_THEMAS_LK.find(t => t.id === id)).filter(Boolean);
+  const heeftZinnenThema = themas.some(t => t.type === 'zinnen');
+  const nietVoorZinnen = ['letter', 'woordzoeker', 'categoriseerBasis', 'categoriseerUitbreiding', 'categoriseerVerdieping'];
+
+  // Schoon de set: oefeningen die niet meer kunnen door thema-mix verwijderen
+  if (heeftZinnenThema) {
+    nietVoorZinnen.forEach(k => werkbladMix.oefeningen.delete(k));
+  }
+
+  // Tel hoeveel woorden er totaal beschikbaar zijn (over alle thema's, na niveau-filter)
+  const beschikbaarPerNiveau = _mixBeschikbarePerNiveau(themas);
+
+  // Bouw de samenvatting bovenaan
+  const themaNamen = themas.map(t => `${t.emoji} ${t.naam}`).join(' + ');
+  let html = `
+    <div class="mix-overzicht">
+      <div class="mix-overzicht-themas">${themaNamen}</div>
+      <div class="mix-overzicht-tellers">
+        🌱 ${beschikbaarPerNiveau.basis} woorden ·
+        🌿 ${beschikbaarPerNiveau.uitbreiding} woorden ·
+        🌳 ${beschikbaarPerNiveau.verdieping} woorden
+      </div>
+    </div>
+  `;
+
+  // Niveau-filter
+  html += `<div class="mix-veld">
+    <div class="mix-veld-label">Welke niveaus mogen meedoen?</div>
+    <div class="paneel-niveau-rij">`;
+  WB_MIX_NIVEAU_OPTIES.forEach(opt => {
+    const aan = werkbladMix.niveauFilter === opt.key;
+    html += `<button class="mini-niveau-knop ${aan ? 'actief' : ''}" onclick="kiesMixNiveauFilter('${opt.key}')">${opt.label}</button>`;
   });
+  html += `</div></div>`;
+
+  // Aantal woorden
+  html += `<div class="mix-veld">
+    <div class="mix-veld-label">Hoeveel woorden in totaal?</div>
+    <div class="paneel-niveau-rij">`;
+  WB_MIX_AANTAL_OPTIES.forEach(n => {
+    const aan = werkbladMix.aantalWoorden === n;
+    html += `<button class="mini-niveau-knop ${aan ? 'actief' : ''}" onclick="kiesMixAantal(${n})">${n} woorden</button>`;
+  });
+  html += `</div></div>`;
+
+  // Toon evenredige verdeling als hint
+  const verdelingHint = _mixVerdelingHint(themas, werkbladMix.aantalWoorden);
+  html += `<div class="mix-hint">📊 ${verdelingHint}</div>`;
+
+  // Oefeningen per niveau-groep — zelfde structuur als per-thema-paneel
+  WB_NIVEAU_VOLGORDE.forEach(niveau => {
+    const bundel = WB_NIVEAU_BUNDELS[niveau];
+    let oefeningenInGroep = bundel.oefeningen.slice();
+    if (heeftZinnenThema) {
+      oefeningenInGroep = oefeningenInGroep.filter(k => !nietVoorZinnen.includes(k));
+    }
+    if (oefeningenInGroep.length === 0) return;
+
+    html += `
+      <div class="paneel-niveau-groep">
+        <div class="paneel-niveau-kop">${bundel.naam}</div>
+        <div class="paneel-oefeningen">
+    `;
+    oefeningenInGroep.forEach(oefKey => {
+      const aan = werkbladMix.oefeningen.has(oefKey);
+      const label = WB_OEFENING_LABELS[oefKey];
+      html += `
+        <label class="mini-check ${aan ? 'aan' : ''}">
+          <input type="checkbox" ${aan ? 'checked' : ''} onchange="toggleMixOefening('${oefKey}')">
+          <span>${label}</span>
+        </label>
+      `;
+    });
+    html += `</div></div>`;
+  });
+
+  // Categorie-mode keuze — alleen tonen als minstens één categoriseer-oefening aanstaat
+  const heeftCategoriseer = ['categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping']
+    .some(k => werkbladMix.oefeningen.has(k));
+  if (heeftCategoriseer) {
+    const gemeenCats = _mixGemeenschappelijkeCategorieen(themas);
+    const woordCatBeschikbaar = gemeenCats.length >= 2; // minstens 2 cats nodig om te sorteren
+    // Als woord-categorie niet kan en huidige mode is daarop gezet → val terug op thema
+    if (!woordCatBeschikbaar && werkbladMix.categorieMode === 'woord-categorie') {
+      werkbladMix.categorieMode = 'thema';
+    }
+    const themaActief = werkbladMix.categorieMode === 'thema';
+    const wcActief = werkbladMix.categorieMode === 'woord-categorie';
+
+    // Bouw uitleg-tekst voor de woord-categorie-knop
+    const wcUitleg = woordCatBeschikbaar
+      ? `Gemeenschappelijke: ${gemeenCats.map(c => (CATEGORIE_LABELS[c] || {label: c}).label).join(', ')}`
+      : 'Geen overlap tussen de gekozen thema\'s';
+
+    html += `
+      <div class="mix-veld" style="margin-top:14px; padding-top:12px; border-top:1px dashed var(--kleur-rand)">
+        <div class="mix-veld-label">🏷️ Categorieën in categoriseer-oefening</div>
+        <div class="mix-categorie-mode">
+          <button class="werkblad-modus-knop ${themaActief ? 'actief' : ''}" onclick="kiesMixCategorieMode('thema')">
+            <span class="modus-icoon">📚</span>
+            <span class="modus-titel">Per thema</span>
+            <span class="modus-uitleg">Elk thema is een groep</span>
+          </button>
+          <button class="werkblad-modus-knop ${wcActief ? 'actief' : ''} ${woordCatBeschikbaar ? '' : 'gegrijsd'}"
+                  ${woordCatBeschikbaar ? '' : 'disabled'}
+                  onclick="kiesMixCategorieMode('woord-categorie')">
+            <span class="modus-icoon">🏷️</span>
+            <span class="modus-titel">Per woord-categorie</span>
+            <span class="modus-uitleg">${wcUitleg}</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // Teller hoeveel oefeningen aangevinkt — knoppen staan onderaan de tab
+  const aantalAan = werkbladMix.oefeningen.size;
+  html += `
+    <div class="mix-teller-blok">
+      <span class="mix-teller">${aantalAan} oefenvorm${aantalAan === 1 ? '' : 'en'} aangevinkt — gebruik de knoppen onderaan om de PDF te maken</span>
+    </div>
+  `;
+
+  paneel.innerHTML = html;
+}
+
+// Helper: tel beschikbare woorden per niveau over alle gekozen thema's
+function _mixBeschikbarePerNiveau(themas) {
+  const tel = { basis: 0, uitbreiding: 0, verdieping: 0 };
+  themas.forEach(thema => {
+    const verrijkt = lkVerrijkThema(thema);
+    (verrijkt.items || []).forEach(it => {
+      if (tel[it.niveau] !== undefined) tel[it.niveau]++;
+    });
+  });
+  return tel;
+}
+
+// Helper: bouw een leesbare verdelings-hint zoals "4 + 4 + 4 woorden"
+function _mixVerdelingHint(themas, totaal) {
+  const n = themas.length;
+  const basis = Math.floor(totaal / n);
+  const rest = totaal - basis * n;
+  // Eerste `rest` thema's krijgen er 1 extra
+  const verdeling = themas.map((_, i) => basis + (i < rest ? 1 : 0));
+  return `Verdeling: ${verdeling.join(' + ')} woorden over ${n} thema's`;
 }
 
 function rendererThemaPaneel(themaId) {
@@ -3095,11 +3381,11 @@ function rendererThemaPaneel(themaId) {
   const cfg = werkbladPerThema.get(themaId);
   if (!thema || !cfg) return;
 
-  // Bepaal of dit thema "alleen zinnen" bevat — dan zijn letter-puzzel en woordzoeker uitgeschakeld
+  // Bepaal of dit thema "alleen zinnen" bevat — dan zijn letter-puzzel, woordzoeker en categoriseer uitgeschakeld
   const isZinnenThema = thema.type === 'zinnen';
 
   // Oefeningen die niet werken voor zinnen-thema's
-  const nietVoorZinnen = ['letter', 'woordzoeker'];
+  const nietVoorZinnen = ['letter', 'woordzoeker', 'categoriseerBasis', 'categoriseerUitbreiding', 'categoriseerVerdieping'];
 
   let html = `
     <div class="thema-paneel-kop">
@@ -3107,14 +3393,7 @@ function rendererThemaPaneel(themaId) {
       <span class="paneel-naam">${thema.naam}</span>
       ${isZinnenThema ? '<span class="paneel-badge">zinnen-thema</span>' : ''}
     </div>
-    <div class="paneel-niveau-rij">
   `;
-  ['basis', 'uitbreiding', 'verdieping', 'vrij'].forEach(niveau => {
-    const isActief = cfg.niveau === niveau;
-    const labels = { basis: '🌱 Basis', uitbreiding: '🌿 Uitbreiding', verdieping: '🌳 Verdieping', vrij: '⚙️ Zelf' };
-    html += `<button class="mini-niveau-knop ${isActief ? 'actief' : ''}" onclick="kiesThemaNiveau('${themaId}', '${niveau}')">${labels[niveau]}</button>`;
-  });
-  html += `</div>`;
 
   // ===== Categorieën-chips (alleen tonen als thema categorieën heeft) =====
   if (thema.categorieen && thema.categorieen.length > 0) {
@@ -3136,29 +3415,38 @@ function rendererThemaPaneel(themaId) {
     html += `</div></div>`;
   }
 
-  let tonen = cfg.niveau === 'vrij' ? WB_OEFENING_KEYS : WB_NIVEAU_BUNDELS[cfg.niveau].oefeningen;
-  // Filter ongeschikte oefeningen voor zinnen-thema's
+  // Voor zinnen-thema's: ongeschikte oefeningen uit de actieve set halen zodat ze niet
+  // toch in de PDF terechtkomen via een eerdere selectie
   if (isZinnenThema) {
-    tonen = tonen.filter(k => !nietVoorZinnen.includes(k));
-    // Zorg ook dat ze niet in de actieve set zitten (anders crashen ze in de PDF)
     nietVoorZinnen.forEach(k => cfg.oefeningen.delete(k));
   }
 
-  html += `<div class="paneel-oefeningen">`;
-  if (tonen.length === 0) {
-    html += '<p class="sectie-hint">Geen oefeningen op dit niveau die werken voor een zinnen-thema. Kies een ander niveau.</p>';
-  } else {
-    tonen.forEach(oefKey => {
+  // ===== Oefeningen per niveau-groep =====
+  WB_NIVEAU_VOLGORDE.forEach(niveau => {
+    const bundel = WB_NIVEAU_BUNDELS[niveau];
+    let oefeningenInGroep = bundel.oefeningen.slice();
+    if (isZinnenThema) {
+      oefeningenInGroep = oefeningenInGroep.filter(k => !nietVoorZinnen.includes(k));
+    }
+    if (oefeningenInGroep.length === 0) return; // niets te tonen voor deze groep
+
+    html += `
+      <div class="paneel-niveau-groep">
+        <div class="paneel-niveau-kop">${bundel.naam}</div>
+        <div class="paneel-oefeningen">
+    `;
+    oefeningenInGroep.forEach(oefKey => {
       const aan = cfg.oefeningen.has(oefKey);
+      const label = WB_OEFENING_LABELS[oefKey];
       html += `
         <label class="mini-check ${aan ? 'aan' : ''}">
           <input type="checkbox" ${aan ? 'checked' : ''} onchange="toggleThemaOefening('${themaId}', '${oefKey}')">
-          <span>${WB_OEFENING_LABELS[oefKey]}</span>
+          <span>${label}</span>
         </label>
       `;
     });
-  }
-  html += `</div>`;
+    html += `</div></div>`;
+  });
 
   paneel.innerHTML = html;
 }
@@ -3167,6 +3455,10 @@ async function genereerWerkblad() {
   if (werkbladThemaIds.length === 0) {
     alert('Kies minstens één thema.');
     return;
+  }
+  // Bij ≥2 thema's en mix-modus: dispatch naar mix-genereer
+  if (werkbladThemaIds.length >= 2 && werkbladModus === 'mix') {
+    return genereerMixWerkblad();
   }
 
   // Belangrijk: pas Woordenbeheer toe vóór we naar de PDF-engine gaan,
@@ -3215,6 +3507,10 @@ async function genereerOplossingssleutel() {
     alert('Kies minstens één thema voor de oplossingssleutel.');
     return;
   }
+  // Bij ≥2 thema's en mix-modus: dispatch naar mix-oplossing
+  if (werkbladThemaIds.length >= 2 && werkbladModus === 'mix') {
+    return genereerMixOplossing();
+  }
   const themaConfigs = werkbladThemaIds.map(id => {
     const basis = ALLE_THEMAS_LK.find(t => t.id === id);
     const verrijkt = lkVerrijkThema(basis);
@@ -3236,6 +3532,173 @@ async function genereerOplossingssleutel() {
   } catch (e) {
     console.error('Oplossingssleutel mislukt:', e);
     alert('De oplossingssleutel kon niet gemaakt worden. Probeer opnieuw.');
+  }
+}
+
+// =================================================================
+//  MIX-WERKBLAD — gecombineerde woordenpool over meerdere thema's
+// =================================================================
+//
+// Bouwt één kunstmatig "gemengd" thema-object met evenredig getrokken
+// woorden uit elk geselecteerd thema, gefilterd op het gekozen niveau.
+// PDF-engine tekent dan elke aangevinkte oefening op deze pool.
+
+// Bouw een gemengd thema-object met evenredige verdeling van woorden.
+// Returns null als de pool leeg is na filtering.
+function _bouwMixThemaObject() {
+  const themas = werkbladThemaIds
+    .map(id => ALLE_THEMAS_LK.find(t => t.id === id))
+    .filter(Boolean);
+  if (themas.length < 2) return null;
+
+  // Niveau-filter
+  const filter = werkbladMix.niveauFilter;
+  const niveausIn = (filter === 'basis')              ? ['basis'] :
+                    (filter === 'basis-uitbreiding')  ? ['basis', 'uitbreiding'] :
+                                                        ['basis', 'uitbreiding', 'verdieping'];
+
+  // Verzamel per thema de eligible items (na verrijking + niveau-filter)
+  const verrijkteThemas = themas.map(t => lkVerrijkThema(t));
+  const eligiblePerThema = verrijkteThemas.map(vt =>
+    (vt.items || []).filter(it => niveausIn.indexOf(it.niveau) !== -1)
+  );
+
+  // Evenredige verdeling: floor(totaal / n) per thema, eerste rest-modulo-thema's
+  // krijgen er 1 extra. Daarna desnoods bijschalen als een thema te weinig items
+  // heeft, zodat we het totaal proberen te halen.
+  const totaal = werkbladMix.aantalWoorden;
+  const n = themas.length;
+  const basisPerThema = Math.floor(totaal / n);
+  const rest = totaal - basisPerThema * n;
+  const doelPerThema = themas.map((_, i) => basisPerThema + (i < rest ? 1 : 0));
+
+  // Trekking per thema: shuffle en pak het doel-aantal (of zoveel als beschikbaar)
+  const getrokken = [];
+  let tekort = 0;
+  eligiblePerThema.forEach((items, i) => {
+    const doel = doelPerThema[i];
+    const geschud = [...items].sort(() => Math.random() - 0.5);
+    const pak = geschud.slice(0, doel);
+    getrokken.push(pak);
+    if (pak.length < doel) tekort += (doel - pak.length);
+  });
+
+  // Probeer het tekort op te vangen door extra items te trekken uit thema's die
+  // nog reserve hebben (zonder duplicaten)
+  if (tekort > 0) {
+    for (let i = 0; i < eligiblePerThema.length && tekort > 0; i++) {
+      const reserve = eligiblePerThema[i].filter(it => getrokken[i].indexOf(it) === -1);
+      const extra = reserve.slice(0, tekort);
+      if (extra.length > 0) {
+        getrokken[i] = getrokken[i].concat(extra);
+        tekort -= extra.length;
+      }
+    }
+  }
+
+  // Vlak alle getrokken items samen tot één pool. Geef elk item een
+  // synthetische categorie afhankelijk van werkbladMix.categorieMode:
+  //   - 'thema'           → categorie = thema-id (bv. 'w-klas')
+  //   - 'woord-categorie' → behoud originele categorie, filter items zonder
+  //                         gemeenschappelijke cat eruit
+  const pool = [];
+  if (werkbladMix.categorieMode === 'woord-categorie') {
+    const gemeenCats = _mixGemeenschappelijkeCategorieen(themas);
+    const gemeenSet = new Set(gemeenCats);
+    getrokken.forEach((arr) => {
+      arr.forEach(it => {
+        if (it.categorie && gemeenSet.has(it.categorie)) {
+          pool.push(it);
+        }
+      });
+    });
+  } else {
+    // 'thema'-mode: clone items met synthetische categorie = thema-id
+    getrokken.forEach((arr, themaIdx) => {
+      const themaId = themas[themaIdx].id;
+      arr.forEach(it => {
+        pool.push({ ...it, categorie: themaId });
+      });
+    });
+  }
+
+  if (pool.length === 0) return null;
+
+  // Bouw kunstmatig thema. emoji + naam komen van de eerste — gebruikt voor de PDF-kop.
+  // Bij categorieMode='thema' geven we elk thema-id een leesbaar label mee zodat de
+  // PDF-engine "🎒 Klas" toont i.p.v. "w-klas" als kop.
+  const themaNaam = themas.map(t => t.naam).join(' + ');
+  const mixThema = {
+    id: 'mix-' + themas.map(t => t.id).join('-'),
+    naam: themaNaam,
+    emoji: '🎲',
+    type: 'woorden',
+    items: pool
+  };
+  if (werkbladMix.categorieMode === 'thema') {
+    mixThema._categorieLabels = {};
+    themas.forEach(t => {
+      // Hou de emoji en kort de naam in zodat het kop-vak in de PDF niet overloopt
+      const kortName = t.naam.length > 18 ? t.naam.substring(0, 16) + '…' : t.naam;
+      mixThema._categorieLabels[t.id] = { label: kortName, emoji: t.emoji };
+    });
+  }
+  return mixThema;
+}
+
+async function genereerMixWerkblad() {
+  if (werkbladThemaIds.length < 2) {
+    alert('Selecteer minstens twee thema\'s om een mix-werkblad te maken.');
+    return;
+  }
+  if (werkbladMix.oefeningen.size === 0) {
+    alert('Vink minstens één oefenvorm aan in het mix-paneel.');
+    return;
+  }
+  const mixThema = _bouwMixThemaObject();
+  if (!mixThema || mixThema.items.length === 0) {
+    alert('Geen woorden beschikbaar voor de mix met de huidige niveau-filter. Kies een ruimer niveau.');
+    return;
+  }
+  const themaConfigs = [{
+    thema: mixThema,
+    oefeningen: Array.from(werkbladMix.oefeningen),
+    niveau: 'basis',  // legacy-veld, niet meer functioneel
+    categorieen: []   // mix gebruikt geen categorie-filter
+  }];
+  try {
+    await PDFEngine.maakWerkblad(themaConfigs, { verdeling: 'per-thema' });
+  } catch (e) {
+    console.error('Mix-werkblad mislukt:', e);
+    alert('Het mix-werkblad kon niet gemaakt worden. Probeer opnieuw.');
+  }
+}
+
+async function genereerMixOplossing() {
+  if (werkbladThemaIds.length < 2) {
+    alert('Selecteer minstens twee thema\'s om een mix-oplossing te maken.');
+    return;
+  }
+  if (werkbladMix.oefeningen.size === 0) {
+    alert('Vink minstens één oefenvorm aan in het mix-paneel.');
+    return;
+  }
+  const mixThema = _bouwMixThemaObject();
+  if (!mixThema || mixThema.items.length === 0) {
+    alert('Geen woorden beschikbaar voor de mix.');
+    return;
+  }
+  const themaConfigs = [{
+    thema: mixThema,
+    oefeningen: Array.from(werkbladMix.oefeningen),
+    niveau: 'basis',
+    categorieen: []
+  }];
+  try {
+    await PDFEngine.maakOplossingssleutel(themaConfigs, { verdeling: 'per-thema' });
+  } catch (e) {
+    console.error('Mix-oplossing mislukt:', e);
+    alert('De mix-oplossingssleutel kon niet gemaakt worden. Probeer opnieuw.');
   }
 }
 
@@ -4242,17 +4705,22 @@ function _twbRender() {
     .filter(Boolean);
   const woordenTekst = woordItems.map(it => it.tekst).join(', ');
 
-  // Bouw oefenvorm-checkboxes
+  // Bouw oefenvorm-checkboxes per niveau-groep
   let oefHtml = '';
-  Object.keys(WB_OEFENING_LABELS).forEach(oefKey => {
-    const aan = _twbModalState.oefeningen.has(oefKey) ? 'checked' : '';
-    const label = WB_OEFENING_LABELS[oefKey];
-    oefHtml += `
-      <label class="lk-twb-oef-rij ${aan ? 'aan' : ''}">
-        <input type="checkbox" ${aan} onchange="lkTwbToggleOef('${oefKey}')">
-        <span>${label}</span>
-      </label>
-    `;
+  WB_NIVEAU_VOLGORDE.forEach(niveau => {
+    const bundel = WB_NIVEAU_BUNDELS[niveau];
+    if (!bundel.oefeningen.length) return;
+    oefHtml += `<div class="lk-twb-niveau-kop">${bundel.naam}</div>`;
+    bundel.oefeningen.forEach(oefKey => {
+      const aan = _twbModalState.oefeningen.has(oefKey) ? 'checked' : '';
+      const label = WB_OEFENING_LABELS[oefKey];
+      oefHtml += `
+        <label class="lk-twb-oef-rij ${aan ? 'aan' : ''}">
+          <input type="checkbox" ${aan} onchange="lkTwbToggleOef('${oefKey}')">
+          <span>${label}</span>
+        </label>
+      `;
+    });
   });
 
   const aantalOef = _twbModalState.oefeningen.size;
@@ -4327,10 +4795,11 @@ async function lkTwbGenereer() {
   }
 
   // Bouw kunstmatig thema-object met enkel de gekozen woorden.
+  // De drie categoriseer-varianten zijn nu aparte oefen-keys, dus niveau is niet meer nodig.
   const themaConfigs = [{
     thema: { ...verrijkt, items: gefilterdeItems },
     oefeningen: Array.from(_twbModalState.oefeningen),
-    niveau: 'vrij',
+    niveau: 'basis',  // legacy-veld, niet meer functioneel gebruikt
     categorieen: []
   }];
 
