@@ -1198,31 +1198,59 @@ window.RapportEngine = (function() {
 
     // Bepaal welke toetsen er afgenomen zijn. Nieuwe taken hebben toetsResultaten,
     // oudere alleen foutWoordenLaatsteToets (interpreteren als luistertoets).
+    // Voor elke vaardigheid kunnen er 1 of 2 pogingen zijn (herkansing).
     const allevaardigheden = ['luisteren', 'lezen', 'schrijven'];
     const labels = {
       luisteren: 'Luistertoets',
       lezen:     'Leestoets',
       schrijven: 'Schrijftoets'
     };
-    const afgenomenToetsen = [];
+    // Lijst van te renderen secties: { vaardigheid, foutIds, pogingNr, totaalPogingen }
+    const teRenderen = [];
     if (taak.toetsResultaten) {
       allevaardigheden.forEach(v => {
         const r = taak.toetsResultaten[v];
-        if (r && r.afgenomen) {
-          afgenomenToetsen.push({ vaardigheid: v, foutIds: Array.isArray(r.foutIds) ? r.foutIds : [] });
+        if (!r || !r.afgenomen) return;
+        // Als er een pogingen-array is, render elke poging als aparte sectie
+        if (Array.isArray(r.pogingen) && r.pogingen.length > 0) {
+          r.pogingen.forEach((p, idx) => {
+            teRenderen.push({
+              vaardigheid: v,
+              foutIds: Array.isArray(p.foutIds) ? p.foutIds : [],
+              pct: typeof p.pct === 'number' ? p.pct : null,
+              pogingNr: idx + 1,
+              totaalPogingen: r.pogingen.length
+            });
+          });
+        } else {
+          // Geen pogingen-array (oude data) → val terug op foutIds van het object zelf
+          teRenderen.push({
+            vaardigheid: v,
+            foutIds: Array.isArray(r.foutIds) ? r.foutIds : [],
+            pct: null,
+            pogingNr: 1,
+            totaalPogingen: 1
+          });
         }
       });
     }
-    if (afgenomenToetsen.length === 0) {
+    if (teRenderen.length === 0) {
       // Backwards-compat: gebruik foutWoordenLaatsteToets als luistertoets
       const fout = Array.isArray(taak.foutWoordenLaatsteToets) ? taak.foutWoordenLaatsteToets : [];
       const isVoltooid = taak.status === 'voltooid';
       const isMoeilijk = (taak.status === 'moeilijk' || taak.status === 'haperde');
-      // Alleen tonen als er werkelijk een toets is geweest
       if (isVoltooid || isMoeilijk || fout.length > 0) {
-        afgenomenToetsen.push({ vaardigheid: 'luisteren', foutIds: fout });
+        teRenderen.push({
+          vaardigheid: 'luisteren',
+          foutIds: fout,
+          pct: null,
+          pogingNr: 1,
+          totaalPogingen: 1
+        });
       }
     }
+    // Aliasen voor backwards-compat met de oude variabele-naam in render-code
+    const afgenomenToetsen = teRenderen;
 
     // Header op pagina 1
     let y = tekenHeader(doc, school, kind.naam, kind.code);
@@ -1262,11 +1290,15 @@ window.RapportEngine = (function() {
         yStart = tekenHeader(doc, school, kind.naam, kind.code);
       }
 
-      // Sectie-titel
+      // Sectie-titel — bij meerdere pogingen toon "1ste poging" / "Herkansing"
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(14);
       doc.setTextColor(K_HOOFDTITEL);
-      const titel = labels[toets.vaardigheid] || 'Toets';
+      let titel = labels[toets.vaardigheid] || 'Toets';
+      if (toets.totaalPogingen && toets.totaalPogingen > 1) {
+        const suffix = (toets.pogingNr === 1) ? '1ste poging' : 'Herkansing';
+        titel = `${titel} — ${suffix}`;
+      }
       doc.text(titel, M, yStart + 5);
       yStart += 8;
 
