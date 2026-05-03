@@ -13,8 +13,17 @@
 </head>
 <body>
 
+<!-- ============ SCHERM: LADEN (default zichtbaar tijdens init) ============ -->
+<div id="scherm-laden" class="scherm actief">
+  <div class="login-doos">
+    <div class="login-zebra">🦓</div>
+    <h1>Anders Leren</h1>
+    <p class="login-onder">Even laden…</p>
+  </div>
+</div>
+
 <!-- ============ SCHERM: LOGIN ============ -->
-<div id="scherm-login" class="scherm actief">
+<div id="scherm-login" class="scherm">
   <div class="login-doos">
     <div class="login-zebra">🦓</div>
     <h1>Anders Leren</h1>
@@ -376,6 +385,34 @@
   </main>
 </div>
 
+<!-- ============ SCHERM: TAAK INTRO  (per vaardigheid + per toets) ============ -->
+<div id="scherm-taak-intro" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakIntroAnnuleer()">← Stop</button>
+    <h1 id="taak-intro-kop">📋 Mijn taak</h1>
+    <span class="teller"></span>
+  </header>
+  <main class="taak-intro-main">
+    <div class="taak-intro-welkom" id="taak-intro-welkom" style="display:none"></div>
+    <div class="taak-intro-icoon" id="taak-intro-icoon">👂</div>
+    <h2 class="taak-intro-titel" id="taak-intro-titel">Nu gaan we luisteren</h2>
+    <p class="taak-intro-uitleg" id="taak-intro-uitleg">Hoor het woord. Klik op het juiste woord.</p>
+    <div class="taak-intro-audio">
+      <button class="audio-knop hoor" onclick="taakIntroHoorUitleg()">
+        <span class="audio-icoon">🔊</span><span>Hoor de uitleg</span>
+      </button>
+    </div>
+    <div class="taak-intro-demo" id="taak-intro-demo">
+      <!-- Demo-blok wordt hier dynamisch gevuld door taakIntroBouwDemo() -->
+    </div>
+    <div class="taak-intro-actie">
+      <button class="grote-knop taak-intro-start" id="taak-intro-start" onclick="taakIntroVerder()">
+        ✓ Klaar! Begin →
+      </button>
+    </div>
+  </main>
+</div>
+
 <!-- ============ SCHERM: TAAK FASE 1 — LEREN ============ -->
 <div id="scherm-taak-leren" class="scherm">
   <header class="modus-header taak-header">
@@ -412,6 +449,7 @@
     <span class="teller"><span id="taak-oef-klaar">0</span>/<span id="taak-oef-totaal">5</span> ✓</span>
   </header>
   <main class="oefen-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-oef-ronde">Ronde 1 van 3</span></div>
     <div class="taak-oef-balk-wrap">
       <div class="taak-oef-balk-vul" id="taak-oef-balk" style="width:0%"></div>
     </div>
@@ -447,6 +485,107 @@
       </button>
     </div>
     <div class="optie-rij" id="taak-toets-opties"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: LEZEN-OEFENEN  (woord → kies beeld) ============ -->
+<div id="scherm-taak-lezen-oef" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>👁️ Mijn taak — lezen</h1>
+    <span class="teller"><span id="taak-lezen-oef-klaar">0</span>/<span id="taak-lezen-oef-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-lezen-oef-ronde">Ronde 1 van 3</span></div>
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-lezen-oef-balk" style="width:0%"></div>
+    </div>
+    <div class="kaart-groot">
+      <div class="taak-toets-woord-groot" id="taak-lezen-oef-woord">de boekentas</div>
+    </div>
+    <div class="taak-oef-vraag">Welk beeld hoort bij dit woord?</div>
+    <div class="taak-toets-beeld-rij" id="taak-lezen-oef-opties"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: LEZEN-TOETS  (woord → kies beeld, geen feedback) ============ -->
+<div id="scherm-taak-lezen-toets" class="scherm">
+  <header class="modus-header taak-header taak-toets-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>🎯 Mijn taak — leestoets</h1>
+    <span class="teller"><span id="taak-lezen-toets-huidig">1</span>/<span id="taak-lezen-toets-totaal">5</span></span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-lezen-toets-balk" style="width:0%"></div>
+    </div>
+    <div class="kaart-groot">
+      <div class="taak-toets-woord-groot" id="taak-lezen-toets-woord">de boekentas</div>
+    </div>
+    <div class="taak-toets-beeld-rij" id="taak-lezen-toets-opties"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: SCHRIJVEN-OEFENEN  (overtypen) ============ -->
+<div id="scherm-taak-schrijven-oef" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>✍️ Mijn taak — schrijven</h1>
+    <span class="teller"><span id="taak-schrijven-oef-klaar">0</span>/<span id="taak-schrijven-oef-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-schrijven-oef-ronde">Ronde 1 van 2</span></div>
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-schrijven-oef-balk" style="width:0%"></div>
+    </div>
+    <div class="kaart-groot">
+      <div class="kaart-beeld" id="taak-schrijven-oef-beeld">🎒</div>
+      <div class="taak-schrijven-woord zichtbaar" id="taak-schrijven-oef-woord">de boekentas</div>
+    </div>
+    <div class="taak-schrijven-knoppen verborgen" id="taak-schrijven-oef-knoppen">
+      <button class="audio-knop hoor" onclick="taakSchrijvenHoor()">
+        <span class="audio-icoon">🔊</span><span class="audio-tekst">Hoor</span>
+      </button>
+      <button class="audio-knop" id="taak-schrijven-toon-opnieuw" onclick="taakSchrijvenToonOpnieuw()">
+        <span class="audio-icoon">👁️</span><span class="audio-tekst">Toon opnieuw (2×)</span>
+      </button>
+    </div>
+    <div class="taak-schrijven-input-rij verborgen" id="taak-schrijven-oef-input-rij">
+      <input type="text" id="taak-schrijven-oef-input" class="taak-schrijven-input"
+             placeholder="Typ het woord hier..." autocomplete="off" spellcheck="false"
+             onkeydown="if(event.key==='Enter') taakSchrijvenSubmit()">
+      <button class="grote-knop" onclick="taakSchrijvenSubmit()">✓ Klaar</button>
+    </div>
+    <div class="taak-schrijven-feedback" id="taak-schrijven-oef-feedback"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: SCHRIJVEN-TOETS  (1 poging, geen hint) ============ -->
+<div id="scherm-taak-schrijven-toets" class="scherm">
+  <header class="modus-header taak-header taak-toets-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>🎯 Mijn taak — schrijftoets</h1>
+    <span class="teller"><span id="taak-schrijven-toets-huidig">1</span>/<span id="taak-schrijven-toets-totaal">5</span></span>
+  </header>
+  <main class="oefen-main">
+    <div class="taak-oef-balk-wrap">
+      <div class="taak-oef-balk-vul" id="taak-schrijven-toets-balk" style="width:0%"></div>
+    </div>
+    <div class="kaart-groot">
+      <div class="kaart-beeld" id="taak-schrijven-toets-beeld">🎒</div>
+    </div>
+    <div class="audio-knoppen">
+      <button class="audio-knop hoor" onclick="taakSchrijvenToetsHoor()">
+        <span class="audio-icoon">🔊</span><span>Hoor het woord</span>
+      </button>
+    </div>
+    <div class="taak-schrijven-input-rij">
+      <input type="text" id="taak-schrijven-toets-input" class="taak-schrijven-input"
+             placeholder="Typ het woord hier..." autocomplete="off" spellcheck="false"
+             onkeydown="if(event.key==='Enter') taakSchrijvenToetsSubmit()">
+      <button class="grote-knop" onclick="taakSchrijvenToetsSubmit()">✓ Klaar</button>
+    </div>
+    <div class="taak-schrijven-feedback" id="taak-schrijven-toets-feedback"></div>
   </main>
 </div>
 
