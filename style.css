@@ -7192,3 +7192,345 @@ h1, h2, h3 {
 .lk-twb-oplossing-toggle input[type="checkbox"] {
   cursor: pointer;
 }
+
+/* ============================================================
+   RAPPORT-MODAL — sterren + feedback per leerling per periode
+   ============================================================ */
+
+.lk-rap-modal {
+  max-width: 720px;
+}
+
+/* Periode-dropdown */
+.lk-rap-periode-select {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+  border: 2px solid #d4cfbf;
+  border-radius: 8px;
+  background: #fff;
+  font-family: inherit;
+  cursor: pointer;
+}
+.lk-rap-periode-select:focus {
+  outline: none;
+  border-color: #ff8c42;
+}
+
+/* Sterren-blok */
+.lk-rap-sterren-blok {
+  background: #fffaf2;
+  border: 1px solid #f3e6c9;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 14px 0 18px 0;
+}
+.lk-rap-sterren-titel {
+  font-weight: 700;
+  font-size: 14px;
+  color: #5d4037;
+  margin-bottom: 10px;
+}
+.lk-rap-sterren-titel small {
+  font-weight: 400;
+  font-size: 12px;
+  color: #888;
+  margin-left: 6px;
+}
+
+/* Sterren-rij */
+.lk-rap-ster-rij {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #f0e8d8;
+  flex-wrap: wrap;
+}
+.lk-rap-ster-rij:last-child {
+  border-bottom: none;
+}
+.lk-rap-ster-icoon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+}
+.lk-rap-ster-naam {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2D2A32;
+  min-width: 100px;
+}
+.lk-rap-ster-sterren {
+  display: inline-flex;
+  gap: 2px;
+}
+.lk-rap-ster {
+  font-size: 22px;
+  cursor: pointer;
+  color: #d8d8d8;
+  transition: transform 0.1s, color 0.15s;
+  user-select: none;
+  line-height: 1;
+}
+.lk-rap-ster.aan {
+  color: #ffc107;
+}
+.lk-rap-ster:hover {
+  transform: scale(1.15);
+}
+.lk-rap-ster-sub {
+  font-size: 12px;
+  color: #888;
+  font-style: italic;
+  margin-left: 6px;
+}
+.lk-rap-ster-sub.manueel {
+  color: #ff8c42;
+  font-style: normal;
+}
+.lk-rap-ster-sub.leeg {
+  color: #b7a99b;
+  font-style: italic;
+  font-size: 11.5px;
+}
+.lk-rap-ster-reset {
+  background: transparent;
+  border: 1px solid #d4cfbf;
+  color: #888;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  margin-left: 4px;
+  line-height: 1;
+}
+.lk-rap-ster-reset:hover {
+  background: #f5efe0;
+  color: #5d4037;
+}
+
+/* Feedback-categorieën */
+.lk-rap-cat-blok {
+  margin: 14px 0;
+  padding: 12px 14px;
+  background: #fcfaf6;
+  border: 1px solid #ece4d2;
+  border-radius: 10px;
+}
+.lk-rap-cat-titel {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+
+/* Eén feedback-zin */
+.lk-rap-zin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px dashed #f0e8d8;
+}
+.lk-rap-zin:last-child {
+  border-bottom: none;
+}
+.lk-rap-zin input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: #ff8c42;
+}
+.lk-rap-zin-tekst {
+  flex: 1;
+  padding: 6px 9px;
+  font-size: 13.5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  color: #555;
+}
+.lk-rap-zin.aangevinkt .lk-rap-zin-tekst {
+  background: #fff;
+  border-color: #e0d6c0;
+  color: #2D2A32;
+}
+.lk-rap-zin-tekst:focus {
+  outline: none;
+  border-color: #ff8c42;
+  background: #fff;
+}
+.lk-rap-zin-tekst:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* AI-zin krijgt subtiel paars vleugje */
+.lk-rap-zin-ai .lk-rap-zin-tekst {
+  background: #faf6ff;
+}
+.lk-rap-zin-ai.aangevinkt .lk-rap-zin-tekst {
+  background: #fff;
+  border-color: #d8c4f0;
+}
+.lk-rap-zin-wis {
+  background: transparent;
+  border: 1px solid #e8d8d8;
+  color: #c66;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  flex-shrink: 0;
+}
+.lk-rap-zin-wis:hover {
+  background: #fdf0f0;
+}
+
+/* AI-knop onderaan elke categorie */
+.lk-rap-suggestie-knop {
+  margin-top: 10px;
+  padding: 7px 14px;
+  background: linear-gradient(135deg, #f3e8ff 0%, #ffe8d6 100%);
+  border: 1px solid #e0c8f0;
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6a4c93;
+  cursor: pointer;
+  font-family: inherit;
+}
+.lk-rap-suggestie-knop:hover {
+  background: linear-gradient(135deg, #e8d8ff 0%, #ffd8b8 100%);
+}
+.lk-rap-suggestie-knop:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Mobiel: minder ruim */
+@media (max-width: 600px) {
+  .lk-rap-ster-rij {
+    gap: 6px;
+  }
+  .lk-rap-ster-naam {
+    min-width: 80px;
+    font-size: 13px;
+  }
+  .lk-rap-ster {
+    font-size: 20px;
+  }
+  .lk-rap-ster-sub {
+    flex-basis: 100%;
+    margin-left: 36px;
+    margin-top: -2px;
+  }
+}
+
+
+/* ============================================================
+   RAPPORT-INLINE — werkomgeving direct in uitklap-paneel
+   ============================================================ */
+
+.lk-rap-inline {
+  margin-top: 4px;
+}
+
+.lk-rap-inline-laden {
+  text-align: center;
+  padding: 30px 20px;
+  color: #888;
+  font-style: italic;
+}
+
+.lk-rap-inline-kop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #ece4d2;
+  flex-wrap: wrap;
+}
+
+.lk-rap-inline-kop h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #2D2A32;
+  font-weight: 700;
+}
+
+.lk-rap-inline-periode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lk-rap-inline-periode label {
+  font-size: 13px;
+  color: #5d4037;
+  font-weight: 600;
+}
+
+.lk-rap-inline-periode .lk-rap-periode-select {
+  width: auto;
+  min-width: 200px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.lk-rap-inline-uitleg {
+  font-size: 13px;
+  color: #6b6b6b;
+  margin: 0 0 14px 0;
+  padding: 10px 12px;
+  background: #fff8e7;
+  border-left: 3px solid #ffc107;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+
+.lk-rap-inline-knoppen {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #ece4d2;
+  flex-wrap: wrap;
+}
+
+.lk-rap-inline-knoppen button {
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+/* Mobiel */
+@media (max-width: 600px) {
+  .lk-rap-inline-kop {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .lk-rap-inline-periode {
+    width: 100%;
+  }
+  .lk-rap-inline-periode .lk-rap-periode-select {
+    flex: 1;
+    min-width: 0;
+  }
+  .lk-rap-inline-knoppen {
+    justify-content: stretch;
+  }
+  .lk-rap-inline-knoppen button {
+    flex: 1;
+  }
+}
