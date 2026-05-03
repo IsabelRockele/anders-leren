@@ -58,6 +58,7 @@
       <button class="lk-tab"        data-tab="werkbladen" onclick="lkKiesTab('werkbladen')"> <span class="lk-nav-icoon">📝</span> <span class="lk-nav-tekst">Werkbladen</span></button>
       <button class="lk-tab"        data-tab="taken"      onclick="lkKiesTab('taken')">      <span class="lk-nav-icoon">📋</span> <span class="lk-nav-tekst">Taken</span></button>
       <button class="lk-tab"        data-tab="spreken"    onclick="lkKiesTab('spreken')">    <span class="lk-nav-icoon">🗣️</span> <span class="lk-nav-tekst">Spreektoetsen</span></button>
+      <button class="lk-tab"        data-tab="puntenboek" onclick="lkKiesTab('puntenboek')"> <span class="lk-nav-icoon">📓</span> <span class="lk-nav-tekst">Puntenboek</span></button>
       <button class="lk-tab"        data-tab="rapporten"  onclick="lkKiesTab('rapporten')">  <span class="lk-nav-icoon">📄</span> <span class="lk-nav-tekst">Rapporten</span></button>
       <button class="lk-tab"        data-tab="overzicht"  onclick="lkKiesTab('overzicht')">  <span class="lk-nav-icoon">📊</span> <span class="lk-nav-tekst">Wie kan wat?</span></button>
       <button class="lk-tab"        data-tab="info"       onclick="lkKiesTab('info')">       <span class="lk-nav-icoon">ℹ️</span> <span class="lk-nav-tekst">Hulp</span></button>
@@ -69,6 +70,19 @@
 
   <!-- ============ HOOFDGEDEELTE ============ -->
   <main class="lk-main">
+
+    <!-- Schooljaar-balk: toont actief schooljaar + selectie/wissel -->
+    <div class="lk-schooljaar-balk" id="lk-schooljaar-balk">
+      <span class="lk-schooljaar-icoon">🎒</span>
+      <span class="lk-schooljaar-label">Schooljaar:</span>
+      <button class="lk-schooljaar-knop" id="lk-schooljaar-knop" onclick="lkSchooljaarMenuToggle()">
+        <span id="lk-schooljaar-naam">— laden —</span>
+        <span class="lk-schooljaar-pijl">▾</span>
+      </button>
+      <div class="lk-schooljaar-menu" id="lk-schooljaar-menu">
+        <!-- gevuld door JS -->
+      </div>
+    </div>
 
     <!-- Periode-balk: toont actieve rapportperiode + dropdown -->
     <div class="lk-periode-balk" id="lk-periode-balk">
@@ -231,6 +245,20 @@
 
       <div class="lk-kindtabs" id="lk-kindtabs-spreken"></div>
       <div class="lk-kindinhoud" id="lk-kindinhoud-spreken"></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: PUNTENBOEK ============ -->
+  <div id="lk-tab-puntenboek" class="lk-tab-inhoud">
+    <div class="lk-vak">
+      <h2>📓 Puntenboek</h2>
+      <p style="opacity:0.75; margin-top:-4px">
+        Voeg eigen toetsen toe per vaardigheid. Online toetsen zie je hier ook automatisch.
+        Eigen toetsen tellen mee voor de sterren in het rapport (volgens hun gewicht).
+      </p>
+
+      <div class="lk-kindtabs" id="lk-kindtabs-puntenboek"></div>
+      <div class="lk-kindinhoud" id="lk-kindinhoud-puntenboek"></div>
     </div>
   </div>
 
