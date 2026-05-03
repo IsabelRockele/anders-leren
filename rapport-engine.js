@@ -1428,5 +1428,454 @@ window.RapportEngine = (function() {
 
 
 
-  return { genereer, spreektoetsPdf, spreektoetsAfnameblad, taakPdf };
+  // =================================================================
+  //  rapportPdf — periode-rapport met sterren + feedback
+  // =================================================================
+  //
+  // 2 pagina's A4 verticaal:
+  //   - Pagina 1: overzicht met sterren per vaardigheid (5 rijen)
+  //   - Pagina 2: feedback in 3 categorieën + handtekening-zone
+  //
+  // Argumenten:
+  //   kind     — kind-object uit lkKinderen
+  //   rapport  — { sterren, toetsdata, feedback, ... } zoals in /rapporten/
+  //   periode  — periode-object { id, naam, startDatum, eindDatum }
+
+  // Teken één 5-puntige ster met fill+stroke. Centerpunt (cx, cy), buitenstraal r.
+  function _tekenSter(doc, cx, cy, r, kleurFill, kleurStroke) {
+    // 10 punten: afwisselend buitenpunt (r) en binnenpunt (r * 0.5)
+    // Start bovenaan (-90°), draai met de klok mee.
+    const punten = [];
+    const innerR = r * 0.5;
+    for (let i = 0; i < 10; i++) {
+      const hoek = -Math.PI / 2 + (i * Math.PI / 5);
+      const straal = (i % 2 === 0) ? r : innerR;
+      punten.push([cx + straal * Math.cos(hoek), cy + straal * Math.sin(hoek)]);
+    }
+    // Bouw lijnen-array voor doc.lines: relatieve verplaatsingen vanaf 1e punt
+    const lijnen = [];
+    for (let i = 1; i < punten.length; i++) {
+      lijnen.push([punten[i][0] - punten[i - 1][0], punten[i][1] - punten[i - 1][1]]);
+    }
+    // Sluit terug naar startpunt
+    lijnen.push([punten[0][0] - punten[9][0], punten[0][1] - punten[9][1]]);
+
+    if (kleurFill) doc.setFillColor(kleurFill);
+    if (kleurStroke) {
+      doc.setDrawColor(kleurStroke);
+      doc.setLineWidth(0.25);
+    }
+    const stijl = (kleurFill && kleurStroke) ? 'FD' : (kleurFill ? 'F' : 'S');
+    doc.lines(lijnen, punten[0][0], punten[0][1], [1, 1], stijl, true);
+  }
+
+  // Teken een rij van 4 sterren naast elkaar; aantalGevuld = 0..4 (of null = geen)
+  function _tekenSterRij(doc, x, y, aantalGevuld) {
+    const rGroot = 2.6;        // buitenstraal in mm
+    const tussen = 6.5;        // afstand tussen middelpunten
+    for (let i = 0; i < 4; i++) {
+      const cx = x + rGroot + (i * tussen);
+      const cy = y;
+      if (aantalGevuld !== null && aantalGevuld !== undefined && i < aantalGevuld) {
+        _tekenSter(doc, cx, cy, rGroot, '#FFC107', '#E6A700');
+      } else {
+        _tekenSter(doc, cx, cy, rGroot, '#E0E0E0', '#C0C0C0');
+      }
+    }
+    return x + (4 * tussen) + 1; // x-positie waar volgende inhoud kan beginnen
+  }
+
+  // Format periode-datums kort
+  function _periodeDatumsFmt(periode) {
+    if (!periode) return '';
+    const startStr = datumFmt(periode.startDatum);
+    const eindStr = datumFmt(periode.eindDatum);
+    return `${startStr} – ${eindStr}`;
+  }
+
+  // ===== Pictogrammen voor feedback-categorieën =====
+  // Alle pictogrammen gebruiken (cx, cy) als middelpunt en grootte = halve hoogte/breedte.
+
+  // Grote ster (✨ Wat gaat goed) — hergebruikt _tekenSter
+  function _tekenIconSter(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    _tekenSter(doc, cx, cy, grootte, kleur, donker);
+  }
+
+  // Kiemplantje (🌱 Groeipunten): gebogen stengel met 2 blaadjes.
+  // Stijl: vector-look, lijntekening met kleine vulling.
+  function _tekenIconKiem(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    doc.setDrawColor(donker);
+    doc.setFillColor(kleur);
+    doc.setLineWidth(0.5);
+
+    // Stengel: kromme lijn van onder naar boven
+    const yBodem = cy + grootte;
+    const yTop = cy - grootte * 0.3;
+    // Bezier-curve voor stengel
+    doc.lines(
+      [[grootte * 0.15, -grootte * 0.5, -grootte * 0.05, -grootte * 0.9, 0, -grootte * 1.3]],
+      cx, yBodem, [1, 1], 'S'
+    );
+
+    // Linker blaadje (ovaal)
+    const xL = cx - grootte * 0.35;
+    const yL = cy + grootte * 0.1;
+    doc.ellipse(xL, yL, grootte * 0.45, grootte * 0.22, 'FD');
+
+    // Rechter blaadje (iets hoger, ovaal)
+    const xR = cx + grootte * 0.35;
+    const yR = cy - grootte * 0.25;
+    doc.ellipse(xR, yR, grootte * 0.45, grootte * 0.22, 'FD');
+
+    // Klein bovendeel: punt van de stengel
+    doc.setFillColor(donker);
+    doc.circle(cx, yTop, grootte * 0.1, 'F');
+  }
+
+  // Target/doel (💪 Werkhouding): drie concentrische cirkels + pijltje in het midden
+  function _tekenIconTarget(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    const lichtgrijs = '#FFFFFF';
+
+    // Buitenste cirkel
+    doc.setDrawColor(donker);
+    doc.setFillColor(kleur);
+    doc.setLineWidth(0.6);
+    doc.circle(cx, cy, grootte, 'FD');
+
+    // Middelste cirkel (wit)
+    doc.setFillColor(lichtgrijs);
+    doc.circle(cx, cy, grootte * 0.65, 'F');
+
+    // Binnenste cirkel (kleur weer)
+    doc.setFillColor(kleur);
+    doc.circle(cx, cy, grootte * 0.32, 'F');
+
+    // Bullseye (donkerder middelpunt)
+    doc.setFillColor(donker);
+    doc.circle(cx, cy, grootte * 0.12, 'F');
+  }
+
+  // Hex-kleur iets donkerder maken (voor randen)
+  function _kleurDonkerder(hex) {
+    if (!hex || hex.length < 7) return hex;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const factor = 0.7;
+    const nr = Math.max(0, Math.round(r * factor));
+    const ng = Math.max(0, Math.round(g * factor));
+    const nb = Math.max(0, Math.round(b * factor));
+    return '#' + nr.toString(16).padStart(2, '0') + ng.toString(16).padStart(2, '0') + nb.toString(16).padStart(2, '0');
+  }
+
+  // Hex-kleur lichter maken (voor kaart-achtergrond)
+  function _kleurLichter(hex, factor) {
+    if (!hex || hex.length < 7) return hex;
+    factor = factor || 0.92; // 0 = origineel, 1 = wit
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const nr = Math.round(r + (255 - r) * factor);
+    const ng = Math.round(g + (255 - g) * factor);
+    const nb = Math.round(b + (255 - b) * factor);
+    return '#' + nr.toString(16).padStart(2, '0') + ng.toString(16).padStart(2, '0') + nb.toString(16).padStart(2, '0');
+  }
+
+  // Teken één feedback-kaart met pictogram + titel + bullet-zinnen.
+  // Returnt nieuwe y-positie net onder de kaart.
+  function _tekenFeedbackKaart(doc, x, y, breedte, titel, kleur, zinnen, picto) {
+    const padding = 6;          // binnenruimte van de kaart
+    const titelHoogte = 10;     // ruimte voor titel-regel
+    const lijnHoogte = 5.4;     // regelhoogte voor bullet-tekst (11pt)
+    const tussenZinnen = 2;     // extra ruimte tussen bullets
+    const naTitelGap = 4;       // ruimte tussen titel en eerste bullet
+
+    // Eerst zinnen voorbereiden om totale hoogte te berekenen
+    const tekstX = x + padding + 5;       // bullet+tekst-x (na linker rand + padding)
+    const beschBreedte = breedte - padding * 2 - 5; // ruimte voor de tekst zelf
+    const voorbereid = zinnen.map(zin => doc.splitTextToSize(zin, beschBreedte));
+
+    let inhoudHoogte = titelHoogte + naTitelGap;
+    voorbereid.forEach(regels => {
+      inhoudHoogte += (regels.length * lijnHoogte) + tussenZinnen;
+    });
+    inhoudHoogte += padding; // beneden-padding
+
+    const totaleHoogte = padding + inhoudHoogte;
+    const lichtBg = _kleurLichter(kleur, 0.93);
+    const donker = _kleurDonkerder(kleur);
+
+    // Kaart-achtergrond (afgeronde rechthoek, lichte tint)
+    doc.setFillColor(lichtBg);
+    doc.setDrawColor(kleur);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, y, breedte, totaleHoogte, 2.5, 2.5, 'FD');
+
+    // Linker accent-rand (dikke kleur-balk)
+    doc.setFillColor(kleur);
+    doc.rect(x, y, 2.2, totaleHoogte, 'F');
+
+    // Pictogram links bovenaan in de kaart
+    const picX = x + padding + 4;
+    const picY = y + padding + 3;
+    if (picto === 'ster') {
+      _tekenIconSter(doc, picX, picY, 3.2, kleur);
+    } else if (picto === 'kiem') {
+      _tekenIconKiem(doc, picX, picY, 3.2, kleur);
+    } else if (picto === 'target') {
+      _tekenIconTarget(doc, picX, picY, 3.0, kleur);
+    }
+
+    // Titel naast pictogram
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(donker);
+    doc.text(titel, x + padding + 11, y + padding + 5);
+
+    // Bullets onder titel
+    let yB = y + padding + titelHoogte + naTitelGap;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    voorbereid.forEach(regels => {
+      // Gekleurde bullet (cirkeltje)
+      doc.setFillColor(kleur);
+      doc.circle(x + padding + 2.5, yB - 1.4, 0.9, 'F');
+
+      // Tekst
+      doc.setTextColor(K_HOOFDTITEL);
+      doc.text(regels, tekstX, yB);
+      yB += (regels.length * lijnHoogte) + tussenZinnen;
+    });
+
+    return y + totaleHoogte;
+  }
+
+  async function rapportPdf(kind, rapport, periode) {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      throw new Error('PDF-bibliotheek niet geladen.');
+    }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+    // Schoolinfo
+    let school = null;
+    try {
+      school = await window.Voortgang.haalSchoolinstellingenOp();
+    } catch (e) { school = null; }
+
+    const sterren = rapport.sterren || {};
+    const toetsdata = rapport.toetsdata || {};
+    const feedback = rapport.feedback || {};
+    const periodeNaam = (periode && periode.naam) || 'Rapportperiode';
+    const periodeDatums = _periodeDatumsFmt(periode);
+
+    // ==================================================
+    // PAGINA 1 — Overzicht met sterren
+    // ==================================================
+    let y = tekenHeader(doc, school, kind.naam, kind.code);
+
+    // Hoofdtitel "📋 Rapport — [periode]" — emoji tekenen we niet, gebruik tekst-prefix
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(20);
+    doc.setTextColor(K_PRIMAIR);
+    doc.text(`Rapport — ${periodeNaam}`, M, y + 4);
+    y += 10;
+
+    // Naam + klas + datums
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(K_HOOFDTITEL);
+    doc.text(_volledigeNaam(kind), M, y + 4);
+    y += 7;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(K_GRIJS);
+    const klasTekst = _klasTekst(kind);
+    if (klasTekst) {
+      doc.text(klasTekst, M, y + 3);
+      y += 5;
+    }
+    if (periodeDatums) {
+      doc.text(`Periode: ${periodeDatums}`, M, y + 3);
+      y += 5;
+    }
+
+    // Scheidingslijn
+    y += 4;
+    doc.setDrawColor(K_LICHTGRIJS);
+    doc.setLineWidth(0.5);
+    doc.line(M, y, PB - M, y);
+    y += 8;
+
+    // Sectiekop "Vaardigheden"
+    y = tekenSectiekop(doc, 'Vaardigheden', y, K_PRIMAIR);
+    y += 4;
+
+    // Sterren-rijen — 5 vaardigheden
+    const vaardigheden = [
+      { sl: 'luisteren',   naam: 'Luisteren'   },
+      { sl: 'lezen',       naam: 'Lezen'       },
+      { sl: 'schrijven',   naam: 'Schrijven'   },
+      { sl: 'spreken',     naam: 'Spreken'     },
+      { sl: 'werkhouding', naam: 'Werkhouding' }
+    ];
+
+    vaardigheden.forEach(v => {
+      const aantal = sterren[v.sl];
+      const td = toetsdata[v.sl] || {};
+      const heeftData = (td.aantal && td.aantal > 0);
+
+      // Naam links — bold, 12pt
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(K_HOOFDTITEL);
+      doc.text(v.naam, M, y + 4);
+
+      // Sterren in het midden, x rond 90mm
+      const sterX = M + 55;
+      if (aantal !== null && aantal !== undefined) {
+        _tekenSterRij(doc, sterX, y + 2.5, aantal);
+      } else {
+        // Geen sterren → cursief grijs label
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(10);
+        doc.setTextColor(K_GRIJS);
+        doc.text('Nog niet getest tijdens deze rapportperiode', sterX, y + 4);
+      }
+
+      // Percentage rechts (alleen als data beschikbaar)
+      if (aantal !== null && aantal !== undefined && heeftData) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(K_HOOFDTITEL);
+        doc.text(`${td.pct}%`, PB - M, y + 4, { align: 'right' });
+      }
+
+      // Sub-regel: "X toetsen in deze periode"
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(K_GRIJS);
+      let sub = '';
+      if (v.sl === 'werkhouding') {
+        sub = 'Beoordeling door de leerkracht';
+      } else if (heeftData) {
+        const lbl = v.sl === 'spreken' ? 'spreektoets' : 'toets';
+        sub = `${td.aantal} ${lbl}${td.aantal === 1 ? '' : (v.sl === 'spreken' ? 'en' : 'en')} in deze periode`;
+      } else {
+        sub = '';
+      }
+      if (sub) {
+        doc.text(sub, M, y + 9);
+      }
+
+      y += 13;
+    });
+
+    // Voetnoot onderaan p.1
+    y += 6;
+    doc.setDrawColor(K_LICHTGRIJS);
+    doc.setLineWidth(0.3);
+    doc.line(M, y, PB - M, y);
+    y += 6;
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(K_GRIJS);
+    const voetnoot = 'Geen sterren betekent: nog niet getest tijdens deze rapportperiode. Voor details per toets kan je bij de juf de afzonderlijke toets-PDF\'s opvragen.';
+    const voetSplit = doc.splitTextToSize(voetnoot, IB);
+    doc.text(voetSplit, M, y + 4);
+
+    // ==================================================
+    // PAGINA 2 — Feedback
+    // ==================================================
+    doc.addPage();
+    y = tekenHeader(doc, school, kind.naam, kind.code);
+
+    // Subtitel: "Naam — Periode" (kleiner dan p.1)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(K_HOOFDTITEL);
+    doc.text(`${_volledigeNaam(kind)} — ${periodeNaam}`, M, y + 4);
+    y += 12;
+
+    // 3 feedback-categorieën — elk een gekleurde kaart met pictogram
+    const categorieen = [
+      { sleutel: 'watGaatGoed', titel: 'Wat gaat goed', kleur: K_GROEN, picto: 'ster' },
+      { sleutel: 'groeipunten', titel: 'Groeipunten', kleur: K_GEEL, picto: 'kiem' },
+      { sleutel: 'werkhouding', titel: 'Werkhouding & zelfstandigheid', kleur: K_PRIMAIR, picto: 'target' }
+    ];
+
+    categorieen.forEach(cat => {
+      const zinnen = Array.isArray(feedback[cat.sleutel]) ? feedback[cat.sleutel] : [];
+      if (zinnen.length === 0) return; // sla lege categorie over
+
+      // Schat hoogte: titel + (gemiddeld 1,5 regel per zin × 5,4mm) + padding
+      // Gebruikt voor page-break check (we willen geen kaart die afkapt)
+      let geschatteHoogte = 22; // basis (titel + padding)
+      zinnen.forEach(z => {
+        const regels = doc.splitTextToSize(z, IB - 17);
+        geschatteHoogte += regels.length * 5.4 + 2;
+      });
+
+      // Page-break als kaart niet meer past op huidige pagina (boven handtekening-zone)
+      if (y + geschatteHoogte > PH - 60) {
+        doc.addPage();
+        y = tekenHeader(doc, school, kind.naam, kind.code);
+        y += 4;
+      }
+
+      y = _tekenFeedbackKaart(doc, M, y, IB, cat.titel, cat.kleur, zinnen, cat.picto);
+      y += 6; // ruimte tussen kaarten
+    });
+
+    // Geen enkele categorie ingevuld?
+    if (categorieen.every(c => !Array.isArray(feedback[c.sleutel]) || feedback[c.sleutel].length === 0)) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(11);
+      doc.setTextColor(K_GRIJS);
+      doc.text('Geen feedback ingevuld voor deze rapportperiode.', M, y + 4);
+      y += 10;
+    }
+
+    // ==================================================
+    // Handtekening-zone onderaan pagina 2 (of huidige pagina)
+    // ==================================================
+    const yHand = PH - 50; // ~22mm boven de footer (footer start op PH - 28)
+    if (y < yHand) {
+      // Scheidingslijn
+      doc.setDrawColor(K_LICHTGRIJS);
+      doc.setLineWidth(0.3);
+      doc.line(M, yHand - 8, PB - M, yHand - 8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(K_HOOFDTITEL);
+      doc.text('Handtekening leerkracht', M, yHand);
+      doc.text('Handtekening ouder', M + IB / 2 + 5, yHand);
+
+      // Lijnen voor handtekening
+      doc.setDrawColor(K_GRIJS);
+      doc.setLineWidth(0.4);
+      doc.line(M, yHand + 12, M + (IB / 2) - 8, yHand + 12);
+      doc.line(M + IB / 2 + 5, yHand + 12, PB - M, yHand + 12);
+    }
+
+    // Footer op alle pagina's
+    const totaalPag = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totaalPag; i++) {
+      doc.setPage(i);
+      tekenFooter(doc, school, i, totaalPag);
+    }
+
+    // Bestandsnaam
+    const veiligeNaam = (_volledigeNaam(kind) || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
+    const periodeSlug = (periode && periode.id) ? periode.id : 'periode';
+    doc.save(`rapport-${veiligeNaam}-${periodeSlug}.pdf`);
+  }
+
+  return { genereer, spreektoetsPdf, spreektoetsAfnameblad, taakPdf, rapportPdf };
 })();
