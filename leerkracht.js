@@ -5910,7 +5910,17 @@ async function lkRapInlineAiSuggestie(kindCode, cat) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!resp.ok) throw new Error('Server gaf ' + resp.status);
+    if (!resp.ok) {
+      // Probeer de error-details uit het response-body te lezen
+      let detail = '';
+      try {
+        const errData = await resp.json();
+        detail = '\n\nServer-fout: ' + (errData.error || 'onbekend');
+        if (errData.debug) detail += '\nDebug: ' + JSON.stringify(errData.debug, null, 2);
+        if (errData.anthropic) detail += '\nAnthropic: ' + JSON.stringify(errData.anthropic, null, 2);
+      } catch (e) { /* response was geen JSON */ }
+      throw new Error('Server gaf ' + resp.status + detail);
+    }
     const data = await resp.json();
     const zinnen = Array.isArray(data.zinnen) ? data.zinnen : [];
     if (zinnen.length === 0) {
