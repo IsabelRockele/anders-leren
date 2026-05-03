@@ -4812,8 +4812,288 @@ h1, h2, h3 {
 }
 
 /* =================================================================
-   TAAK-INTRO TUSSENSCHERM — kind ziet wat de oefening inhoudt
+   LUISTEREN-VERBINDEN — woord-kaarten links, beeld-kaarten rechts,
+   SVG-lijntjes ertussen
    ================================================================= */
+
+.verbinden-wrap {
+  position: relative;
+  max-width: 720px;
+  margin: 8px auto 16px;
+  padding: 12px;
+  background: #FAF7EF;
+  border-radius: 14px;
+}
+
+.verbinden-lijnen {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  /* Hoger dan de kaarten zodat lijnen niet erachter verdwijnen */
+  z-index: 5;
+}
+
+.verbinden-lijn {
+  stroke: #5D4037;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.verbinden-lijn.juist {
+  stroke: #4CAF50;
+  stroke-width: 4;
+}
+
+.verbinden-lijn.fout {
+  stroke: #E53935;
+  stroke-width: 4;
+}
+
+.verbinden-kolommen {
+  display: grid;
+  /* Smallere kolommen (max ~240px) zodat er een grote zichtbare ruimte tussen
+     komt waarin de SVG-lijnen netjes lopen */
+  grid-template-columns: minmax(180px, 240px) minmax(180px, 240px);
+  justify-content: space-between;
+  gap: 80px;
+  position: relative;
+  /* Lagere z-index dan de SVG-lijnen, zodat lijnen ervoor zichtbaar zijn */
+  z-index: 1;
+}
+
+.verbinden-kolom-woorden,
+.verbinden-kolom-beelden {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.verbinden-kaart {
+  position: relative;
+  background: white;
+  border: 2.5px solid #E5DFD0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: #2D2A32;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  min-height: 60px;
+  text-align: left;
+}
+
+.verbinden-kaart:hover {
+  border-color: #FFD166;
+  background: #FFFBF0;
+}
+
+.verbinden-kaart.geselecteerd {
+  border-color: #FF8C42;
+  background: #FFF4D6;
+  box-shadow: 0 0 0 3px rgba(255, 140, 66, 0.2);
+}
+
+.verbinden-kaart.gekoppeld {
+  border-color: #5D9CDB;
+  background: #F0F7FE;
+}
+
+.verbinden-woord {
+  justify-content: flex-start;
+}
+
+.verbinden-beeld {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.verbinden-tekst {
+  flex: 1;
+}
+
+.verbinden-pic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.verbinden-pic .picto-emoji { font-size: 48px; }
+.verbinden-pic .picto-img   { height: 48px; width: auto; }
+
+/* Knoppunten waar lijnen aan vastzitten */
+.verbinden-knoppunt {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #5D4037;
+  border: 2px solid white;
+  flex-shrink: 0;
+}
+
+/* Linker kolom (woord-kaart): knoppunt aan rechterkant van de kaart (richting kolom-tussenruimte) */
+.verbinden-woord .verbinden-knoppunt {
+  margin-left: 12px;
+}
+
+/* Rechter kolom (beeld-kaart): knoppunt aan linkerkant (richting kolom-tussenruimte).
+   Zit al in de DOM links van het beeld, dus geen 'order' meer nodig. */
+.verbinden-beeld .verbinden-knoppunt {
+  margin-right: 0;
+}
+
+.verbinden-acties {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+@media (max-width: 600px) {
+  .verbinden-kolommen { gap: 30px; }
+  .verbinden-kaart { font-size: 14px; padding: 10px 12px; min-height: 52px; }
+  .verbinden-pic .picto-emoji { font-size: 36px; }
+  .verbinden-pic .picto-img   { height: 36px; }
+}
+
+/* =================================================================
+   LUISTEREN-VERSLEPEN — beeld + leeg vak bovenaan, woord-knoppen onderaan
+   ================================================================= */
+
+.verslepen-rij {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 16px auto;
+  max-width: 540px;
+  padding: 0 12px;
+}
+
+.verslepen-beeld {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 3px solid #FFD166;
+  border-radius: 16px;
+  padding: 14px 18px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  flex-shrink: 0;
+}
+
+.verslepen-beeld .picto-emoji { font-size: 90px; line-height: 1; }
+.verslepen-beeld .picto-img   { height: 90px; width: auto; }
+
+.verslepen-dropvak {
+  flex: 1;
+  min-height: 80px;
+  background: #FAFAF5;
+  border: 3px dashed #C9C2AE;
+  border-radius: 14px;
+  padding: 16px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 18px;
+  text-align: center;
+  transition: all 0.15s;
+}
+
+.verslepen-dropvak.hover {
+  background: #FFF4D6;
+  border-color: #FFD166;
+  border-style: solid;
+  transform: scale(1.03);
+}
+
+.verslepen-dropvak.gevuld {
+  border-style: solid;
+}
+
+.verslepen-dropvak.juist {
+  background: #E8F5E9;
+  border-color: #4CAF50;
+}
+
+.verslepen-dropvak.fout {
+  background: #FFEBEE;
+  border-color: #E53935;
+  animation: schud 0.4s ease;
+}
+
+@keyframes schud {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.verslepen-dropvak-placeholder {
+  color: #9C957F;
+  font-style: italic;
+  font-size: 15px;
+}
+
+.verslepen-dropvak-tekst {
+  color: #2D2A32;
+  font-weight: 500;
+}
+
+.verslepen-woorden {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  max-width: 540px;
+  margin: 16px auto;
+  padding: 0 12px;
+}
+
+.verslepen-woord {
+  background: white;
+  border: 2.5px solid #E5DFD0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  color: #2D2A32;
+  text-align: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+
+.verslepen-woord:hover {
+  border-color: #FFD166;
+  background: #FFFBF0;
+}
+
+.verslepen-woord.slepen {
+  cursor: grabbing;
+  opacity: 0.85;
+  z-index: 100;
+  position: relative;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  border-color: #FF8C42;
+  background: #FFF4D6;
+}
+
+@media (max-width: 600px) {
+  .verslepen-beeld .picto-emoji { font-size: 70px; }
+  .verslepen-beeld .picto-img   { height: 70px; }
+  .verslepen-dropvak { font-size: 15px; min-height: 64px; }
+  .verslepen-woord { font-size: 15px; padding: 12px 10px; }
+}
+
+
 
 .taak-intro-main {
   max-width: 600px;
@@ -5086,6 +5366,96 @@ h1, h2, h3 {
   50% { opacity: 0; }
 }
 
+/* Demo-blokken voor verbinden en verslepen op tussenscherm */
+.demo-verbinden {
+  margin: 8px auto;
+  max-width: 280px;
+}
+
+.demo-verbinden-kolommen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.demo-verbinden-kolom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.demo-verbinden-kaart {
+  background: white;
+  border: 1.5px solid #E5DFD0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+}
+
+.demo-verbinden-kaart.demo-juist {
+  background: #E8F5E9;
+  border-color: #4CAF50;
+  animation: demo-pulse 2s ease-in-out infinite;
+}
+
+.demo-verbinden-kaart .picto-emoji { font-size: 28px; }
+.demo-verbinden-kaart .picto-img   { height: 28px; width: auto; }
+
+.demo-verslepen-beeld {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.demo-verslepen-beeld .picto-emoji { font-size: 56px; }
+.demo-verslepen-beeld .picto-img   { height: 56px; width: auto; }
+
+.demo-verslepen-pijl {
+  font-size: 26px;
+  text-align: center;
+  margin: 4px 0;
+  animation: demo-wijs-vert 1.5s ease-in-out infinite;
+}
+
+@keyframes demo-wijs-vert {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50%      { transform: translateY(6px); opacity: 0.7; }
+}
+
+.demo-verslepen-zones {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin: 8px auto;
+  max-width: 320px;
+}
+
+.demo-verslepen-zone {
+  background: #FAFAF5;
+  border: 1.5px dashed #C9C2AE;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 13px;
+  text-align: center;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.demo-verslepen-zone.demo-juist {
+  background: #E8F5E9;
+  border-color: #4CAF50;
+  border-style: solid;
+  animation: demo-pulse 2s ease-in-out infinite;
+}
+
 @media (max-width: 600px) {
   .taak-intro-icoon { font-size: 64px; }
   .taak-intro-titel { font-size: 22px; }
@@ -5093,6 +5463,8 @@ h1, h2, h3 {
   .demo-toets-beelden { grid-template-columns: repeat(2, 1fr); }
   .demo-luister-opties { grid-template-columns: 1fr; }
 }
+
+
 
 
 
