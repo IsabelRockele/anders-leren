@@ -2963,6 +2963,108 @@ h1, h2, h3 {
   box-shadow: 0 12px 40px rgba(0,0,0,0.25);
 }
 
+/* Bredere variant specifiek voor de taak-modal — woorden passen per 3 naast elkaar */
+.lk-cat-modal.lk-taak-modal-doos {
+  max-width: 880px;
+}
+
+/* Collapsible secties in taak-modal */
+.lk-sectie {
+  border: 1.5px solid #e5dfd0;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.lk-sectie.open {
+  border-color: #ffd166;
+  box-shadow: 0 2px 8px rgba(255, 209, 102, 0.15);
+}
+
+.lk-sectie-kop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  font-size: 15px;
+  transition: background 0.15s;
+}
+
+.lk-sectie-kop:hover {
+  background: #fffbf0;
+}
+
+.lk-sectie.open .lk-sectie-kop {
+  background: #fff8e0;
+  border-bottom: 1px solid #ffd166;
+}
+
+.lk-sectie-nummer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #ffd166;
+  color: #2D2A32;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.lk-sectie-titel {
+  font-weight: 600;
+  color: #2D2A32;
+  flex-shrink: 0;
+}
+
+.lk-sectie-samenvatting {
+  flex: 1;
+  font-size: 13px;
+  color: #5F5E5A;
+  font-weight: 400;
+  text-align: right;
+  margin-right: 4px;
+}
+
+.lk-sectie-pijl {
+  font-size: 18px;
+  color: #5D4037;
+  flex-shrink: 0;
+}
+
+.lk-sectie-inhoud {
+  padding: 14px 16px;
+}
+
+.lk-sectie-inhoud[hidden] {
+  display: none;
+}
+
+.lk-taak-toetsen-lijst {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lk-taak-toets-rij.uitgeschakeld {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.lk-taak-toets-rij.uitgeschakeld input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
 .lk-cat-modal h2 {
   margin: 0 0 6px 0;
   font-size: 20px;
@@ -4442,6 +4544,45 @@ h1, h2, h3 {
   flex-shrink: 0;
 }
 
+/* Subblok per vaardigheid in taak-modal: oefenvormen + toets-rij */
+.lk-vaardigheid-blok {
+  background: #fafafa;
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.lk-taak-toets-rij {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  border: 1.5px dashed #d8c6a4;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 13px;
+}
+
+.lk-taak-toets-rij:hover {
+  border-color: #ffd166;
+  background: #fffbf0;
+}
+
+.lk-taak-toets-rij.aan {
+  background: #fff8e0;
+  border-color: #ffd166;
+  border-style: solid;
+}
+
+.lk-taak-toets-rij input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* =================================================================
    TAAK FASE-SCHERMEN — leren / oefenen / toets / resultaat
    ================================================================= */
@@ -4461,6 +4602,24 @@ h1, h2, h3 {
   border-radius: 999px;
   overflow: hidden;
   margin: 8px auto 16px;
+}
+
+/* Ronde-badge boven de voortgangsbalk — toont 'Ronde 1 van 3' enz. */
+.taak-ronde-rij {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 8px;
+}
+
+.taak-ronde-badge {
+  background: #FFF4D6;
+  border: 1.5px solid #FFD166;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5D4037;
 }
 
 .taak-oef-balk-vul {
@@ -4650,6 +4809,440 @@ h1, h2, h3 {
 .modus-header.taak-toets-header {
   background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
   border-bottom: 2px solid #64B5F6;
+}
+
+/* =================================================================
+   TAAK-INTRO TUSSENSCHERM — kind ziet wat de oefening inhoudt
+   ================================================================= */
+
+.taak-intro-main {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  text-align: center;
+}
+
+.taak-intro-welkom {
+  background: #FFF8E0;
+  border: 2px solid #ffd166;
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin: 0 auto 16px;
+  max-width: 480px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 16px;
+  color: #5D4037;
+  font-weight: 500;
+  animation: welkom-fade-in 0.5s ease-out;
+}
+
+@keyframes welkom-fade-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.taak-intro-icoon {
+  font-size: 80px;
+  line-height: 1;
+  margin: 12px 0 6px;
+}
+
+.taak-intro-titel {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 28px;
+  color: #2D2A32;
+  margin: 0 0 8px;
+}
+
+.taak-intro-uitleg {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 18px;
+  color: #5F5E5A;
+  margin: 0 auto 16px;
+  max-width: 480px;
+  line-height: 1.4;
+}
+
+.taak-intro-audio {
+  margin-bottom: 20px;
+}
+
+.taak-intro-demo {
+  margin: 16px auto;
+  max-width: 480px;
+}
+
+.taak-intro-actie {
+  margin: 20px 0 16px;
+}
+
+.taak-intro-start {
+  font-size: 22px;
+  padding: 16px 32px;
+}
+
+/* Demo-blok styling */
+.demo-blok {
+  background: white;
+  border: 2px dashed #ffd166;
+  border-radius: 14px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.demo-label {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 13px;
+  color: #5D4037;
+  font-weight: 600;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.demo-pijl {
+  font-size: 13px;
+  color: #5F5E5A;
+  font-style: italic;
+  margin-top: 12px;
+}
+
+/* LUISTEREN-OEF demo */
+.demo-luister-beeld {
+  font-size: 56px;
+  line-height: 1;
+  margin: 8px 0;
+}
+
+.demo-luister-beeld .picto-emoji { font-size: 56px; }
+.demo-luister-beeld .picto-img   { height: 56px; width: auto; }
+
+.demo-luister-opties {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin: 10px auto;
+  max-width: 320px;
+}
+
+.demo-knop {
+  background: white;
+  border: 1.5px solid #E5DFD0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 14px;
+  color: #2D2A32;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.demo-knop.demo-juist {
+  background: #E8F5E9;
+  border-color: #4CAF50;
+  animation: demo-pulse 2s ease-in-out infinite;
+}
+
+@keyframes demo-pulse {
+  0%, 80%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+  40% { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(76, 175, 80, 0.2); }
+}
+
+/* Zwevend vingertje dat naar het juiste antwoord wijst */
+.demo-vinger {
+  position: absolute;
+  font-size: 28px;
+  pointer-events: none;
+  bottom: 50px;
+  left: 25%;
+  transform: translateX(-50%);
+  animation: demo-wijs 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.15));
+}
+
+@keyframes demo-wijs {
+  0%, 100% { transform: translate(-50%, 0); opacity: 1; }
+  50%      { transform: translate(-50%, -8px); opacity: 0.7; }
+}
+
+/* TOETS demo (en lezen-demo): woord groot bovenaan, beelden eronder */
+.demo-toets-woord {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: #2D2A32;
+  background: #F0F4FF;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 4px 0 12px;
+}
+
+.demo-toets-beelden {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 10px auto;
+  max-width: 360px;
+}
+
+.demo-beeld-knop {
+  background: white;
+  border: 1.5px solid #E5DFD0;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  transition: all 0.3s;
+}
+
+.demo-beeld-knop.demo-juist {
+  background: #E8F5E9;
+  border-color: #4CAF50;
+  animation: demo-pulse 2s ease-in-out infinite;
+}
+
+.demo-beeld-knop .picto-emoji { font-size: 36px; }
+.demo-beeld-knop .picto-img   { height: 36px; width: auto; }
+
+/* LEZEN demo: zelfde als toets-woord maar lichtgele achtergrond */
+.demo-lezen-woord {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  color: #2D2A32;
+  background: #FFF8E0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 4px 0 12px;
+}
+
+/* SCHRIJVEN demo: woord knippert, dan verdwijnt het, dan getypt door demo-cursor */
+.demo-schrijven-rij {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 8px 0 14px;
+}
+
+.demo-beeld-mini .picto-emoji { font-size: 40px; }
+.demo-beeld-mini .picto-img   { height: 40px; width: auto; }
+
+.demo-beeld-mini-groot {
+  margin: 8px 0 14px;
+}
+
+.demo-beeld-mini-groot .picto-emoji { font-size: 56px; }
+.demo-beeld-mini-groot .picto-img   { height: 56px; width: auto; }
+
+.demo-schrijven-woord-knipper {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: #2D2A32;
+  background: #FFF8E0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  animation: demo-verdwijn 5s ease-in-out infinite;
+}
+
+@keyframes demo-verdwijn {
+  0%, 50% { opacity: 1; transform: scale(1); }
+  60%, 100% { opacity: 0; transform: scale(0.9); }
+}
+
+.demo-schrijven-input-rij {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+}
+
+.demo-input-vak {
+  display: inline-flex;
+  align-items: center;
+  background: white;
+  border: 2px solid #E5DFD0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  min-width: 180px;
+  height: 38px;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 18px;
+  color: #2D2A32;
+}
+
+.demo-getypt { white-space: pre; }
+
+.demo-cursor {
+  display: inline-block;
+  margin-left: 1px;
+  animation: demo-blink 1s steps(2) infinite;
+  color: #5F5E5A;
+}
+
+@keyframes demo-blink {
+  50% { opacity: 0; }
+}
+
+@media (max-width: 600px) {
+  .taak-intro-icoon { font-size: 64px; }
+  .taak-intro-titel { font-size: 22px; }
+  .taak-intro-uitleg { font-size: 16px; }
+  .demo-toets-beelden { grid-template-columns: repeat(2, 1fr); }
+  .demo-luister-opties { grid-template-columns: 1fr; }
+}
+
+
+
+.taak-oef-vraag {
+  text-align: center;
+  font-size: 16px;
+  color: #5F5E5A;
+  margin: 12px 0 8px;
+  font-family: 'Fredoka', sans-serif;
+}
+
+/* =================================================================
+   SCHRIJVEN-OEFENEN — beeld + woord 3s zichtbaar + typvak
+   ================================================================= */
+
+.taak-schrijven-woord {
+  text-align: center;
+  font-size: 36px;
+  font-weight: 600;
+  font-family: 'Fredoka', sans-serif;
+  color: #2D2A32;
+  padding: 16px 12px;
+  margin-top: 12px;
+  border-top: 2px dashed #E5DFD0;
+  transition: color 0.3s, opacity 0.3s;
+  min-height: 64px;
+}
+
+.taak-schrijven-woord:not(.zichtbaar) {
+  color: #B4B2A9;
+  font-size: 22px;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.taak-schrijven-knoppen {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+/* Verborgen-staat tijdens 'woord 3 sec zichtbaar' fase: input + knoppen niet
+   actief, zodat het kind niet kan overtypen of opnieuw klikken voor het woord
+   weg is. We tonen ze niet helemaal weg (om layout-shifts te vermijden) maar
+   maken ze visueel sluimerend en blokkeren interactie. */
+.taak-schrijven-knoppen.verborgen,
+.taak-schrijven-input-rij.verborgen {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.taak-schrijven-knoppen,
+.taak-schrijven-input-rij {
+  transition: opacity 0.25s ease;
+}
+
+/* Gegrijsde 'Toon opnieuw'-knop wanneer max 2x bereikt is */
+.audio-knop.uitgeschakeld {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f4f1ea;
+}
+
+.audio-knop.uitgeschakeld:hover {
+  background: #f4f1ea;
+  transform: none;
+}
+
+.taak-schrijven-input-rij {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 16px auto;
+  max-width: 480px;
+  padding: 0 16px;
+}
+
+.taak-schrijven-input {
+  flex: 1;
+  font-family: 'Fredoka', sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  padding: 12px 16px;
+  border: 2.5px solid #E5DFD0;
+  border-radius: 12px;
+  background: white;
+  color: #2D2A32;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.taak-schrijven-input:focus {
+  border-color: #ffd166;
+}
+
+.taak-schrijven-input.juist {
+  border-color: #4CAF50;
+  background: #E8F5E9;
+  color: #1B5E20;
+}
+
+.taak-schrijven-input.fout {
+  border-color: #E57373;
+  background: #FFEBEE;
+  color: #B71C1C;
+}
+
+.taak-schrijven-feedback {
+  text-align: center;
+  margin: 12px 16px;
+  font-size: 16px;
+  font-family: 'Fredoka', sans-serif;
+  min-height: 28px;
+}
+
+.schrijven-fb-juist {
+  color: #2E7D32;
+  font-weight: 600;
+}
+
+.schrijven-fb-fout {
+  color: #C62828;
+  font-weight: 500;
+  display: block;
+}
+
+.schrijven-fb-juist-woord {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 6px 14px;
+  background: #E8F5E9;
+  color: #1B5E20;
+  border-radius: 8px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .taak-schrijven-woord {
+    font-size: 28px;
+    padding: 12px 8px;
+  }
+  .taak-schrijven-input {
+    font-size: 18px;
+    padding: 10px 12px;
+  }
 }
 
 /* =================================================================
