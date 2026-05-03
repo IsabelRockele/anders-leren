@@ -880,6 +880,46 @@ window.Voortgang = (function() {
     }
   }
 
+  // Update een bestaande spreektoets (op basis van id) in plaats van toevoegen
+  async function updateSpreektoetsVoorKind(code, toetsId, updates) {
+    if (!code || !db || !toetsId) return;
+    const huidige = await haalSpreektoetsenOpVoorKind(code);
+    const idx = huidige.findIndex(t => t.id === toetsId);
+    if (idx < 0) {
+      // niet gevonden — fallback: toevoegen
+      huidige.push(updates);
+    } else {
+      huidige[idx] = { ...huidige[idx], ...updates };
+    }
+    if (code === huidigKindCode) {
+      spreektoetsenCache = huidige;
+      localStorage.setItem('andersleren_spreektoetsen_' + code, JSON.stringify(huidige));
+    }
+    try {
+      await db.collection('kinderen').doc(code).update({ spreektoetsen: huidige });
+    } catch (e) {
+      console.warn('Update spreektoets voor kind mislukt:', e);
+      throw e;
+    }
+  }
+
+  // Verwijder een spreektoets op basis van id
+  async function verwijderSpreektoetsVoorKind(code, toetsId) {
+    if (!code || !db || !toetsId) return;
+    const huidige = await haalSpreektoetsenOpVoorKind(code);
+    const filtered = huidige.filter(t => t.id !== toetsId);
+    if (code === huidigKindCode) {
+      spreektoetsenCache = filtered;
+      localStorage.setItem('andersleren_spreektoetsen_' + code, JSON.stringify(filtered));
+    }
+    try {
+      await db.collection('kinderen').doc(code).update({ spreektoetsen: filtered });
+    } catch (e) {
+      console.warn('Verwijder spreektoets voor kind mislukt:', e);
+      throw e;
+    }
+  }
+
   // ------------------- Rapport-notities ------------------
   function getRapportNotities() {
     return rapportNotitiesCache;
@@ -2054,6 +2094,8 @@ window.Voortgang = (function() {
     bewaarSpreektoets,
     haalSpreektoetsenOpVoorKind,
     bewaarSpreektoetsVoorKind,
+    updateSpreektoetsVoorKind,
+    verwijderSpreektoetsVoorKind,
     // Rapport-notities
     getRapportNotities,
     zetRapportNotities,
