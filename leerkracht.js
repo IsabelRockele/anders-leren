@@ -2462,8 +2462,8 @@ function rendererTaakModal(huidigeTaak) {
   if (luisterenAan) {
     html += _oefenBlok('luisteren', '👂 Oefenvormen voor luisteren', [
       { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: true },
-      { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: false },
-      { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: false }
+      { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: true },
+      { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: true }
     ]);
   }
   if (lezenAan) {
