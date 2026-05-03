@@ -1196,13 +1196,43 @@ window.RapportEngine = (function() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
+    // Bepaal welke toetsen er afgenomen zijn. Nieuwe taken hebben toetsResultaten,
+    // oudere alleen foutWoordenLaatsteToets (interpreteren als luistertoets).
+    const allevaardigheden = ['luisteren', 'lezen', 'schrijven'];
+    const labels = {
+      luisteren: 'Luistertoets',
+      lezen:     'Leestoets',
+      schrijven: 'Schrijftoets'
+    };
+    const afgenomenToetsen = [];
+    if (taak.toetsResultaten) {
+      allevaardigheden.forEach(v => {
+        const r = taak.toetsResultaten[v];
+        if (r && r.afgenomen) {
+          afgenomenToetsen.push({ vaardigheid: v, foutIds: Array.isArray(r.foutIds) ? r.foutIds : [] });
+        }
+      });
+    }
+    if (afgenomenToetsen.length === 0) {
+      // Backwards-compat: gebruik foutWoordenLaatsteToets als luistertoets
+      const fout = Array.isArray(taak.foutWoordenLaatsteToets) ? taak.foutWoordenLaatsteToets : [];
+      const isVoltooid = taak.status === 'voltooid';
+      const isMoeilijk = (taak.status === 'moeilijk' || taak.status === 'haperde');
+      // Alleen tonen als er werkelijk een toets is geweest
+      if (isVoltooid || isMoeilijk || fout.length > 0) {
+        afgenomenToetsen.push({ vaardigheid: 'luisteren', foutIds: fout });
+      }
+    }
+
+    // Header op pagina 1
     let y = tekenHeader(doc, school, kind.naam, kind.code);
 
-    // Titel
+    // Hoofdtitel
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     doc.setTextColor(K_HOOFDTITEL);
-    doc.text('Luistertoets', M, y + 5);
+    const hoofdtitel = afgenomenToetsen.length > 1 ? 'Toetsen' : (afgenomenToetsen.length === 1 ? labels[afgenomenToetsen[0].vaardigheid] : 'Toets');
+    doc.text(hoofdtitel, M, y + 5);
     y += 10;
 
     // Sub: leerling + (klas) + thema + datum
@@ -1217,142 +1247,137 @@ window.RapportEngine = (function() {
     doc.text(`${naamMetKlas}  ·  ${themaNaam}  ·  ${datumFmt(datumTaak)}`, M, y + 4);
     y += 9;
 
-    // Score-strook bovenaan
-    const woordIds = Array.isArray(taak.woordIds) ? taak.woordIds : [];
-    const fouteIds = Array.isArray(taak.foutWoordenLaatsteToets) ? taak.foutWoordenLaatsteToets : [];
-    const aantalW = woordIds.length;
-    const isVoltooid = taak.status === 'voltooid';
-    const isMoeilijk = (taak.status === 'moeilijk' || taak.status === 'haperde');
-    const isBeoordeeld = isVoltooid || isMoeilijk || fouteIds.length > 0;
+    // Helper: render één vaardigheid-sectie. Geeft de nieuwe y-waarde terug.
+    function renderVaardigheidSectie(toets, yStart) {
+      const woordIds = Array.isArray(taak.woordIds) ? taak.woordIds : [];
+      const fouteIds = Array.isArray(toets.foutIds) ? toets.foutIds : [];
+      const aantalW = woordIds.length;
+      const aantalFout = fouteIds.length;
+      const aantalJuist = aantalW - aantalFout;
+      const pctJuist = aantalW > 0 ? Math.round(aantalJuist / aantalW * 100) : 0;
 
-    let aantalJuist = 0, aantalFout = 0;
-    if (isVoltooid && fouteIds.length === 0) {
-      aantalJuist = aantalW;
-    } else if (isBeoordeeld) {
-      aantalFout = fouteIds.length;
-      aantalJuist = aantalW - aantalFout;
-    }
-    const pctJuist = aantalW > 0 ? Math.round(aantalJuist / aantalW * 100) : 0;
+      // Page break als sectie-kop niet meer past
+      if (yStart + 28 > PH - 32) {
+        doc.addPage();
+        yStart = tekenHeader(doc, school, kind.naam, kind.code);
+      }
 
-    // Strook met grote score
-    const stKleur = isVoltooid ? '#E8F5E9' : (isMoeilijk ? '#FFF8E1' : '#F5F5F5');
-    const stRand = isVoltooid ? K_GROEN : (isMoeilijk ? K_GEEL : K_LICHTGRIJS);
-    doc.setFillColor(stKleur);
-    doc.setDrawColor(stRand);
-    doc.setLineWidth(0.5);
-    doc.roundedRect(M, y, IB, 16, 3, 3, 'FD');
-
-    // Linker deel: status-tekst
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.setTextColor(K_HOOFDTITEL);
-    let statusTekst = isVoltooid ? 'Voltooid' : (isMoeilijk ? 'Moeilijk' : 'Bezig');
-    doc.text(statusTekst, M + 6, y + 7);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(K_SUBTITEL);
-    if (isBeoordeeld) {
-      doc.text(`Resultaat van de toets`, M + 6, y + 12);
-    } else {
-      doc.text(`Toets nog niet afgelegd`, M + 6, y + 12);
-    }
-
-    // Rechter deel: grote score
-    if (isBeoordeeld) {
+      // Sectie-titel
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
+      doc.setFontSize(14);
       doc.setTextColor(K_HOOFDTITEL);
-      const scoreTekst = `${aantalJuist} / ${aantalW}`;
-      doc.text(scoreTekst, PB - M - 6, y + 9, { align: 'right' });
+      const titel = labels[toets.vaardigheid] || 'Toets';
+      doc.text(titel, M, yStart + 5);
+      yStart += 8;
+
+      // Score-strook
+      const stKleur = pctJuist === 100 ? '#E8F5E9' : (pctJuist >= 80 ? '#FFF8E1' : '#FFEBEE');
+      const stRand  = pctJuist === 100 ? K_GROEN : (pctJuist >= 80 ? K_GEEL : K_ROOD);
+      doc.setFillColor(stKleur);
+      doc.setDrawColor(stRand);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(M, yStart, IB, 14, 3, 3, 'FD');
+
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
+      doc.setTextColor(K_SUBTITEL);
+      doc.text('Resultaat', M + 6, yStart + 9);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(K_HOOFDTITEL);
+      doc.text(`${aantalJuist} / ${aantalW}`, PB - M - 6, yStart + 8, { align: 'right' });
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(K_SUBTITEL);
-      doc.text(`${pctJuist}%`, PB - M - 6, y + 14, { align: 'right' });
+      doc.text(`${pctJuist}%`, PB - M - 6, yStart + 12, { align: 'right' });
+      yStart += 18;
+
+      // Raster: 5 cellen per rij
+      const KOLS = 5;
+      const RIJ_GAP = 4;
+      const KOL_GAP = 4;
+      const celBreedte = (IB - (KOLS - 1) * KOL_GAP) / KOLS;
+      const celHoogte = 38;
+
+      if (verrijkt && verrijkt.items) {
+        let kolIdx = 0;
+        for (let i = 0; i < woordIds.length; i++) {
+          const id = woordIds[i];
+          const item = verrijkt.items.find(it => it.id === id);
+          if (!item) continue;
+
+          // Page break
+          if (yStart + celHoogte > PH - 32) {
+            doc.addPage();
+            yStart = tekenHeader(doc, school, kind.naam, kind.code);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(K_GRIJS);
+            doc.text(`${labels[toets.vaardigheid]} — ${themaNaam} (vervolg)`, M, yStart + 3);
+            yStart += 7;
+            kolIdx = 0;
+          }
+
+          const x = M + kolIdx * (celBreedte + KOL_GAP);
+          const isFout = (fouteIds.indexOf(id) !== -1);
+          const isJuist = !isFout;
+
+          let bgKleur, randKleur;
+          if (isJuist) { bgKleur = '#E8F5E9'; randKleur = K_GROEN; }
+          else { bgKleur = '#FFEBEE'; randKleur = K_ROOD; }
+
+          doc.setFillColor(bgKleur);
+          doc.setDrawColor(randKleur);
+          doc.setLineWidth(0.6);
+          doc.roundedRect(x, yStart, celBreedte, celHoogte, 2.5, 2.5, 'FD');
+
+          // Beeld
+          const beeldGrootte = 18;
+          const beeldX = x + celBreedte / 2;
+          const beeldY = yStart + 3 + beeldGrootte / 2;
+          if (window.PDFEngine && window.PDFEngine.plaatsItemBeeld) {
+            try {
+              window.PDFEngine.plaatsItemBeeld(doc, item, beeldX, beeldY, beeldGrootte);
+            } catch (e) { /* geen beeld */ }
+          }
+
+          // Symbool
+          const symY = yStart + 24;
+          if (isJuist) tekenVinkje(doc, beeldX, symY, 6, K_GROEN);
+          else tekenKruisje(doc, beeldX, symY, 6, K_ROOD);
+
+          // Woord
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.setTextColor(K_HOOFDTITEL);
+          const woordLijnen = doc.splitTextToSize(item.tekst, celBreedte - 4);
+          doc.text(woordLijnen, beeldX, yStart + celHoogte - 3, { align: 'center' });
+
+          kolIdx++;
+          if (kolIdx >= KOLS) {
+            kolIdx = 0;
+            yStart += celHoogte + RIJ_GAP;
+          }
+        }
+        if (kolIdx !== 0) {
+          yStart += celHoogte + RIJ_GAP;
+        }
+      }
+
+      return yStart + 6; // extra ruimte tussen vaardigheden
     }
-    y += 22;
 
-    // Raster: 5 cellen per rij
-    const KOLS = 5;
-    const RIJ_GAP = 4;
-    const KOL_GAP = 4;
-    const celBreedte = (IB - (KOLS - 1) * KOL_GAP) / KOLS;
-    const celHoogte = 38; // mm
-
-    // Items in volgorde van woordIds (zodat juf in toetsenmap nadien herkent)
-    if (verrijkt && verrijkt.items) {
-      let kolIdx = 0;
-
-      for (let i = 0; i < woordIds.length; i++) {
-        const id = woordIds[i];
-        const item = verrijkt.items.find(it => it.id === id);
-        if (!item) continue;
-
-        // Page break: als rij niet meer past, nieuwe pagina
-        if (y + celHoogte > PH - 32) {
-          doc.addPage();
-          y = tekenHeader(doc, school, kind.naam, kind.code);
-          // Op vervolgpagina: kort kop
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(9);
-          doc.setTextColor(K_GRIJS);
-          doc.text(`Luistertoets — ${themaNaam} (vervolg)`, M, y + 3);
-          y += 7;
-          kolIdx = 0; // start nieuwe rij
-        }
-
-        const x = M + kolIdx * (celBreedte + KOL_GAP);
-
-        // Bepaal status van dit woord
-        const isFout = (fouteIds.indexOf(id) !== -1);
-        const isJuist = isBeoordeeld && !isFout;
-        const isOnbekend = !isBeoordeeld;
-
-        // Cel-achtergrond
-        let bgKleur, randKleur;
-        if (isJuist) { bgKleur = '#E8F5E9'; randKleur = K_GROEN; }
-        else if (isFout) { bgKleur = '#FFEBEE'; randKleur = K_ROOD; }
-        else { bgKleur = '#FAFAF5'; randKleur = K_LICHTGRIJS; }
-
-        doc.setFillColor(bgKleur);
-        doc.setDrawColor(randKleur);
-        doc.setLineWidth(0.6);
-        doc.roundedRect(x, y, celBreedte, celHoogte, 2.5, 2.5, 'FD');
-
-        // Beeld bovenaan in cel — 18mm vierkant, gecentreerd horizontaal
-        const beeldGrootte = 18;
-        const beeldX = x + celBreedte / 2;
-        const beeldY = y + 3 + beeldGrootte / 2;
-        if (window.PDFEngine && window.PDFEngine.plaatsItemBeeld) {
-          try {
-            window.PDFEngine.plaatsItemBeeld(doc, item, beeldX, beeldY, beeldGrootte);
-          } catch (e) { /* geen beeld → val terug op niets */ }
-        }
-
-        // Symbool onder het beeld — alleen als beoordeeld
-        const symY = y + 24;
-        if (isJuist) {
-          tekenVinkje(doc, beeldX, symY, 6, K_GROEN);
-        } else if (isFout) {
-          tekenKruisje(doc, beeldX, symY, 6, K_ROOD);
-        }
-
-        // Woord onderaan
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8.5);
-        doc.setTextColor(K_HOOFDTITEL);
-        const woordLijnen = doc.splitTextToSize(item.tekst, celBreedte - 4);
-        doc.text(woordLijnen, beeldX, y + celHoogte - 3, { align: 'center' });
-
-        kolIdx++;
-        if (kolIdx >= KOLS) {
-          kolIdx = 0;
-          y += celHoogte + RIJ_GAP;
-        }
-      }
-      // Na de laatste rij: y omhoog brengen als laatste rij niet vol was
-      if (kolIdx !== 0) {
-        y += celHoogte + RIJ_GAP;
-      }
+    // Render elke afgenomen vaardigheid
+    if (afgenomenToetsen.length === 0) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(11);
+      doc.setTextColor(K_GRIJS);
+      doc.text('Nog geen toetsen afgenomen.', M, y + 8);
+    } else {
+      afgenomenToetsen.forEach(toets => {
+        y = renderVaardigheidSectie(toets, y);
+      });
     }
 
     // Footer op alle pagina's
@@ -1365,7 +1390,8 @@ window.RapportEngine = (function() {
     const veiligeNaam = (_volledigeNaam(kind) || kind.code).replace(/[^a-zA-Z0-9-]/g, '_');
     const datumStr = datumFmt(datumTaak).replace(/\//g, '-');
     const themaSlug = (thema && thema.id) ? thema.id : 'thema';
-    doc.save(`luistertoets-${veiligeNaam}-${themaSlug}-${datumStr}.pdf`);
+    const naamPrefix = afgenomenToetsen.length > 1 ? 'toetsen' : 'luistertoets';
+    doc.save(`${naamPrefix}-${veiligeNaam}-${themaSlug}-${datumStr}.pdf`);
   }
 
 
