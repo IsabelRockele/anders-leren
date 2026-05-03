@@ -4971,7 +4971,7 @@ function lkPbNieuwModal(kindCode, vaardigheid, bestaandeToetsId) {
 
       <div class="lk-taak-veld">
         <label class="lk-taak-label">Opmerking <small>(optioneel)</small></label>
-        <textarea class="lk-spr-notitie" rows="2" id="pb-opmerking" placeholder="Bv. Sara werkte zelfstandig en heel netjes.">${(opmerkingInit || '').replace(/</g, '&lt;')}</textarea>
+        <textarea class="lk-pb-opmerking-veld" rows="3" id="pb-opmerking" placeholder="Bv. Sara werkte zelfstandig en heel netjes.">${(opmerkingInit || '').replace(/</g, '&lt;')}</textarea>
       </div>
 
       <div class="lk-taak-veld">
