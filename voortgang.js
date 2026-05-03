@@ -979,15 +979,65 @@ window.Voortgang = (function() {
       .slice(0, 30);
     const periodeId = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-${slug || 'periode'}`;
 
+    // Bepaal schooljaar uit startdatum en het volgnummer binnen dat schooljaar
+    const schooljaar = bepaalSchooljaarUitDatum(startDatum);
+    let nummer = 1;
+    try {
+      const bestaande = await alleRapportperiodes();
+      const inHetzelfdeSchooljaar = bestaande.filter(p => {
+        if (p.schooljaar) return p.schooljaar === schooljaar;
+        return bepaalSchooljaarUitDatum(p.startDatum) === schooljaar;
+      });
+      nummer = inHetzelfdeSchooljaar.length + 1;
+    } catch (e) {
+      // Als ophalen faalt, default nummer 1
+    }
+
     const data = {
       naam: naam.trim(),
       startDatum: startDatum,
       eindDatum: eindDatum,
       status: 'actief',
-      gemaakt: Date.now()
+      gemaakt: Date.now(),
+      schooljaar: schooljaar,
+      nummer: nummer
     };
     await db.collection('rapportperiodes').doc(periodeId).set(data);
+
+    // Voeg deze periode-ID toe aan het schooljaar-document
+    try {
+      const sjDoc = await db.collection('schooljaren').doc(schooljaar).get();
+      if (sjDoc.exists) {
+        const huidige = Array.isArray(sjDoc.data().rapportperiodes) ? sjDoc.data().rapportperiodes : [];
+        if (!huidige.includes(periodeId)) {
+          await sjDoc.ref.update({ rapportperiodes: [...huidige, periodeId] });
+        }
+      }
+    } catch (e) {
+      console.warn('Periode toevoegen aan schooljaar mislukt:', e);
+    }
+
     return { id: periodeId, ...data };
+  }
+
+  // Bewerk een bestaande periode (naam, datums)
+  async function wijzigRapportperiode(periodeId, naam, startDatum, eindDatum) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!periodeId) throw new Error('Periode-ID is verplicht.');
+    const upd = {};
+    if (naam && naam.trim()) upd.naam = naam.trim();
+    if (startDatum) upd.startDatum = startDatum;
+    if (eindDatum) upd.eindDatum = eindDatum;
+    if (startDatum && eindDatum && eindDatum <= startDatum) {
+      throw new Error('Einddatum moet na startdatum liggen.');
+    }
+    // Als startdatum verandert: schooljaar herberekenen
+    if (startDatum) {
+      const nieuwSj = bepaalSchooljaarUitDatum(startDatum);
+      upd.schooljaar = nieuwSj;
+    }
+    if (Object.keys(upd).length === 0) return;
+    await db.collection('rapportperiodes').doc(periodeId).update(upd);
   }
 
   async function sluitRapportperiode(periodeId) {
@@ -1348,8 +1398,610 @@ window.Voortgang = (function() {
     result.sterren.spreken = _pctNaarSterren(pctSpr);
     result.foutWoorden.spreken = fouteSpr;
 
+    // ==========================================================
+    //  Integreer eigen toetsen (puntenboek) in de sterren-berekening
+    // ==========================================================
+    // Eigen toetsen kunnen alle 4 vaardigheden raken (luisteren/lezen/schrijven/spreken).
+    // Elk heeft een score (juist/totaal) + gewicht. Het percentage wordt herberekend
+    // met de gewogen som van online + eigen toetsen.
+    try {
+      const eigenToetsen = await haalEigenToetsenVoorKindPeriode(kindCode, periodeId);
+      ['luisteren', 'lezen', 'schrijven', 'spreken'].forEach(v => {
+        const eigen = eigenToetsen.filter(t => t.vaardigheid === v);
+        if (eigen.length === 0) return;
+
+        // Online toetsen tellen elk woord = 1 punt, gewicht 1×.
+        // Eigen toetsen tellen score-juist met opgegeven gewicht.
+        const huidigeData = result.toetsdata[v] || { aantal: 0, juist: 0, totaal: 0 };
+
+        // Begin bij online-totalen (gewicht 1×)
+        let gewogenJuist = (huidigeData.juist || 0) * 1;
+        let gewogenTotaal = (huidigeData.totaal || 0) * 1;
+        let aantal = huidigeData.aantal || 0;
+
+        eigen.forEach(t => {
+          const gewicht = (typeof t.gewicht === 'number' && t.gewicht > 0) ? t.gewicht : 1;
+          const score = parseFloat(t.score) || 0;
+          const max = parseFloat(t.maximum) || 0;
+          if (max <= 0) return;
+          gewogenJuist += score * gewicht;
+          gewogenTotaal += max * gewicht;
+          aantal += 1;
+        });
+
+        const nieuwPct = gewogenTotaal > 0 ? Math.round(gewogenJuist / gewogenTotaal * 100) : null;
+        result.toetsdata[v] = {
+          aantal: aantal,
+          juist: Math.round(gewogenJuist * 10) / 10,
+          totaal: Math.round(gewogenTotaal * 10) / 10,
+          pct: nieuwPct
+        };
+        result.sterren[v] = _pctNaarSterren(nieuwPct);
+      });
+    } catch (e) {
+      console.warn('Eigen toetsen integreren in sterren-berekening mislukt:', e);
+    }
+
     // werkhouding blijft null — manueel door leerkracht in te vullen
     return result;
+  }
+
+  // ==========================================================
+  //  PUNTENBOEK — eigen toetsen toevoegen door de leerkracht
+  // ==========================================================
+  //
+  // Doc-structuur in /eigenToetsen/{toetsId}:
+  //   {
+  //     id, kindCode, vaardigheid: 'luisteren'|'lezen'|'schrijven'|'spreken',
+  //     naam: 'Dictee thema dieren',
+  //     datum: timestamp,
+  //     score: 8, maximum: 10,
+  //     gewicht: 1.0,    // 0.5, 1, 2, ...
+  //     opmerking: 'Werkte heel netjes',
+  //     opmerkingCategorie: null|'watGaatGoed'|'groeipunten'|'werkhouding',
+  //     rapportperiodeId, schooljaar,
+  //     gemaakt, laatstAangepast
+  //   }
+  //
+  // Toets-ID = `et-{kindCode}-{timestamp}-{random}` (deterministisch genoeg voor index)
+
+  function _eigenToetsId(kindCode) {
+    const ts = Date.now();
+    const rand = Math.random().toString(36).slice(2, 8);
+    return `et-${kindCode}-${ts}-${rand}`;
+  }
+
+  // Haal alle eigen toetsen voor een kind binnen een specifieke rapportperiode
+  async function haalEigenToetsenVoorKindPeriode(kindCode, periodeId) {
+    if (!db || !kindCode || !periodeId) return [];
+    try {
+      const snap = await db.collection('eigenToetsen')
+        .where('kindCode', '==', kindCode)
+        .where('rapportperiodeId', '==', periodeId)
+        .get();
+      const lijst = [];
+      snap.forEach(doc => lijst.push({ id: doc.id, ...doc.data() }));
+      // Sorteer op datum (oudste eerst)
+      lijst.sort((a, b) => (a.datum || 0) - (b.datum || 0));
+      return lijst;
+    } catch (e) {
+      console.warn('Eigen toetsen ophalen mislukt:', e);
+      return [];
+    }
+  }
+
+  // Haal alle eigen toetsen voor een kind (alle periodes) — zelden nodig
+  async function haalAlleEigenToetsenVoorKind(kindCode) {
+    if (!db || !kindCode) return [];
+    try {
+      const snap = await db.collection('eigenToetsen')
+        .where('kindCode', '==', kindCode)
+        .get();
+      const lijst = [];
+      snap.forEach(doc => lijst.push({ id: doc.id, ...doc.data() }));
+      lijst.sort((a, b) => (b.datum || 0) - (a.datum || 0));
+      return lijst;
+    } catch (e) {
+      console.warn('Alle eigen toetsen ophalen mislukt:', e);
+      return [];
+    }
+  }
+
+  // Voeg een eigen toets toe of update een bestaande
+  async function bewaarEigenToets(toets) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!toets || !toets.kindCode) throw new Error('kindCode is verplicht.');
+    if (!toets.vaardigheid) throw new Error('Vaardigheid is verplicht.');
+    if (!toets.rapportperiodeId) throw new Error('Rapportperiode is verplicht.');
+    if (typeof toets.score !== 'number' || typeof toets.maximum !== 'number' || toets.maximum <= 0) {
+      throw new Error('Score en maximum moeten getallen zijn (maximum > 0).');
+    }
+
+    const id = toets.id || _eigenToetsId(toets.kindCode);
+    const data = {
+      kindCode: toets.kindCode,
+      vaardigheid: toets.vaardigheid,
+      naam: (toets.naam || '').trim(),
+      datum: toets.datum || Date.now(),
+      score: toets.score,
+      maximum: toets.maximum,
+      gewicht: (typeof toets.gewicht === 'number' && toets.gewicht > 0) ? toets.gewicht : 1,
+      opmerking: (toets.opmerking || '').trim(),
+      opmerkingCategorie: toets.opmerkingCategorie || null,
+      rapportperiodeId: toets.rapportperiodeId,
+      schooljaar: toets.schooljaar || bepaalSchooljaarUitDatum(toets.datum || Date.now()),
+      gemaakt: toets.gemaakt || Date.now(),
+      laatstAangepast: Date.now()
+    };
+    await db.collection('eigenToetsen').doc(id).set(data, { merge: true });
+    return { id, ...data };
+  }
+
+  async function verwijderEigenToets(toetsId) {
+    if (!db || !toetsId) throw new Error('Toets-ID ontbreekt.');
+    await db.collection('eigenToetsen').doc(toetsId).delete();
+  }
+
+  // Hulp: tel ook online toetsen mee voor het puntenboek-overzicht
+  // (zonder ze uit taakgeschiedenis te wijzigen — alleen lezen)
+  async function haalOnlineToetsenVoorKindPeriode(kindCode, periodeId, periode) {
+    const result = { luisteren: [], lezen: [], schrijven: [], spreken: [] };
+    if (!kindCode || !periodeId) return result;
+
+    let huidigeTaak = null;
+    let geschiedenis = [];
+    try {
+      huidigeTaak = await haalTaakOpVoorKind(kindCode);
+    } catch (e) { /* ok */ }
+    try {
+      geschiedenis = await haalTaakgeschiedenisOpVoorKind(kindCode) || [];
+    } catch (e) { /* ok */ }
+
+    const alle = [];
+    if (huidigeTaak && huidigeTaak.themaId) alle.push(huidigeTaak);
+    geschiedenis.forEach(t => alle.push(t));
+
+    const venster = periode ? { start: periode.startDatum, eind: periode.eindDatum } : null;
+    function inPeriode(t) {
+      if (t.rapportperiodeId === periodeId) return true;
+      if (!venster) return false;
+      const ts = t.voltooidOp || t.gestart;
+      if (!ts) return false;
+      return ts >= venster.start && ts <= venster.eind;
+    }
+
+    const inPeriodeArr = alle.filter(inPeriode);
+    inPeriodeArr.forEach(taak => {
+      const aantalW = (taak.woordIds || []).length;
+      if (aantalW === 0) return;
+      const ts = taak.voltooidOp || taak.gestart || 0;
+      const themaNaam = _haalThemaNaam(taak.themaId);
+
+      ['luisteren', 'lezen', 'schrijven'].forEach(v => {
+        const tr = taak.toetsResultaten && taak.toetsResultaten[v];
+        if (tr && tr.afgenomen && Array.isArray(tr.pogingen) && tr.pogingen.length > 0) {
+          const laatste = tr.pogingen[tr.pogingen.length - 1];
+          const fout = Array.isArray(laatste.foutIds) ? laatste.foutIds.length : 0;
+          const score = aantalW - fout;
+          result[v].push({
+            id: 'online-' + (taak.themaId || '') + '-' + ts + '-' + v,
+            isOnline: true,
+            naam: 'Online toets — ' + themaNaam,
+            datum: ts,
+            score: score,
+            maximum: aantalW,
+            gewicht: 1,
+            vaardigheid: v
+          });
+        } else if (v === 'luisteren' && Array.isArray(taak.foutWoordenLaatsteToets)
+                   && (taak.status === 'voltooid' || taak.status === 'moeilijk' || taak.status === 'haperde')) {
+          // Backwards compat: oude data
+          const score = aantalW - taak.foutWoordenLaatsteToets.length;
+          result.luisteren.push({
+            id: 'online-' + (taak.themaId || '') + '-' + ts + '-luisteren-oud',
+            isOnline: true,
+            naam: 'Online toets — ' + themaNaam,
+            datum: ts,
+            score: score,
+            maximum: aantalW,
+            gewicht: 1,
+            vaardigheid: 'luisteren'
+          });
+        }
+      });
+    });
+
+    // Spreektoetsen
+    let spreekt = [];
+    try {
+      spreekt = await haalSpreektoetsenOpVoorKind(kindCode) || [];
+    } catch (e) { /* ok */ }
+    spreekt.forEach(st => {
+      let inDezePeriode = (st.rapportperiodeId === periodeId);
+      if (!inDezePeriode && venster && st.datum) {
+        inDezePeriode = (st.datum >= venster.start && st.datum <= venster.eind);
+      }
+      if (!inDezePeriode) return;
+
+      const perWoord = st.perWoord || {};
+      const ids = Object.keys(perWoord);
+      if (ids.length === 0) return;
+      let score = 0;
+      ids.forEach(id => {
+        const waarde = perWoord[id];
+        const oordeel = (waarde && typeof waarde === 'object') ? waarde.oordeel : waarde;
+        if (oordeel === 'vlot') score += 1;
+        else if (oordeel === 'aarzelt') score += 0.5;
+      });
+      const themaNaam = _haalThemaNaam(st.themaId);
+      result.spreken.push({
+        id: 'online-spreek-' + (st.id || st.datum),
+        isOnline: true,
+        naam: 'Spreektoets — ' + themaNaam,
+        datum: st.datum || 0,
+        score: score,
+        maximum: ids.length,
+        gewicht: 1,
+        vaardigheid: 'spreken'
+      });
+    });
+
+    // Sorteer per vaardigheid op datum (oudste eerst)
+    Object.keys(result).forEach(v => {
+      result[v].sort((a, b) => (a.datum || 0) - (b.datum || 0));
+    });
+    return result;
+  }
+
+  function _haalThemaNaam(themaId) {
+    if (!themaId) return 'thema';
+    if (typeof window !== 'undefined' && Array.isArray(window.ALLE_THEMAS_LK)) {
+      const t = window.ALLE_THEMAS_LK.find(x => x.id === themaId);
+      if (t) return t.naam || themaId;
+    }
+    return themaId;
+  }
+
+  // ==========================================================
+  //  SCHOOLJAREN — multi-jaar architectuur
+  // ==========================================================
+  //
+  // Een schooljaar is een container: kinderen, klassen, rapportperiodes.
+  // Schooljaar loopt van 1 sept tot 31 aug (Vlaamse standaard).
+  //
+  // Doc-structuur in /schooljaren/{schooljaarId}:
+  //   { id: "2025-2026", startDatum, eindDatum, status: 'actief'|'archief',
+  //     gemaakt, kinderen: [kindCodes], klasPerKind: { kindCode: "2A" },
+  //     rapportperiodes: [periodeIds] }
+
+  // Bepaal schooljaar-ID uit een timestamp.
+  // Datums tussen 1 sept en 31 aug van volgend jaar = "20XX-20YY".
+  // Bv. 5 oktober 2025 → "2025-2026"; 5 maart 2026 → "2025-2026"; 5 september 2026 → "2026-2027"
+  function bepaalSchooljaarUitDatum(ts) {
+    if (!ts) ts = Date.now();
+    const d = new Date(ts);
+    const maand = d.getMonth(); // 0-11
+    const jaar = d.getFullYear();
+    // Maand 0-7 (jan-aug) → schooljaar startte vorig kalenderjaar
+    // Maand 8-11 (sept-dec) → schooljaar startte dit kalenderjaar
+    const startJaar = (maand < 8) ? jaar - 1 : jaar;
+    return `${startJaar}-${startJaar + 1}`;
+  }
+
+  // Standaard start/eind-datums voor een schooljaar
+  function _schooljaarDatums(schooljaarId) {
+    const m = schooljaarId.match(/^(\d{4})-(\d{4})$/);
+    if (!m) return null;
+    const startJaar = parseInt(m[1]);
+    const eindJaar = parseInt(m[2]);
+    return {
+      startDatum: new Date(startJaar, 8, 1).getTime(),     // 1 september
+      eindDatum: new Date(eindJaar, 7, 31, 23, 59, 59).getTime() // 31 augustus
+    };
+  }
+
+  async function alleSchooljaren() {
+    if (!db) return [];
+    try {
+      const snap = await db.collection('schooljaren').orderBy('startDatum', 'desc').get();
+      const lijst = [];
+      snap.forEach(doc => lijst.push({ id: doc.id, ...doc.data() }));
+      return lijst;
+    } catch (e) {
+      console.warn('Ophalen schooljaren mislukt:', e);
+      return [];
+    }
+  }
+
+  async function actiefSchooljaar() {
+    const lijst = await alleSchooljaren();
+    return lijst.find(s => s.status === 'actief') || null;
+  }
+
+  async function maakSchooljaar(schooljaarId, opties) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!schooljaarId) throw new Error('Schooljaar-ID is verplicht.');
+    const datums = _schooljaarDatums(schooljaarId);
+    if (!datums) throw new Error(`Ongeldig schooljaar-ID "${schooljaarId}". Verwacht: "YYYY-YYYY".`);
+    opties = opties || {};
+    const data = {
+      startDatum: datums.startDatum,
+      eindDatum: datums.eindDatum,
+      status: 'actief',
+      gemaakt: Date.now(),
+      kinderen: opties.kinderen || [],
+      klasPerKind: opties.klasPerKind || {},
+      rapportperiodes: []
+    };
+    await db.collection('schooljaren').doc(schooljaarId).set(data);
+    return { id: schooljaarId, ...data };
+  }
+
+  async function archiveerSchooljaar(schooljaarId) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    await db.collection('schooljaren').doc(schooljaarId).update({
+      status: 'archief',
+      gearchiveerdOp: Date.now()
+    });
+  }
+
+  async function verwijderSchooljaar(schooljaarId) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    // Verwijder ALLEEN het schooljaar-document. Kinderen + periodes + rapporten
+    // blijven bestaan (kunnen aan ander schooljaar gekoppeld zijn).
+    await db.collection('schooljaren').doc(schooljaarId).delete();
+  }
+
+  // Update kinderen-lijst en klas-toewijzing van een schooljaar
+  async function updateSchooljaarKinderen(schooljaarId, kinderenCodes, klasPerKind) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    const upd = {};
+    if (Array.isArray(kinderenCodes)) upd.kinderen = kinderenCodes;
+    if (klasPerKind && typeof klasPerKind === 'object') upd.klasPerKind = klasPerKind;
+    await db.collection('schooljaren').doc(schooljaarId).update(upd);
+  }
+
+  // Bewaring: max N schooljaren behouden — oudste worden automatisch verwijderd
+  async function ruimOudeSchooljarenOp(maxBewaren) {
+    if (!db) return [];
+    maxBewaren = maxBewaren || 3;
+    const alle = await alleSchooljaren(); // gesorteerd op startDatum desc
+    if (alle.length <= maxBewaren) return [];
+    const teVerwijderen = alle.slice(maxBewaren);
+    const verwijderdeIds = [];
+    for (const sj of teVerwijderen) {
+      try {
+        await verwijderSchooljaar(sj.id);
+        verwijderdeIds.push(sj.id);
+      } catch (e) {
+        console.warn('Schooljaar opruimen mislukt voor', sj.id, e);
+      }
+    }
+    return verwijderdeIds;
+  }
+
+  // ==========================================================
+  //  MIGRATIE: oude data → multi-schooljaar
+  // ==========================================================
+  // Logica:
+  //   1. Bepaal welke schooljaren er moeten zijn op basis van bestaande
+  //      rapportperiodes (hun startDatum geeft het schooljaar).
+  //   2. Maak voor elk uniek schooljaar een /schooljaren/-doc als die nog
+  //      niet bestaat.
+  //   3. Update bestaande rapportperiodes met `schooljaar` + `nummer`.
+  //   4. Update bestaande rapporten met `schooljaar` (afgeleid uit periode).
+  //   5. Update bestaande kinderen met `actiefInSchooljaar` + `klasPerSchooljaar`.
+  //
+  // dryRun=true: geeft alleen rapport terug, schrijft niets.
+  async function migreerNaarMultiSchooljaar(dryRun) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    const rapport = {
+      dryRun: !!dryRun,
+      schooljarenAangemaakt: [],
+      periodesGemigreerd: 0,
+      rapportenGemigreerd: 0,
+      kinderenGemigreerd: 0,
+      waarschuwingen: [],
+      fouten: []
+    };
+
+    try {
+      // 1) Periodes ophalen + schooljaren bepalen
+      const periodes = await alleRapportperiodes();
+      const schooljaarMap = {}; // { "2025-2026": [periode, ...] }
+      periodes.forEach(p => {
+        const sj = bepaalSchooljaarUitDatum(p.startDatum);
+        if (!schooljaarMap[sj]) schooljaarMap[sj] = [];
+        schooljaarMap[sj].push(p);
+      });
+
+      // 2) Bestaande schooljaren ophalen
+      const bestaande = await alleSchooljaren();
+      const bestaandeIds = new Set(bestaande.map(s => s.id));
+
+      // 3) Per schooljaar: aanmaken en periodes updaten
+      const kinderenLijst = await alleKinderen();
+
+      for (const [sjId, sjPeriodes] of Object.entries(schooljaarMap)) {
+        // Sorteer periodes binnen schooljaar op startDatum (oudste eerst → nummer 1)
+        sjPeriodes.sort((a, b) => (a.startDatum || 0) - (b.startDatum || 0));
+
+        if (!bestaandeIds.has(sjId)) {
+          // Schooljaar moet aangemaakt worden
+          const status = (Date.now() < _schooljaarDatums(sjId).eindDatum) ? 'actief' : 'archief';
+
+          // Bepaal welke kinderen in dit schooljaar zaten:
+          // alle kinderen waar minstens één taak/spreektoets/rapport in een
+          // periode van dit schooljaar valt. Voor migratie: simpelweg alle
+          // huidige kinderen toewijzen aan het meest recente schooljaar.
+          const kinderenCodes = kinderenLijst.map(k => k.code);
+          const klasPerKind = {};
+          kinderenLijst.forEach(k => { if (k.klas) klasPerKind[k.code] = k.klas; });
+
+          const sjData = {
+            id: sjId,
+            startDatum: _schooljaarDatums(sjId).startDatum,
+            eindDatum: _schooljaarDatums(sjId).eindDatum,
+            status: status,
+            gemaakt: Date.now(),
+            kinderen: kinderenCodes,
+            klasPerKind: klasPerKind,
+            rapportperiodes: sjPeriodes.map(p => p.id)
+          };
+          rapport.schooljarenAangemaakt.push({ id: sjId, periodes: sjPeriodes.length, status });
+
+          if (!dryRun) {
+            await db.collection('schooljaren').doc(sjId).set(sjData);
+          }
+        } else {
+          // Schooljaar bestaat al: voeg periodes toe aan rapportperiodes-lijst
+          if (!dryRun) {
+            const periodesIds = sjPeriodes.map(p => p.id);
+            const sj = bestaande.find(s => s.id === sjId);
+            const huidigePeriodes = Array.isArray(sj.rapportperiodes) ? sj.rapportperiodes : [];
+            const samengevoegd = Array.from(new Set([...huidigePeriodes, ...periodesIds]));
+            await db.collection('schooljaren').doc(sjId).update({ rapportperiodes: samengevoegd });
+          }
+        }
+
+        // 4) Periodes updaten met schooljaar + nummer
+        for (let i = 0; i < sjPeriodes.length; i++) {
+          const p = sjPeriodes[i];
+          const nummer = i + 1;
+          rapport.periodesGemigreerd++;
+          if (!dryRun) {
+            try {
+              await db.collection('rapportperiodes').doc(p.id).update({
+                schooljaar: sjId,
+                nummer: nummer
+              });
+            } catch (e) {
+              rapport.fouten.push(`Periode ${p.id} updaten faalde: ${e.message}`);
+            }
+          }
+        }
+      }
+
+      // 5) Rapporten updaten met schooljaar
+      try {
+        const rapSnap = await db.collection('rapporten').get();
+        for (const docu of rapSnap.docs) {
+          const r = docu.data();
+          const periodeId = r.rapportperiodeId;
+          if (!periodeId) continue;
+          // Vind schooljaar van die periode
+          const periode = periodes.find(p => p.id === periodeId);
+          if (!periode) {
+            rapport.waarschuwingen.push(`Rapport ${docu.id} verwijst naar onbekende periode ${periodeId}`);
+            continue;
+          }
+          const sj = bepaalSchooljaarUitDatum(periode.startDatum);
+          rapport.rapportenGemigreerd++;
+          if (!dryRun) {
+            try {
+              await docu.ref.update({ schooljaar: sj });
+            } catch (e) {
+              rapport.fouten.push(`Rapport ${docu.id} updaten faalde: ${e.message}`);
+            }
+          }
+        }
+      } catch (e) {
+        rapport.fouten.push(`Rapporten ophalen faalde: ${e.message}`);
+      }
+
+      // 6) Kinderen: actiefInSchooljaar + klasPerSchooljaar
+      // Default: meest recente schooljaar uit schooljaarMap. Als geen schooljaren
+      // hebben (geen periodes), maak het huidige schooljaar aan op basis van vandaag.
+      const schooljaarIds = Object.keys(schooljaarMap).sort().reverse();
+      const meestRecent = schooljaarIds[0] || bepaalSchooljaarUitDatum(Date.now());
+
+      // Als geen enkel schooljaar bestaat → maak een minimaal schooljaar aan
+      if (schooljaarIds.length === 0 && !bestaandeIds.has(meestRecent)) {
+        const datums = _schooljaarDatums(meestRecent);
+        const klasPerKind = {};
+        kinderenLijst.forEach(k => { if (k.klas) klasPerKind[k.code] = k.klas; });
+        rapport.schooljarenAangemaakt.push({ id: meestRecent, periodes: 0, status: 'actief' });
+        if (!dryRun) {
+          await db.collection('schooljaren').doc(meestRecent).set({
+            startDatum: datums.startDatum,
+            eindDatum: datums.eindDatum,
+            status: 'actief',
+            gemaakt: Date.now(),
+            kinderen: kinderenLijst.map(k => k.code),
+            klasPerKind: klasPerKind,
+            rapportperiodes: []
+          });
+        }
+      }
+
+      for (const k of kinderenLijst) {
+        rapport.kinderenGemigreerd++;
+        if (!dryRun) {
+          try {
+            await db.collection('kinderen').doc(k.code).update({
+              actiefInSchooljaar: meestRecent,
+              klasPerSchooljaar: { [meestRecent]: k.klas || '' }
+            });
+          } catch (e) {
+            rapport.fouten.push(`Kind ${k.code} updaten faalde: ${e.message}`);
+          }
+        }
+      }
+
+    } catch (e) {
+      rapport.fouten.push('Globale fout: ' + (e.message || e.toString()));
+    }
+
+    return rapport;
+  }
+
+  // Check of migratie nog moet gebeuren (geen schooljaar-collectie of geen
+  // schooljaar-veld op periodes).
+  async function migratieNodig() {
+    if (!db) return false;
+    try {
+      const sjSnap = await db.collection('schooljaren').limit(1).get();
+      if (sjSnap.empty) return true; // geen enkel schooljaar bestaat
+      // Check of er periodes zijn zonder schooljaar-veld
+      const periodes = await alleRapportperiodes();
+      const ongekoppeld = periodes.filter(p => !p.schooljaar);
+      return ongekoppeld.length > 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ==========================================================
+  //  Helpers voor schooljaar-context
+  // ==========================================================
+
+  // Filter kinderen op een schooljaar. Werkt met zowel multi-jaar als
+  // pre-migratie data (val terug op alle kinderen als schooljaar onbekend is).
+  function filterKinderenOpSchooljaar(kinderen, schooljaarObj) {
+    if (!schooljaarObj || !Array.isArray(schooljaarObj.kinderen)) {
+      return kinderen; // backwards-compat
+    }
+    const codes = new Set(schooljaarObj.kinderen);
+    return kinderen.filter(k => codes.has(k.code));
+  }
+
+  // Geef de klas voor een kind in een schooljaar
+  function klasVoorKindInSchooljaar(kind, schooljaarObj) {
+    if (!schooljaarObj) return kind.klas || '';
+    if (schooljaarObj.klasPerKind && schooljaarObj.klasPerKind[kind.code]) {
+      return schooljaarObj.klasPerKind[kind.code];
+    }
+    return kind.klas || '';
+  }
+
+  // Filter rapportperiodes op een schooljaar
+  function filterPeriodesOpSchooljaar(periodes, schooljaarId) {
+    if (!schooljaarId) return periodes;
+    return periodes.filter(p => {
+      if (p.schooljaar) return p.schooljaar === schooljaarId;
+      // Fallback: leid af uit startDatum
+      return bepaalSchooljaarUitDatum(p.startDatum) === schooljaarId;
+    });
   }
 
   return {
@@ -1413,6 +2065,7 @@ window.Voortgang = (function() {
     alleRapportperiodes,
     actieveRapportperiode,
     maakRapportperiode,
+    wijzigRapportperiode,
     sluitRapportperiode,
     heropenRapportperiode,
     verwijderRapportperiode,
@@ -1420,6 +2073,26 @@ window.Voortgang = (function() {
     // Rapporten (sterren + feedback per kind per periode)
     haalRapportOpVoorKind,
     bewaarRapport,
-    berekenRapportSterren
+    berekenRapportSterren,
+    // Puntenboek — eigen toetsen
+    haalEigenToetsenVoorKindPeriode,
+    haalAlleEigenToetsenVoorKind,
+    bewaarEigenToets,
+    verwijderEigenToets,
+    haalOnlineToetsenVoorKindPeriode,
+    // Schooljaren — multi-jaar architectuur
+    alleSchooljaren,
+    actiefSchooljaar,
+    maakSchooljaar,
+    archiveerSchooljaar,
+    verwijderSchooljaar,
+    updateSchooljaarKinderen,
+    ruimOudeSchooljarenOp,
+    bepaalSchooljaarUitDatum,
+    migreerNaarMultiSchooljaar,
+    migratieNodig,
+    filterKinderenOpSchooljaar,
+    klasVoorKindInSchooljaar,
+    filterPeriodesOpSchooljaar
   };
 })();
