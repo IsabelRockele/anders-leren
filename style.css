@@ -8265,3 +8265,25 @@ h1, h2, h3 {
     width: 100%;
   }
 }
+
+
+/* Opmerking-veld in puntenboek-modal: volledige breedte, comfortabele hoogte */
+.lk-pb-opmerking-veld {
+  width: 100%;
+  min-height: 70px;
+  padding: 10px 12px;
+  border: 1px solid #d4cfbf;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  background: #fff;
+  resize: vertical;
+  box-sizing: border-box;
+  color: #2D2A32;
+}
+.lk-pb-opmerking-veld:focus {
+  outline: none;
+  border-color: #ffc107;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.15);
+}
