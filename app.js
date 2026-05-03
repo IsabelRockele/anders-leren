@@ -89,15 +89,16 @@ let toetsItem = null;
 // =================================================================
 //
 // Stuurt het kind door de fases van een taak: leren → luisteren-oefenen
-// → mini-toets-luisteren → (klaar of moeilijk).
+// → luisteren-toets → lezen-oefenen → lezen-toets → schrijven-oefenen
+// → schrijven-toets → klaar. Welke fases er zijn, hangt af van wat de
+// leerkracht aanvinkte (vaardigheden + toetsen).
 //
 // State:
 //   - taakModus = true zodra het kind in een taak zit
-//   - taakHuidigeFase = 'leren' | 'luisteren-oef' | 'luisteren-toets' | 'klaar'
+//   - taakHuidigeFase = string-ID van de huidige fase
 //   - taakItems = items van de taak (uit het thema gefilterd op woordIds)
 //   - taakLeerIndex = welk item is zichtbaar in leren-fase
 //   - taakOefItem = huidig item in oefen-fase
-//   - taakToetsFoutCount = aantal foutieve toetsen voor deze taak
 //
 // Belangrijk: in oefen- en toets-fases speelt audio NIET automatisch.
 // Het kind moet zelf op de hoorknop klikken om het woord te horen.
@@ -107,6 +108,15 @@ let taakHuidigeFase = null;
 let taakItems = [];
 let taakLeerIndex = 0;
 let taakOefItem = null;
+
+// Intro-tussenschermen per fase. Bevat de fases die het kind al "gepasseerd" is via
+// de intro. Voorkomt dat intro telkens opnieuw verschijnt als kind tussen fases heen-
+// en-weer gaat (bv. bij teruggaan vanuit de toets naar de oef).
+let _taakIntroBezocht = new Set();
+// Onthoudt naar welke "echte" fase de intro doorschakelt (na klik op Begin)
+let _taakIntroDoorNaar = null;
+// Markeer of we een taak hernemen — voor 'Welkom terug!' op het eerstvolgende intro-scherm
+let _taakHernemen = false;
 
 // Helper: zoek het thema-object op basis van id
 function _vindThema(themaId) {
@@ -119,6 +129,39 @@ function _taakItems(taak, thema) {
   const verrijkt = verrijkThema(thema);
   const set = new Set(taak.woordIds || []);
   return verrijkt.items.filter(it => set.has(it.id));
+}
+
+// Bouw de lijst van fases waar het kind doorheen moet, op basis van wat de
+// leerkracht heeft aangevinkt. 'leren' staat altijd vooraan, 'klaar' altijd achteraan.
+// Per aangevinkte vaardigheid komt eerst de oef-fase, dan eventueel de toets-fase.
+function _taakFasenLijst(taak) {
+  const fasen = ['leren'];
+  const vaardigheden = Array.isArray(taak.vaardigheden) ? taak.vaardigheden : ['luisteren'];
+  const toetsen = new Set(Array.isArray(taak.toetsen) ? taak.toetsen : ['luisteren']);
+  // Vaste volgorde: luisteren → lezen → schrijven (alleen aangevinkte erbij)
+  ['luisteren', 'lezen', 'schrijven'].forEach(v => {
+    if (vaardigheden.indexOf(v) === -1) return;
+    fasen.push(v + '-oef');
+    if (toetsen.has(v)) fasen.push(v + '-toets');
+  });
+  fasen.push('klaar');
+  return fasen;
+}
+
+// Vind de volgende fase na een gegeven fase-ID
+function _volgendeFase(huidigeFase, taak) {
+  const fasen = _taakFasenLijst(taak);
+  const idx = fasen.indexOf(huidigeFase);
+  if (idx === -1 || idx === fasen.length - 1) return 'klaar';
+  return fasen[idx + 1];
+}
+
+// Vind de vorige fase voor een gegeven fase-ID
+function _vorigeFase(huidigeFase, taak) {
+  const fasen = _taakFasenLijst(taak);
+  const idx = fasen.indexOf(huidigeFase);
+  if (idx <= 0) return null;
+  return fasen[idx - 1];
 }
 
 // Hoofdknop op startscherm: taak-knop. Toont de taak-zone als er een taak is,
@@ -181,7 +224,14 @@ function startTaak() {
     return;
   }
 
-  // Als taak al voltooid of moeilijk was: kind start hem opnieuw → reset
+  // Bepaal start-fase op basis van vorige sessie:
+  //   - voltooid/moeilijk/haperde → reset, helemaal opnieuw vanaf 'leren'
+  //   - bezig + fase 'leren' → gewoon bij 'leren' starten (nog niets gedaan)
+  //   - bezig + oef-fase → daar verder hernemen
+  //   - bezig + toets-fase → terug naar bijhorende oef-fase (toets opnieuw)
+  let startFase = 'leren';
+  let isHernemen = false;
+
   if (taak.status === 'voltooid' || taak.status === 'moeilijk' || taak.status === 'haperde') {
     Voortgang.updateTaak({
       status: 'bezig',
@@ -189,11 +239,34 @@ function startTaak() {
       foutWoordenLaatsteToets: [],
       aantalPogingen: { luisteren: 0, lezen: 0, schrijven: 0 }
     });
+    startFase = 'leren';
+  } else if (taak.huidigeFase && taak.huidigeFase !== 'leren') {
+    // Hernemen: pak de bewaarde fase, of bij toets terug naar oef
+    let f = taak.huidigeFase;
+    // Negeer 'intro:'-prefix en 'klaar' (die mogen we niet als startpunt nemen)
+    if (typeof f === 'string' && f.startsWith('intro:')) {
+      f = f.replace('intro:', '');
+    }
+    if (f === 'klaar') {
+      f = 'leren';
+    } else if (typeof f === 'string' && f.endsWith('-toets')) {
+      // Toets opnieuw → terug naar oef
+      f = f.replace('-toets', '-oef');
+    }
+    if (f !== 'leren') {
+      startFase = f;
+      isHernemen = true;
+    }
   }
 
   huidigThema = thema;
   taakModus = true;
   taakItems = _taakItems(Voortgang.getTaak(), thema);
+  // Reset intro-bezoeken bij elke start (zodat tussenscherm bij hernemen ook getoond wordt)
+  _taakIntroBezocht = new Set();
+  _taakIntroDoorNaar = null;
+  // Markeer of dit een hernemen is, voor het 'Welkom terug!' bericht in de intro
+  _taakHernemen = isHernemen;
 
   if (taakItems.length === 0) {
     alert('Er zijn geen woorden in je taak. Vraag aan je juf.');
@@ -201,12 +274,21 @@ function startTaak() {
     return;
   }
 
-  // Start altijd bij leren-fase wanneer kind op taak-knop klikt
-  taakStartFase('leren');
+  taakStartFase(startFase);
 }
 
 // Centrale fase-router
 function taakStartFase(fase) {
+  // INTRO-LOGICA: voor elke oef- of toets-fase tonen we eerst een tussenscherm,
+  // tenzij het kind die al heeft gezien. Bezoeken worden bijgehouden in
+  // _taakIntroBezocht zodat de intro niet telkens opnieuw verschijnt.
+  if (_isIntroFase(fase) && !_taakIntroBezocht.has(fase)) {
+    _taakIntroDoorNaar = fase;
+    taakHuidigeFase = 'intro:' + fase;
+    taakToonIntro(fase);
+    return;
+  }
+
   taakHuidigeFase = fase;
   Voortgang.updateTaak({ huidigeFase: fase });
 
@@ -218,19 +300,358 @@ function taakStartFase(fase) {
     taakStartLuisterenOefenen();
   } else if (fase === 'luisteren-toets') {
     taakStartLuisterenToets();
+  } else if (fase === 'lezen-oef') {
+    taakStartLezenOefenen();
+  } else if (fase === 'lezen-toets') {
+    taakStartLezenToets();
+  } else if (fase === 'schrijven-oef') {
+    taakStartSchrijvenOefenen();
+  } else if (fase === 'schrijven-toets') {
+    taakStartSchrijvenToets();
   } else if (fase === 'klaar') {
     taakToonKlaar();
   }
 }
 
-// Bij klik op een fase-terug-knop: ga één fase terug.
+// Helper: welke fases krijgen een intro-tussenscherm?
+function _isIntroFase(fase) {
+  return [
+    'luisteren-oef', 'luisteren-toets',
+    'lezen-oef',     'lezen-toets',
+    'schrijven-oef', 'schrijven-toets'
+  ].indexOf(fase) !== -1;
+}
+
+// Bij klik op een fase-terug-knop: ga één fase terug volgens de fase-lijst.
 function taakFaseTerug() {
-  if (taakHuidigeFase === 'luisteren-oef') {
-    taakStartFase('leren');
-  } else if (taakHuidigeFase === 'luisteren-toets') {
-    taakStartFase('luisteren-oef');
+  const taak = Voortgang.getTaak();
+  if (!taak) return;
+  // Bij intro: terug naar de fase die voor de "echte" doel-fase kwam
+  if (typeof taakHuidigeFase === 'string' && taakHuidigeFase.startsWith('intro:')) {
+    const doelFase = taakHuidigeFase.replace('intro:', '');
+    const vorige = _vorigeFase(doelFase, taak);
+    if (vorige) taakStartFase(vorige);
+    return;
   }
-  // Vanuit 'leren' geen terug; vanuit 'klaar' ook niet
+  const vorige = _vorigeFase(taakHuidigeFase, taak);
+  if (vorige) taakStartFase(vorige);
+}
+
+// =================================================================
+//  TAAK-INTRO  (tussenscherm met groot icoon, uitleg en demo per fase)
+// =================================================================
+//
+// Configuratie per fase: titel die het kind ziet, kort hoorbare uitleg en
+// een demo-bouw-functie die het mini-voorbeeld animeert.
+
+const TAAK_INTRO_CONFIG = {
+  'luisteren-oef': {
+    icoon: '👂',
+    kop: '👂 Mijn taak — luisteren',
+    titel: 'Nu gaan we luisteren',
+    uitleg: 'Hoor het woord. Klik dan op het juiste woord.',
+    bouwDemo: _bouwDemoLuisterenOef
+  },
+  'luisteren-toets': {
+    icoon: '🎯',
+    kop: '🎯 Mijn taak — luistertoets',
+    titel: 'Toets luisteren',
+    uitleg: 'Hoor het woord. Klik op het juiste beeld. Goed nadenken!',
+    bouwDemo: _bouwDemoLuisterenToets
+  },
+  'lezen-oef': {
+    icoon: '👁️',
+    kop: '👁️ Mijn taak — lezen',
+    titel: 'Nu gaan we lezen',
+    uitleg: 'Lees het woord. Klik op het juiste beeld.',
+    bouwDemo: _bouwDemoLezenOef
+  },
+  'lezen-toets': {
+    icoon: '🎯',
+    kop: '🎯 Mijn taak — leestoets',
+    titel: 'Toets lezen',
+    uitleg: 'Lees het woord. Klik op het juiste beeld. Goed nadenken!',
+    bouwDemo: _bouwDemoLezenOef
+  },
+  'schrijven-oef': {
+    icoon: '✍️',
+    kop: '✍️ Mijn taak — schrijven',
+    titel: 'Nu gaan we schrijven',
+    uitleg: 'Kijk naar het woord. Het verdwijnt na drie seconden. Typ het woord daarna over.',
+    bouwDemo: _bouwDemoSchrijvenOef
+  },
+  'schrijven-toets': {
+    icoon: '🎯',
+    kop: '🎯 Mijn taak — schrijftoets',
+    titel: 'Toets schrijven',
+    uitleg: 'Kijk naar het beeld. Typ het juiste woord. Je krijgt één kans!',
+    bouwDemo: _bouwDemoSchrijvenToets
+  }
+};
+
+function taakToonIntro(fase) {
+  const cfg = TAAK_INTRO_CONFIG[fase];
+  if (!cfg) {
+    // Geen config: skip intro, ga direct door
+    _taakIntroBezocht.add(fase);
+    taakStartFase(fase);
+    return;
+  }
+  // Vul de elementen
+  const kopEl    = document.getElementById('taak-intro-kop');
+  const icoonEl  = document.getElementById('taak-intro-icoon');
+  const titelEl  = document.getElementById('taak-intro-titel');
+  const uitlegEl = document.getElementById('taak-intro-uitleg');
+  const demoEl   = document.getElementById('taak-intro-demo');
+  const welkomEl = document.getElementById('taak-intro-welkom');
+
+  if (kopEl)    kopEl.textContent    = cfg.kop;
+  if (icoonEl)  icoonEl.textContent  = cfg.icoon;
+  if (titelEl)  titelEl.textContent  = cfg.titel;
+  if (uitlegEl) uitlegEl.textContent = cfg.uitleg;
+
+  // Welkom-terug-bericht alleen tonen bij eerste intro na hernemen
+  let welkomTerug = false;
+  if (welkomEl) {
+    if (_taakHernemen) {
+      welkomEl.textContent = `🦓 Welkom terug! We gaan verder bij ${cfg.titel.toLowerCase()}.`;
+      welkomEl.style.display = '';
+      welkomTerug = true;
+      // Reset zodat dit bericht maar 1× verschijnt
+      _taakHernemen = false;
+    } else {
+      welkomEl.style.display = 'none';
+      welkomEl.textContent = '';
+    }
+  }
+
+  if (demoEl) {
+    demoEl.innerHTML = '';
+    if (typeof cfg.bouwDemo === 'function') {
+      cfg.bouwDemo(demoEl);
+    }
+  }
+  toonScherm('scherm-taak-intro');
+  // Audio-uitleg automatisch afspelen (zachtjes met kleine vertraging).
+  // Bij welkom-terug: spreek eerst de welkom-zin, dan de uitleg
+  setTimeout(() => {
+    if (taakModus && typeof taakHuidigeFase === 'string' && taakHuidigeFase.startsWith('intro:')) {
+      if (welkomTerug) {
+        AudioEngine.spreek('Welkom terug! ' + cfg.uitleg);
+      } else {
+        AudioEngine.spreek(cfg.uitleg);
+      }
+    }
+  }, 400);
+}
+
+function taakIntroHoorUitleg() {
+  const fase = _taakIntroDoorNaar;
+  if (!fase) return;
+  const cfg = TAAK_INTRO_CONFIG[fase];
+  if (cfg) AudioEngine.spreek(cfg.uitleg);
+}
+
+function taakIntroVerder() {
+  const fase = _taakIntroDoorNaar;
+  if (!fase) return;
+  _taakIntroBezocht.add(fase);
+  _taakIntroDoorNaar = null;
+  taakStartFase(fase);
+}
+
+function taakIntroAnnuleer() {
+  taakVerlaten();
+}
+
+// =================================================================
+//  TAAK-INTRO DEMO-BOUWERS
+// =================================================================
+//
+// Elke demo-bouwer bouwt een statisch voorbeeld in de demo-container.
+// We gebruiken bewuste, kort-cyclische CSS-animaties zodat het kind ziet
+// hoe de oefening werkt — geen echte interactie, puur ter illustratie.
+// Voorbeelden gebruiken het eerste item uit het taak-thema (of fallback).
+
+function _demoVoorbeelditem() {
+  // Pak het eerste item uit de huidige taak; fallback naar een neutraal voorbeeld
+  if (taakItems && taakItems.length > 0) return taakItems[0];
+  return { tekst: 'het boek', beeld: '📚', kort: 'boek', id: 'demo' };
+}
+
+function _demoExtraItems(uitsluit, n) {
+  // Pak n extra items uit het thema voor afleiders, vermijd het hoofd-item
+  if (!huidigThema) return [];
+  const verrijkt = verrijkThema(huidigThema);
+  const pool = (verrijkt.items || []).filter(it => it.id !== uitsluit.id).slice(0, n);
+  // Als er onvoldoende items zijn, vul aan met dummies
+  while (pool.length < n) {
+    pool.push({ tekst: '...', beeld: '❔', kort: '...', id: 'dummy-' + pool.length });
+  }
+  return pool;
+}
+
+// LUISTEREN-OEF demo: kind hoort woord, kiest juiste woord-knop.
+// Demo: toont een beeld bovenaan, daaronder 4 woord-knoppen, met een zwevend
+// vingertje dat naar het juiste woord beweegt en "klikt".
+function _bouwDemoLuisterenOef(container) {
+  const item = _demoVoorbeelditem();
+  const afl = _demoExtraItems(item, 3);
+  const opties = [item, ...afl];
+  // Schud niet — we willen het juiste antwoord op een vaste positie voor de demo
+  // Plaats het juiste op positie 1 (tweede knop) zodat de animatie naar daar wijst
+  const juistIdx = 1;
+  const geordend = [opties[1], opties[0], opties[2], opties[3]];
+
+  let html = `
+    <div class="demo-blok">
+      <div class="demo-label">Voorbeeld:</div>
+      <div class="demo-luister-beeld">${Picto.html(item, { grootte: 64 })}</div>
+      <div class="demo-luister-opties">
+  `;
+  geordend.forEach((opt, i) => {
+    html += `<div class="demo-knop ${i === juistIdx ? 'demo-juist' : ''}">${opt.tekst}</div>`;
+  });
+  html += `
+      </div>
+      <div class="demo-vinger" style="--demo-target-x: 25%;">👆</div>
+      <div class="demo-pijl">↑ klik op het juiste woord</div>
+    </div>
+  `;
+  container.innerHTML = html;
+}
+
+// LUISTEREN-TOETS demo: kind hoort woord, kiest juiste BEELD (4 beelden).
+function _bouwDemoLuisterenToets(container) {
+  const item = _demoVoorbeelditem();
+  const afl = _demoExtraItems(item, 3);
+  const geordend = [afl[0], item, afl[1], afl[2]];
+  const juistIdx = 1;
+
+  let html = `
+    <div class="demo-blok">
+      <div class="demo-label">Voorbeeld:</div>
+      <div class="demo-toets-woord">${item.tekst}</div>
+      <div class="demo-toets-beelden">
+  `;
+  geordend.forEach((opt, i) => {
+    html += `<div class="demo-beeld-knop ${i === juistIdx ? 'demo-juist' : ''}">${Picto.html(opt, { grootte: 36 })}</div>`;
+  });
+  html += `
+      </div>
+      <div class="demo-vinger" style="--demo-target-x: 38%;">👆</div>
+      <div class="demo-pijl">↑ klik op het juiste beeld</div>
+    </div>
+  `;
+  container.innerHTML = html;
+}
+
+// LEZEN-OEF/TOETS demo: kind ziet woord groot, kiest juiste beeld uit 4.
+function _bouwDemoLezenOef(container) {
+  const item = _demoVoorbeelditem();
+  const afl = _demoExtraItems(item, 3);
+  const geordend = [afl[0], item, afl[1], afl[2]];
+  const juistIdx = 1;
+
+  let html = `
+    <div class="demo-blok">
+      <div class="demo-label">Voorbeeld:</div>
+      <div class="demo-lezen-woord">${item.tekst}</div>
+      <div class="demo-toets-beelden">
+  `;
+  geordend.forEach((opt, i) => {
+    html += `<div class="demo-beeld-knop ${i === juistIdx ? 'demo-juist' : ''}">${Picto.html(opt, { grootte: 36 })}</div>`;
+  });
+  html += `
+      </div>
+      <div class="demo-vinger" style="--demo-target-x: 38%;">👆</div>
+      <div class="demo-pijl">↑ klik op het juiste beeld</div>
+    </div>
+  `;
+  container.innerHTML = html;
+}
+
+// SCHRIJVEN-OEF demo: animatie 3 sec woord zichtbaar, dan verdwijnt het, dan
+// tikt een vingertje het in het typvak.
+function _bouwDemoSchrijvenOef(container) {
+  const item = _demoVoorbeelditem();
+  const html = `
+    <div class="demo-blok">
+      <div class="demo-label">Voorbeeld:</div>
+      <div class="demo-schrijven-rij">
+        <div class="demo-beeld-mini">${Picto.html(item, { grootte: 40 })}</div>
+        <div class="demo-schrijven-woord-knipper">${item.tekst}</div>
+      </div>
+      <div class="demo-schrijven-input-rij">
+        <div class="demo-input-vak"><span class="demo-getypt"></span><span class="demo-cursor">|</span></div>
+      </div>
+      <div class="demo-pijl">het woord verdwijnt na 3 seconden — typ het over</div>
+    </div>
+  `;
+  container.innerHTML = html;
+  // Animatie: simuleer dat het woord wordt getypt nadat het zichtbaar verdween
+  const getyptEl = container.querySelector('.demo-getypt');
+  if (!getyptEl) return;
+  const target = item.tekst;
+  let i = 0;
+  // Wacht 3.2s totdat woord "verdwijnt" via CSS, dan typen
+  setTimeout(() => {
+    if (!container.isConnected) return;
+    const interval = setInterval(() => {
+      if (!container.isConnected) { clearInterval(interval); return; }
+      i++;
+      if (i > target.length) {
+        clearInterval(interval);
+        // Loop opnieuw na pauze
+        setTimeout(() => {
+          if (!container.isConnected) return;
+          getyptEl.textContent = '';
+          // Herstart full demo via reload van bouw-demo
+          _bouwDemoSchrijvenOef(container);
+        }, 1500);
+        return;
+      }
+      getyptEl.textContent = target.substring(0, i);
+    }, 220);
+  }, 3200);
+}
+
+// SCHRIJVEN-TOETS demo: enkel beeld + typvak — geen woord-3s-zichtbaar fase.
+function _bouwDemoSchrijvenToets(container) {
+  const item = _demoVoorbeelditem();
+  const html = `
+    <div class="demo-blok">
+      <div class="demo-label">Voorbeeld:</div>
+      <div class="demo-beeld-mini-groot">${Picto.html(item, { grootte: 56 })}</div>
+      <div class="demo-schrijven-input-rij">
+        <div class="demo-input-vak"><span class="demo-getypt"></span><span class="demo-cursor">|</span></div>
+      </div>
+      <div class="demo-pijl">typ het juiste woord — één kans</div>
+    </div>
+  `;
+  container.innerHTML = html;
+  // Type-animatie zonder vooraf-zichtbaar woord
+  const getyptEl = container.querySelector('.demo-getypt');
+  if (!getyptEl) return;
+  const target = item.tekst;
+  let i = 0;
+  setTimeout(() => {
+    if (!container.isConnected) return;
+    const interval = setInterval(() => {
+      if (!container.isConnected) { clearInterval(interval); return; }
+      i++;
+      if (i > target.length) {
+        clearInterval(interval);
+        setTimeout(() => {
+          if (!container.isConnected) return;
+          getyptEl.textContent = '';
+          _bouwDemoSchrijvenToets(container);
+        }, 1500);
+        return;
+      }
+      getyptEl.textContent = target.substring(0, i);
+    }, 220);
+  }, 600);
 }
 
 // Verlaat de taak en ga terug naar startscherm.
@@ -240,6 +661,13 @@ function taakVerlaten() {
   taakItems = [];
   taakLeerIndex = 0;
   taakOefItem = null;
+  _taakIntroBezocht = new Set();
+  _taakIntroDoorNaar = null;
+  _taakHernemen = false;
+  if (taakSchrijvenWoordTimer) {
+    clearTimeout(taakSchrijvenWoordTimer);
+    taakSchrijvenWoordTimer = null;
+  }
   AudioEngine.stop();
   naarStart();
 }
@@ -308,8 +736,9 @@ function taakLeerVorige() {
 
 function taakLeerVolgende() {
   if (taakLeerIndex >= taakItems.length - 1) {
-    // Einde leren → volgende fase
-    taakStartFase('luisteren-oef');
+    // Einde leren → volgende fase volgens fase-lijst
+    const taak = Voortgang.getTaak();
+    taakStartFase(_volgendeFase('leren', taak));
     return;
   }
   taakLeerIndex++;
@@ -323,8 +752,9 @@ function taakStartLuisterenOefenen() {
   // Pak een woord dat nog geen 3× juist heeft
   const item = _kiesVolgendOefenItem('luisteren');
   if (!item) {
-    // Alle woorden 3× juist → naar toets
-    taakStartFase('luisteren-toets');
+    // Alle woorden 3× juist → volgende fase volgens lijst
+    const taak = Voortgang.getTaak();
+    taakStartFase(_volgendeFase('luisteren-oef', taak));
     return;
   }
   taakOefItem = item;
@@ -333,6 +763,61 @@ function taakStartLuisterenOefenen() {
 }
 
 // Kies item dat nog niet "zit" op een vaardigheid. Geeft null als alles zit.
+// Drempel: hoe vaak moet een woord juist zijn op deze vaardigheid voor het kind
+// door mag naar de toets/volgende fase?
+//   - luisteren / lezen → 3× juist (snelle keuzeoefeningen)
+//   - schrijven         → 2× juist standaard, 3× als kind het ooit fout had
+//                         (schrijven duurt lang dus minder herhalingen tenzij nodig)
+function _drempelVoor(vaardigheid, woordData) {
+  if (vaardigheid !== 'schrijven') return 3;
+  // Schrijven: standaard 2, maar 3 als woord ooit fout geweest is
+  const fout = (woordData && woordData.schrijven_fout) || 0;
+  return fout > 0 ? 3 : 2;
+}
+
+// Bepaal in welke ronde het kind zit voor een vaardigheid.
+// Een ronde = elk nog-niet-klaar-woord 1× behandeld. We tellen het laagste
+// juist-getal onder de woorden die nog niet klaar zijn — dat is de huidige ronde.
+//   - 0× juist op een woord → het wacht nog op ronde 1
+//   - 1× juist              → het wacht nog op ronde 2
+//   - 2× juist              → het wacht nog op ronde 3
+// We tonen de ronde ALS er nog kandidaten zijn; anders zijn we klaar.
+// MAX-ronde verschilt: luisteren/lezen=3, schrijven=2 of 3 (afhankelijk van of er
+// fout-woorden zijn binnen de taak).
+function _huidigeRonde(vaardigheid) {
+  const taak = Voortgang.getTaak();
+  if (!taak || !taakItems || taakItems.length === 0) return { huidig: 1, max: 3 };
+  const sleutel = vaardigheid + '_juist';
+  // Verzamel juist-tellers van woorden die nog niet voorbij hun drempel zijn
+  let laagste = Infinity;
+  let drempelMax = 2; // bij schrijven default 2, bij luisteren/lezen 3
+  taakItems.forEach(it => {
+    const data = taak.perWoord && taak.perWoord[it.id] ? taak.perWoord[it.id] : null;
+    const teller = data ? (data[sleutel] || 0) : 0;
+    const drempel = _drempelVoor(vaardigheid, data);
+    if (drempel > drempelMax) drempelMax = drempel;
+    if (teller < drempel) {
+      if (teller < laagste) laagste = teller;
+    }
+  });
+  if (laagste === Infinity) {
+    // Geen kandidaten meer = alle woorden klaar
+    return { huidig: drempelMax, max: drempelMax };
+  }
+  // huidige ronde = laagste juist-teller + 1 (want 0× juist = ronde 1)
+  const huidig = Math.min(laagste + 1, drempelMax);
+  return { huidig, max: drempelMax };
+}
+
+// Update de ronde-badge in een oefen-scherm. badgeId = id van het span/div-element
+// dat de ronde-tekst moet bevatten. Bv. "Ronde 1 van 3".
+function _updateRondeBadge(badgeId, vaardigheid) {
+  const el = document.getElementById(badgeId);
+  if (!el) return;
+  const r = _huidigeRonde(vaardigheid);
+  el.textContent = `Ronde ${r.huidig} van ${r.max}`;
+}
+
 function _kiesVolgendOefenItem(vaardigheid) {
   const taak = Voortgang.getTaak();
   if (!taak) return null;
@@ -340,7 +825,8 @@ function _kiesVolgendOefenItem(vaardigheid) {
   const kandidaten = taakItems.filter(it => {
     const data = taak.perWoord && taak.perWoord[it.id] ? taak.perWoord[it.id] : null;
     const teller = data ? (data[sleutel] || 0) : 0;
-    return teller < 3;
+    const drempel = _drempelVoor(vaardigheid, data);
+    return teller < drempel;
   });
   if (kandidaten.length === 0) return null;
 
@@ -373,7 +859,8 @@ function taakRendererLuisterenOefenen() {
   let klaar = 0;
   taakItems.forEach(it => {
     const d = taak.perWoord && taak.perWoord[it.id];
-    if (d && (d.luisteren_juist || 0) >= 3) klaar++;
+    const drempel = _drempelVoor('luisteren', d);
+    if (d && (d.luisteren_juist || 0) >= drempel) klaar++;
   });
   document.getElementById('taak-oef-klaar').textContent = klaar;
   document.getElementById('taak-oef-totaal').textContent = taakItems.length;
@@ -381,6 +868,8 @@ function taakRendererLuisterenOefenen() {
   const pct = taakItems.length > 0 ? (klaar / taakItems.length) * 100 : 0;
   const balk = document.getElementById('taak-oef-balk');
   if (balk) balk.style.width = pct + '%';
+  // Ronde-badge
+  _updateRondeBadge('taak-oef-ronde', 'luisteren');
 
   // Bouw 4 woord-knoppen: het juiste + 3 afleiders uit het thema
   const verrijkt = verrijkThema(huidigThema);
@@ -522,14 +1011,434 @@ async function taakKiesToetsAntwoord(knop, gekozen, juistItem) {
     if (!taakModus) return;
     taakToetsIdx++;
     if (taakToetsIdx >= taakToetsLijst.length) {
-      taakEindigToets();
+      taakEindigToets('luisteren');
     } else {
       taakRendererToets();
     }
   }, 1400);
 }
 
-async function taakEindigToets() {
+// =================================================================
+//  TAAK FASE — LEZEN-OEFENEN  (kind ziet woord, kiest juist beeld)
+// =================================================================
+//
+// Pedagogisch verschil met luisteren-oef: GEEN audio-knop. Kind moet het
+// geschreven woord zelf decoderen. Het juiste beeld kiezen uit 4.
+
+function taakStartLezenOefenen() {
+  const item = _kiesVolgendOefenItem('lezen');
+  if (!item) {
+    // Alle woorden 3× juist → volgende fase volgens lijst
+    const taak = Voortgang.getTaak();
+    taakStartFase(_volgendeFase('lezen-oef', taak));
+    return;
+  }
+  taakOefItem = item;
+  taakRendererLezenOefenen();
+  toonScherm('scherm-taak-lezen-oef');
+}
+
+function taakRendererLezenOefenen() {
+  if (!taakOefItem) return;
+  const taak = Voortgang.getTaak();
+
+  // Toon het geschreven woord groot in beeld
+  const woordEl = document.getElementById('taak-lezen-oef-woord');
+  if (woordEl) woordEl.textContent = taakOefItem.tekst;
+
+  // Voortgang: aantal woorden dat al 3× juist is in lezen
+  let klaar = 0;
+  taakItems.forEach(it => {
+    const d = taak.perWoord && taak.perWoord[it.id];
+    const drempel = _drempelVoor('lezen', d);
+    if (d && (d.lezen_juist || 0) >= drempel) klaar++;
+  });
+  const klaarEl = document.getElementById('taak-lezen-oef-klaar');
+  const totaalEl = document.getElementById('taak-lezen-oef-totaal');
+  if (klaarEl) klaarEl.textContent = klaar;
+  if (totaalEl) totaalEl.textContent = taakItems.length;
+  const balk = document.getElementById('taak-lezen-oef-balk');
+  if (balk) balk.style.width = (taakItems.length > 0 ? (klaar / taakItems.length) * 100 : 0) + '%';
+  // Ronde-badge
+  _updateRondeBadge('taak-lezen-oef-ronde', 'lezen');
+
+  // Bouw 4 BEELD-knoppen: het juiste + 3 afleiders
+  const verrijkt = verrijkThema(huidigThema);
+  const beschikbAfl = verrijkt.items.filter(x => x.id !== taakOefItem.id);
+  const afl = [];
+  while (afl.length < 3 && beschikbAfl.length > 0) {
+    const idx = Math.floor(Math.random() * beschikbAfl.length);
+    afl.push(beschikbAfl[idx]);
+    beschikbAfl.splice(idx, 1);
+  }
+  const opties = [taakOefItem, ...afl].sort(() => Math.random() - 0.5);
+
+  const div = document.getElementById('taak-lezen-oef-opties');
+  if (!div) return;
+  div.innerHTML = '';
+  opties.forEach(opt => {
+    const k = document.createElement('button');
+    k.className = 'taak-toets-beeld-knop';
+    k.innerHTML = Picto.html(opt, { grootte: 80 });
+    k.dataset.id = opt.id;
+    k.onclick = () => taakKiesLezenOefAntwoord(k, opt);
+    div.appendChild(k);
+  });
+}
+
+async function taakKiesLezenOefAntwoord(knop, gekozen) {
+  document.querySelectorAll('#taak-lezen-oef-opties .taak-toets-beeld-knop').forEach(k => k.disabled = true);
+
+  if (gekozen.id === taakOefItem.id) {
+    knop.classList.add('juist');
+    await Voortgang.registreerJuistInTaak(taakOefItem.id, 'lezen');
+    Voortgang.registreerJuist(huidigThema.id, taakOefItem.id);
+    AudioEngine.spreek(taakOefItem.tekst);
+  } else {
+    knop.classList.add('fout');
+    document.querySelectorAll('#taak-lezen-oef-opties .taak-toets-beeld-knop').forEach(k => {
+      if (k.dataset.id === taakOefItem.id) k.classList.add('juist');
+    });
+    await Voortgang.registreerFoutInTaak(taakOefItem.id, 'lezen');
+    Voortgang.registreerFout(huidigThema.id, taakOefItem.id);
+    AudioEngine.spreek(taakOefItem.tekst);
+  }
+
+  setTimeout(() => {
+    if (!taakModus) return;
+    taakStartLezenOefenen();
+  }, 1400);
+}
+
+// =================================================================
+//  TAAK FASE — LEZEN-TOETS  (kind ziet woord, kiest beeld, géén feedback)
+// =================================================================
+function taakStartLezenToets() {
+  taakToetsLijst = [...taakItems].sort(() => Math.random() - 0.5);
+  taakToetsIdx = 0;
+  taakToetsJuist = 0;
+  taakToetsFoutIds = [];
+  const totaalEl = document.getElementById('taak-lezen-toets-totaal');
+  if (totaalEl) totaalEl.textContent = taakToetsLijst.length;
+  taakRendererLezenToets();
+  toonScherm('scherm-taak-lezen-toets');
+}
+
+function taakRendererLezenToets() {
+  const item = taakToetsLijst[taakToetsIdx];
+  if (!item) return;
+  const huidigEl = document.getElementById('taak-lezen-toets-huidig');
+  if (huidigEl) huidigEl.textContent = taakToetsIdx + 1;
+  const woordEl = document.getElementById('taak-lezen-toets-woord');
+  if (woordEl) woordEl.textContent = item.tekst;
+
+  const pct = (taakToetsIdx / taakToetsLijst.length) * 100;
+  const balk = document.getElementById('taak-lezen-toets-balk');
+  if (balk) balk.style.width = pct + '%';
+
+  // 4 beeld-opties
+  const verrijkt = verrijkThema(huidigThema);
+  const beschikbAfl = verrijkt.items.filter(x => x.id !== item.id);
+  const afl = [];
+  while (afl.length < 3 && beschikbAfl.length > 0) {
+    const idx = Math.floor(Math.random() * beschikbAfl.length);
+    afl.push(beschikbAfl[idx]);
+    beschikbAfl.splice(idx, 1);
+  }
+  const opties = [item, ...afl].sort(() => Math.random() - 0.5);
+
+  const div = document.getElementById('taak-lezen-toets-opties');
+  if (!div) return;
+  div.innerHTML = '';
+  opties.forEach(opt => {
+    const k = document.createElement('button');
+    k.className = 'taak-toets-beeld-knop';
+    k.innerHTML = Picto.html(opt, { grootte: 80 });
+    k.dataset.id = opt.id;
+    k.onclick = () => taakKiesLezenToetsAntwoord(k, opt, item);
+    div.appendChild(k);
+  });
+}
+
+async function taakKiesLezenToetsAntwoord(knop, gekozen, juistItem) {
+  document.querySelectorAll('#taak-lezen-toets-opties .taak-toets-beeld-knop').forEach(k => k.disabled = true);
+
+  if (gekozen.id === juistItem.id) {
+    knop.classList.add('juist');
+    taakToetsJuist++;
+    Voortgang.registreerJuist(huidigThema.id, juistItem.id);
+  } else {
+    knop.classList.add('fout');
+    document.querySelectorAll('#taak-lezen-toets-opties .taak-toets-beeld-knop').forEach(k => {
+      if (k.dataset.id === juistItem.id) k.classList.add('juist');
+    });
+    if (taakToetsFoutIds.indexOf(juistItem.id) === -1) taakToetsFoutIds.push(juistItem.id);
+    Voortgang.registreerFout(huidigThema.id, juistItem.id);
+  }
+
+  setTimeout(() => {
+    if (!taakModus) return;
+    taakToetsIdx++;
+    if (taakToetsIdx >= taakToetsLijst.length) {
+      taakEindigToets('lezen');
+    } else {
+      taakRendererLezenToets();
+    }
+  }, 1400);
+}
+
+// =================================================================
+//  TAAK FASE — SCHRIJVEN-OEFENEN  (overtypen: woord 3s zichtbaar, dan typen)
+// =================================================================
+//
+// Pedagogisch: kind ziet beeld + woord 3 sec, dan verdwijnt het woord en
+// moet het kind het overtypen in een typvak. Knop "👁️ Toon woord opnieuw"
+// laat het woord opnieuw 3 sec zien zo vaak het kind wil. Bij fout: woord
+// verschijnt in groen ter referentie en kind probeert opnieuw.
+
+let taakSchrijvenWoordTimer = null;
+let taakSchrijvenWoordZichtbaar = true;
+// Hoe vaak het kind al heeft geklikt op "Toon opnieuw" voor het huidige woord.
+// Max 2 keer herbekijken: 1× automatisch bij start + 2× via knop = 3× zien totaal.
+let _taakSchrijvenHerbekijkAantal = 0;
+
+function taakStartSchrijvenOefenen() {
+  const item = _kiesVolgendOefenItem('schrijven');
+  if (!item) {
+    const taak = Voortgang.getTaak();
+    taakStartFase(_volgendeFase('schrijven-oef', taak));
+    return;
+  }
+  taakOefItem = item;
+  // Reset herbekijk-teller voor het nieuwe woord
+  _taakSchrijvenHerbekijkAantal = 0;
+  taakRendererSchrijvenOefenen();
+  toonScherm('scherm-taak-schrijven-oef');
+}
+
+function taakRendererSchrijvenOefenen() {
+  if (!taakOefItem) return;
+  const taak = Voortgang.getTaak();
+
+  // Beeld
+  const beeldEl = document.getElementById('taak-schrijven-oef-beeld');
+  if (beeldEl) beeldEl.innerHTML = Picto.html(taakOefItem);
+
+  // Voortgang: een woord is "klaar" als juist-teller >= drempel voor schrijven.
+  // Drempel is 2 standaard, 3 als kind het ooit fout had — zelfde regel als kies-logica.
+  let klaar = 0;
+  taakItems.forEach(it => {
+    const d = taak.perWoord && taak.perWoord[it.id];
+    const drempel = _drempelVoor('schrijven', d);
+    if (d && (d.schrijven_juist || 0) >= drempel) klaar++;
+  });
+  const klaarEl = document.getElementById('taak-schrijven-oef-klaar');
+  const totaalEl = document.getElementById('taak-schrijven-oef-totaal');
+  if (klaarEl) klaarEl.textContent = klaar;
+  if (totaalEl) totaalEl.textContent = taakItems.length;
+  const balk = document.getElementById('taak-schrijven-oef-balk');
+  if (balk) balk.style.width = (taakItems.length > 0 ? (klaar / taakItems.length) * 100 : 0) + '%';
+  // Ronde-badge
+  _updateRondeBadge('taak-schrijven-oef-ronde', 'schrijven');
+
+  // Reset typvak en feedback (waarde leeg, knop opnieuw actief)
+  const inputEl = document.getElementById('taak-schrijven-oef-input');
+  const fbEl = document.getElementById('taak-schrijven-oef-feedback');
+  if (inputEl) {
+    inputEl.value = '';
+    inputEl.disabled = false;
+    inputEl.classList.remove('juist', 'fout');
+  }
+  if (fbEl) fbEl.innerHTML = '';
+
+  // Toon woord 3s, daarna typvak verschijnen
+  _taakSchrijvenToonWoord();
+}
+
+// Helper: toon het woord 3 sec lang, verberg typvak gedurende die periode.
+// Na 3s wordt het woord verborgen en het typvak verschijnt + krijgt focus.
+function _taakSchrijvenToonWoord() {
+  if (taakSchrijvenWoordTimer) {
+    clearTimeout(taakSchrijvenWoordTimer);
+    taakSchrijvenWoordTimer = null;
+  }
+  const woordEl = document.getElementById('taak-schrijven-oef-woord');
+  const inputRijEl = document.getElementById('taak-schrijven-oef-input-rij');
+  const knoppenEl  = document.getElementById('taak-schrijven-oef-knoppen');
+  if (!woordEl || !taakOefItem) return;
+
+  // FASE A: woord zichtbaar (3 sec) — typvak en knoppen verborgen
+  woordEl.textContent = taakOefItem.tekst;
+  woordEl.classList.add('zichtbaar');
+  taakSchrijvenWoordZichtbaar = true;
+  if (inputRijEl) inputRijEl.classList.add('verborgen');
+  if (knoppenEl)  knoppenEl.classList.add('verborgen');
+
+  taakSchrijvenWoordTimer = setTimeout(() => {
+    // FASE B: woord weg, typvak en knoppen tonen
+    woordEl.classList.remove('zichtbaar');
+    woordEl.textContent = '••• typ het woord •••';
+    taakSchrijvenWoordZichtbaar = false;
+    if (inputRijEl) inputRijEl.classList.remove('verborgen');
+    if (knoppenEl)  knoppenEl.classList.remove('verborgen');
+    // Update herbekijk-knop afhankelijk van resterende beurten
+    _taakSchrijvenUpdateHerbekijkKnop();
+    // Focus op typvak
+    const inputEl = document.getElementById('taak-schrijven-oef-input');
+    if (inputEl && !inputEl.disabled) inputEl.focus();
+  }, 3000);
+}
+
+// Update de "Toon opnieuw"-knop: gegrijsd of verborgen na 2 herbekijken
+function _taakSchrijvenUpdateHerbekijkKnop() {
+  const knopEl = document.getElementById('taak-schrijven-toon-opnieuw');
+  if (!knopEl) return;
+  const resterend = 2 - _taakSchrijvenHerbekijkAantal;
+  if (resterend <= 0) {
+    knopEl.disabled = true;
+    knopEl.classList.add('uitgeschakeld');
+    knopEl.querySelector('.audio-tekst').textContent = 'Geen herbekijken meer';
+  } else {
+    knopEl.disabled = false;
+    knopEl.classList.remove('uitgeschakeld');
+    knopEl.querySelector('.audio-tekst').textContent = `Toon opnieuw (${resterend}×)`;
+  }
+}
+
+// Knop "Toon woord opnieuw" — max 2 keer
+function taakSchrijvenToonOpnieuw() {
+  if (_taakSchrijvenHerbekijkAantal >= 2) return;
+  _taakSchrijvenHerbekijkAantal++;
+  _taakSchrijvenToonWoord();
+}
+
+// Knop "Hoor het woord" (audio)
+function taakSchrijvenHoor() {
+  if (taakOefItem) AudioEngine.spreek(taakOefItem.tekst);
+}
+
+// Submit van het typvak (knop "✓ Klaar" of Enter)
+async function taakSchrijvenSubmit() {
+  const inputEl = document.getElementById('taak-schrijven-oef-input');
+  const fbEl = document.getElementById('taak-schrijven-oef-feedback');
+  if (!inputEl || !taakOefItem) return;
+
+  const getypt = (inputEl.value || '').trim().toLowerCase();
+  const juist = (taakOefItem.tekst || '').trim().toLowerCase();
+  if (getypt.length === 0) return;
+
+  inputEl.disabled = true;
+
+  if (getypt === juist) {
+    inputEl.classList.add('juist');
+    if (fbEl) fbEl.innerHTML = '<span class="schrijven-fb-juist">🎉 Juist!</span>';
+    await Voortgang.registreerJuistInTaak(taakOefItem.id, 'schrijven');
+    Voortgang.registreerJuist(huidigThema.id, taakOefItem.id);
+    AudioEngine.spreek(taakOefItem.tekst);
+    setTimeout(() => {
+      if (!taakModus) return;
+      taakStartSchrijvenOefenen();
+    }, 1400);
+  } else {
+    inputEl.classList.add('fout');
+    if (fbEl) {
+      fbEl.innerHTML = `<span class="schrijven-fb-fout">Bijna! Het juiste woord is:</span>
+                        <span class="schrijven-fb-juist-woord">${taakOefItem.tekst}</span>`;
+    }
+    await Voortgang.registreerFoutInTaak(taakOefItem.id, 'schrijven');
+    Voortgang.registreerFout(huidigThema.id, taakOefItem.id);
+    AudioEngine.spreek(taakOefItem.tekst);
+    setTimeout(() => {
+      if (!taakModus) return;
+      taakStartSchrijvenOefenen();
+    }, 2200);
+  }
+}
+
+// =================================================================
+//  TAAK FASE — SCHRIJVEN-TOETS  (1 poging per woord, geen hint)
+// =================================================================
+function taakStartSchrijvenToets() {
+  taakToetsLijst = [...taakItems].sort(() => Math.random() - 0.5);
+  taakToetsIdx = 0;
+  taakToetsJuist = 0;
+  taakToetsFoutIds = [];
+  const totaalEl = document.getElementById('taak-schrijven-toets-totaal');
+  if (totaalEl) totaalEl.textContent = taakToetsLijst.length;
+  taakRendererSchrijvenToets();
+  toonScherm('scherm-taak-schrijven-toets');
+}
+
+function taakRendererSchrijvenToets() {
+  const item = taakToetsLijst[taakToetsIdx];
+  if (!item) return;
+  const huidigEl = document.getElementById('taak-schrijven-toets-huidig');
+  if (huidigEl) huidigEl.textContent = taakToetsIdx + 1;
+
+  const beeldEl = document.getElementById('taak-schrijven-toets-beeld');
+  if (beeldEl) beeldEl.innerHTML = Picto.html(item);
+
+  const pct = (taakToetsIdx / taakToetsLijst.length) * 100;
+  const balk = document.getElementById('taak-schrijven-toets-balk');
+  if (balk) balk.style.width = pct + '%';
+
+  const inputEl = document.getElementById('taak-schrijven-toets-input');
+  const fbEl = document.getElementById('taak-schrijven-toets-feedback');
+  if (inputEl) {
+    inputEl.value = '';
+    inputEl.disabled = false;
+    inputEl.classList.remove('juist', 'fout');
+    setTimeout(() => inputEl.focus(), 50);
+  }
+  if (fbEl) fbEl.innerHTML = '';
+}
+
+function taakSchrijvenToetsHoor() {
+  const item = taakToetsLijst[taakToetsIdx];
+  if (item) AudioEngine.spreek(item.tekst);
+}
+
+async function taakSchrijvenToetsSubmit() {
+  const inputEl = document.getElementById('taak-schrijven-toets-input');
+  const fbEl = document.getElementById('taak-schrijven-toets-feedback');
+  const item = taakToetsLijst[taakToetsIdx];
+  if (!inputEl || !item) return;
+
+  const getypt = (inputEl.value || '').trim().toLowerCase();
+  if (getypt.length === 0) return;
+  const juist = (item.tekst || '').trim().toLowerCase();
+
+  inputEl.disabled = true;
+
+  if (getypt === juist) {
+    inputEl.classList.add('juist');
+    taakToetsJuist++;
+    if (fbEl) fbEl.innerHTML = '<span class="schrijven-fb-juist">✓</span>';
+    Voortgang.registreerJuist(huidigThema.id, item.id);
+  } else {
+    inputEl.classList.add('fout');
+    if (fbEl) {
+      fbEl.innerHTML = `<span class="schrijven-fb-fout">Het juiste woord is:</span>
+                        <span class="schrijven-fb-juist-woord">${item.tekst}</span>`;
+    }
+    if (taakToetsFoutIds.indexOf(item.id) === -1) taakToetsFoutIds.push(item.id);
+    Voortgang.registreerFout(huidigThema.id, item.id);
+  }
+
+  setTimeout(() => {
+    if (!taakModus) return;
+    taakToetsIdx++;
+    if (taakToetsIdx >= taakToetsLijst.length) {
+      taakEindigToets('schrijven');
+    } else {
+      taakRendererSchrijvenToets();
+    }
+  }, 1700);
+}
+
+async function taakEindigToets(vaardigheid) {
+  // Als parameter ontbreekt, default naar luisteren (backwards compat)
+  if (!vaardigheid) vaardigheid = 'luisteren';
   await Voortgang.bewaar(Auth.getCode());
 
   const aantal = taakToetsLijst.length;
@@ -540,30 +1449,45 @@ async function taakEindigToets() {
   if (!taak) { taakVerlaten(); return; }
 
   if (pct >= 80) {
-    // GESLAAGD → status voltooid (voor luisteren-fase v1)
-    await Voortgang.updateTaak({
-      status: 'voltooid',
-      huidigeFase: 'klaar',
-      foutWoordenLaatsteToets: taakToetsFoutIds
-    });
-    taakStartFase('klaar');
+    // GESLAAGD → ga naar volgende fase volgens lijst.
+    // Pas status alleen op 'voltooid' als dit de allerlaatste toets-fase is.
+    const huidigeFase = vaardigheid + '-toets';
+    const volgende = _volgendeFase(huidigeFase, taak);
+    const isLaatste = (volgende === 'klaar');
+    // Update toetsResultaten voor deze vaardigheid (afgenomen + fouten)
+    const nieuweResultaten = Object.assign({}, taak.toetsResultaten || {});
+    nieuweResultaten[vaardigheid] = { afgenomen: true, foutIds: [...taakToetsFoutIds] };
+    const update = {
+      huidigeFase: volgende,
+      foutWoordenLaatsteToets: taakToetsFoutIds,
+      toetsResultaten: nieuweResultaten
+    };
+    if (isLaatste) update.status = 'voltooid';
+    await Voortgang.updateTaak(update);
+    taakStartFase(volgende);
   } else {
-    // NIET GESLAAGD: tel poging
-    const nieuwAantal = ((taak.aantalPogingen && taak.aantalPogingen.luisteren) || 0) + 1;
-    const nieuw = Object.assign({}, taak.aantalPogingen || {}, { luisteren: nieuwAantal });
+    // NIET GESLAAGD: tel poging voor déze vaardigheid
+    const huidigPogingen = (taak.aantalPogingen && taak.aantalPogingen[vaardigheid]) || 0;
+    const nieuwAantal = huidigPogingen + 1;
+    const nieuw = Object.assign({}, taak.aantalPogingen || {}, { [vaardigheid]: nieuwAantal });
+    // Ook bij niet-geslaagd: bewaar deze toets-uitslag in toetsResultaten
+    const nieuweResultaten = Object.assign({}, taak.toetsResultaten || {});
+    nieuweResultaten[vaardigheid] = { afgenomen: true, foutIds: [...taakToetsFoutIds] };
     if (nieuwAantal >= 2) {
       // Tweede mislukking → status moeilijk, taak stopt
       await Voortgang.updateTaak({
         status: 'moeilijk',
         aantalPogingen: nieuw,
-        foutWoordenLaatsteToets: taakToetsFoutIds
+        foutWoordenLaatsteToets: taakToetsFoutIds,
+        toetsResultaten: nieuweResultaten
       });
       taakToonResultaatMoeilijk(juist, aantal);
     } else {
-      // Eerste mislukking → herhalen
+      // Eerste mislukking → herhalen (huidige toets-fase opnieuw)
       await Voortgang.updateTaak({
         aantalPogingen: nieuw,
-        foutWoordenLaatsteToets: taakToetsFoutIds
+        foutWoordenLaatsteToets: taakToetsFoutIds,
+        toetsResultaten: nieuweResultaten
       });
       taakToonResultaatHerhaal(juist, aantal);
     }
@@ -623,8 +1547,13 @@ function taakToonResultaatHerhaal(juist, aantal) {
   if (knopEl) {
     knopEl.textContent = '🔁 Nog eens proberen';
     knopEl.onclick = () => {
-      // Reset oefenfase (perWoord-tellers behouden) en ga terug naar oefenen
-      taakStartFase('luisteren-oef');
+      // Reset oefenfase (perWoord-tellers behouden) en ga terug naar de oef-fase
+      // die bij de huidige toets-fase hoort. Bv. 'luisteren-toets' → 'luisteren-oef'.
+      let oefFase = 'luisteren-oef';
+      if (typeof taakHuidigeFase === 'string' && taakHuidigeFase.endsWith('-toets')) {
+        oefFase = taakHuidigeFase.replace('-toets', '-oef');
+      }
+      taakStartFase(oefFase);
     };
   }
   AudioEngine.spreek('Niet erg, we oefenen nog even verder.');
@@ -637,6 +1566,9 @@ function taakToonResultaatHerhaal(juist, aantal) {
 //  INIT
 // =================================================================
 async function init() {
+  // Het laad-scherm is standaard zichtbaar (in HTML met class 'actief').
+  // We tonen pas het login-scherm als we zeker weten dat auto-login mislukt is.
+
   // Firebase opzetten
   if (window.FIREBASE_INGESTELD && window.firebase) {
     try {
@@ -654,19 +1586,46 @@ async function init() {
     try { await Woordenbeheer.laad(); } catch (e) { console.warn('Woordenbeheer kon niet laden:', e); }
   }
 
-  // Probeer auto-login (URL-code, anders localStorage)
-  const ingelogd = await Auth.probeerAutoLogin();
+  // Probeer auto-login. Eerst de bestaande Auth.probeerAutoLogin (die normaal
+  // de URL-code en localStorage afhandelt). Als dat faalt maar er staat wél
+  // een ?code= in de URL, doen we hier nog een handmatige login als vangnet —
+  // zo komt de leerkracht zonder code typen direct in de kind-app.
+  let ingelogd = false;
+  try {
+    ingelogd = await Auth.probeerAutoLogin();
+  } catch (e) {
+    console.warn('Auth.probeerAutoLogin gaf een fout:', e);
+  }
+
+  if (!ingelogd) {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCode = (urlParams.get('code') || '').trim();
+    if (urlCode) {
+      try {
+        await Auth.login(urlCode);
+        ingelogd = true;
+      } catch (e) {
+        console.warn('Login met URL-code mislukt:', e);
+      }
+    }
+  }
+
   if (ingelogd) {
     await naDuoLogin();
   } else {
+    // Pas hier gaan we van laad-scherm naar login-scherm
     toonScherm('scherm-login');
-    document.getElementById('login-code').focus();
+    const inv = document.getElementById('login-code');
+    if (inv) inv.focus();
   }
 
   // Enter in login-veld
-  document.getElementById('login-code').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') probeerLogin();
-  });
+  const loginInv = document.getElementById('login-code');
+  if (loginInv) {
+    loginInv.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') probeerLogin();
+    });
+  }
 }
 
 async function probeerLogin() {
