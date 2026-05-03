@@ -1558,6 +1558,158 @@ window.RapportEngine = (function() {
     doc.circle(cx, cy, grootte * 0.12, 'F');
   }
 
+  // ===== Vaardigheids-iconen voor de sterren-rij in pagina 1 =====
+  // Allemaal getekend in (cx, cy) met grootte = halve breedte. Stijl: lijntekening,
+  // gevuld waar het visueel helpt. Kleur = primair.
+
+  // 👂 Luisteren — stilist oor: ovaal + binnenste curve
+  function _tekenIconLuisteren(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    doc.setDrawColor(donker);
+    doc.setFillColor(kleur);
+    doc.setLineWidth(0.4);
+    // Buitenste oor-vorm = ellips (iets hoger dan breed, lichtjes gekanteld via 2 ovalen)
+    doc.ellipse(cx, cy, grootte * 0.7, grootte * 0.95, 'FD');
+    // Binnenste lichte vlek
+    doc.setFillColor('#FFFFFF');
+    doc.ellipse(cx + grootte * 0.15, cy + grootte * 0.1, grootte * 0.3, grootte * 0.5, 'F');
+    // Klein donker bolletje (gehoorgang)
+    doc.setFillColor(donker);
+    doc.circle(cx + grootte * 0.2, cy + grootte * 0.15, grootte * 0.15, 'F');
+  }
+
+  // 👁️ Lezen / Kijken — open boek (twee rechthoekjes met "rug" in het midden)
+  function _tekenIconLezen(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    const w = grootte * 1.4;
+    const h = grootte * 1.0;
+    const x = cx - w / 2;
+    const y = cy - h / 2;
+    doc.setFillColor(kleur);
+    doc.setDrawColor(donker);
+    doc.setLineWidth(0.4);
+    // Linker pagina
+    doc.rect(x, y, w / 2 - 0.3, h, 'FD');
+    // Rechter pagina
+    doc.rect(x + w / 2 + 0.3, y, w / 2 - 0.3, h, 'FD');
+    // Tekstlijntjes (witte streepjes op pagina's)
+    doc.setDrawColor('#FFFFFF');
+    doc.setLineWidth(0.3);
+    const lijnY1 = y + h * 0.3;
+    const lijnY2 = y + h * 0.55;
+    const lijnY3 = y + h * 0.78;
+    [lijnY1, lijnY2, lijnY3].forEach(ly => {
+      doc.line(x + 0.6, ly, x + w / 2 - 0.6, ly);
+      doc.line(x + w / 2 + 0.9, ly, x + w - 0.6, ly);
+    });
+  }
+
+  // ✍️ Schrijven — potlood (diagonale rechthoek + driehoek-punt)
+  function _tekenIconSchrijven(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    const lengte = grootte * 1.6;
+    const dikte = grootte * 0.45;
+
+    // Potlood-lichaam: diagonale rechthoek (van linksboven naar rechtsonder)
+    // Hoek 45°. Centerpunt = cx, cy.
+    const hoek = -Math.PI / 4; // 45° rechtsomhoog
+    const cos = Math.cos(hoek);
+    const sin = Math.sin(hoek);
+
+    // 4 hoekpunten van de rechthoek (lokaal: lengte horiz, dikte vert)
+    const punten = [
+      [-lengte / 2, -dikte / 2],
+      [ lengte / 2, -dikte / 2],
+      [ lengte / 2,  dikte / 2],
+      [-lengte / 2,  dikte / 2]
+    ].map(([px, py]) => [cx + px * cos - py * sin, cy + px * sin + py * cos]);
+
+    // Bouw lijnen-array
+    const lijnen = [];
+    for (let i = 1; i < 4; i++) {
+      lijnen.push([punten[i][0] - punten[i - 1][0], punten[i][1] - punten[i - 1][1]]);
+    }
+    lijnen.push([punten[0][0] - punten[3][0], punten[0][1] - punten[3][1]]);
+
+    doc.setFillColor(kleur);
+    doc.setDrawColor(donker);
+    doc.setLineWidth(0.4);
+    doc.lines(lijnen, punten[0][0], punten[0][1], [1, 1], 'FD', true);
+
+    // Donker uiteinde (gum/wisser): kleinere rechthoek bovenaan-links
+    const uiteindeStart = [
+      cx + (-lengte / 2) * cos - (-dikte / 2) * sin,
+      cy + (-lengte / 2) * sin + (-dikte / 2) * cos
+    ];
+    const uiteindeLengte = lengte * 0.2;
+    const uPunten = [
+      [-lengte / 2, -dikte / 2],
+      [-lengte / 2 + uiteindeLengte, -dikte / 2],
+      [-lengte / 2 + uiteindeLengte,  dikte / 2],
+      [-lengte / 2,  dikte / 2]
+    ].map(([px, py]) => [cx + px * cos - py * sin, cy + px * sin + py * cos]);
+    const uLijnen = [];
+    for (let i = 1; i < 4; i++) {
+      uLijnen.push([uPunten[i][0] - uPunten[i - 1][0], uPunten[i][1] - uPunten[i - 1][1]]);
+    }
+    uLijnen.push([uPunten[0][0] - uPunten[3][0], uPunten[0][1] - uPunten[3][1]]);
+    doc.setFillColor(donker);
+    doc.lines(uLijnen, uPunten[0][0], uPunten[0][1], [1, 1], 'F', true);
+
+    // Punt: driehoek aan rechter-uiteinde
+    const puntTop = [cx + (lengte / 2 + dikte * 0.6) * cos, cy + (lengte / 2 + dikte * 0.6) * sin];
+    const puntL = [cx + (lengte / 2) * cos - (-dikte / 2) * sin, cy + (lengte / 2) * sin + (-dikte / 2) * cos];
+    const puntR = [cx + (lengte / 2) * cos - (dikte / 2) * sin,  cy + (lengte / 2) * sin + (dikte / 2) * cos];
+    doc.setFillColor('#222222');
+    doc.lines(
+      [[puntL[0] - puntTop[0], puntL[1] - puntTop[1]],
+       [puntR[0] - puntL[0],   puntR[1] - puntL[1]],
+       [puntTop[0] - puntR[0], puntTop[1] - puntR[1]]],
+      puntTop[0], puntTop[1], [1, 1], 'F', true
+    );
+  }
+
+  // 🗣️ Spreken — tekst-ballon (afgeronde rechthoek + driehoekje als 'staartje')
+  function _tekenIconSpreken(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    const w = grootte * 1.6;
+    const h = grootte * 1.1;
+    const x = cx - w / 2;
+    const y = cy - h / 2 - grootte * 0.15;
+
+    doc.setFillColor(kleur);
+    doc.setDrawColor(donker);
+    doc.setLineWidth(0.4);
+
+    // Hoofdvorm: afgeronde rechthoek
+    doc.roundedRect(x, y, w, h, grootte * 0.3, grootte * 0.3, 'FD');
+
+    // Staartje onderaan-links (driehoek)
+    const stX = x + w * 0.25;
+    const stY = y + h;
+    const stPunten = [
+      [stX, stY - 0.2],
+      [stX + grootte * 0.4, stY - 0.2],
+      [stX + grootte * 0.1, stY + grootte * 0.5]
+    ];
+    doc.lines(
+      [[stPunten[1][0] - stPunten[0][0], stPunten[1][1] - stPunten[0][1]],
+       [stPunten[2][0] - stPunten[1][0], stPunten[2][1] - stPunten[1][1]],
+       [stPunten[0][0] - stPunten[2][0], stPunten[0][1] - stPunten[2][1]]],
+      stPunten[0][0], stPunten[0][1], [1, 1], 'F', true
+    );
+
+    // Drie puntjes binnenin (witte cirkeltjes)
+    doc.setFillColor('#FFFFFF');
+    const dotR = grootte * 0.13;
+    doc.circle(cx - grootte * 0.4, cy - grootte * 0.1, dotR, 'F');
+    doc.circle(cx, cy - grootte * 0.1, dotR, 'F');
+    doc.circle(cx + grootte * 0.4, cy - grootte * 0.1, dotR, 'F');
+  }
+
+  // Werkhouding — hergebruikt het target-icoon (al gedefinieerd hierboven)
+  // Geen apart symbool nodig.
+
   // Hex-kleur iets donkerder maken (voor randen)
   function _kleurDonkerder(hex) {
     if (!hex || hex.length < 7) return hex;
@@ -1669,43 +1821,76 @@ window.RapportEngine = (function() {
     const sterren = rapport.sterren || {};
     const toetsdata = rapport.toetsdata || {};
     const feedback = rapport.feedback || {};
-    const periodeNaam = (periode && periode.naam) || 'Rapportperiode';
-    const periodeDatums = _periodeDatumsFmt(periode);
+
+    // Bepaal titel-tekst: bij voorkeur "Rapportperiode N" + "Schooljaar YYYY-YYYY"
+    // Fallback: gebruik gewoon de periode-naam.
+    let titelGroot = '';
+    let titelKlein = '';
+    if (periode && periode.nummer) {
+      titelGroot = `Rapportperiode ${periode.nummer}`;
+      if (periode.schooljaar) {
+        titelKlein = `Schooljaar ${periode.schooljaar}`;
+      }
+    } else if (periode && periode.naam) {
+      titelGroot = periode.naam;
+      if (periode.schooljaar) {
+        titelKlein = `Schooljaar ${periode.schooljaar}`;
+      }
+    } else {
+      titelGroot = 'Rapport';
+    }
 
     // ==================================================
     // PAGINA 1 — Overzicht met sterren
     // ==================================================
     let y = tekenHeader(doc, school, kind.naam, kind.code);
 
-    // Hoofdtitel "📋 Rapport — [periode]" — emoji tekenen we niet, gebruik tekst-prefix
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
-    doc.setTextColor(K_PRIMAIR);
-    doc.text(`Rapport — ${periodeNaam}`, M, y + 4);
-    y += 10;
+    // ===== Titel-kader (gecentreerd, subtiele rand) =====
+    y += 2;
+    const kaderHoogte = titelKlein ? 22 : 16;
+    const kaderBreedte = 110;
+    const kaderX = (PB - kaderBreedte) / 2;
 
-    // Naam + klas + datums
+    // Lichte achtergrond + dunne rand (gebruik primair als accent)
+    doc.setFillColor('#FFFAF2');     // zachte crème-tint
+    doc.setDrawColor(K_PRIMAIR);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(kaderX, y, kaderBreedte, kaderHoogte, 2.5, 2.5, 'FD');
+
+    // Grote titel
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(K_PRIMAIR);
+    const yTitelGroot = titelKlein ? y + 9 : y + 10;
+    doc.text(titelGroot, PB / 2, yTitelGroot, { align: 'center' });
+
+    // Klein subtitel onder grote titel
+    if (titelKlein) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(K_GRIJS);
+      doc.text(titelKlein, PB / 2, y + 17, { align: 'center' });
+    }
+
+    y += kaderHoogte + 8;
+
+    // ===== Naam (links) + klas (rechts) op één regel =====
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
     doc.setTextColor(K_HOOFDTITEL);
     doc.text(_volledigeNaam(kind), M, y + 4);
-    y += 7;
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(K_GRIJS);
     const klasTekst = _klasTekst(kind);
     if (klasTekst) {
-      doc.text(klasTekst, M, y + 3);
-      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(K_SUBTITEL);
+      doc.text(klasTekst, PB - M, y + 4, { align: 'right' });
     }
-    if (periodeDatums) {
-      doc.text(`Periode: ${periodeDatums}`, M, y + 3);
-      y += 5;
-    }
+    y += 7;
 
     // Scheidingslijn
-    y += 4;
+    y += 3;
     doc.setDrawColor(K_LICHTGRIJS);
     doc.setLineWidth(0.5);
     doc.line(M, y, PB - M, y);
@@ -1715,13 +1900,13 @@ window.RapportEngine = (function() {
     y = tekenSectiekop(doc, 'Vaardigheden', y, K_PRIMAIR);
     y += 4;
 
-    // Sterren-rijen — 5 vaardigheden
+    // Sterren-rijen — 5 vaardigheden met vector-icoon
     const vaardigheden = [
-      { sl: 'luisteren',   naam: 'Luisteren'   },
-      { sl: 'lezen',       naam: 'Lezen'       },
-      { sl: 'schrijven',   naam: 'Schrijven'   },
-      { sl: 'spreken',     naam: 'Spreken'     },
-      { sl: 'werkhouding', naam: 'Werkhouding' }
+      { sl: 'luisteren',   naam: 'Luisteren',   icoon: 'luisteren'   },
+      { sl: 'lezen',       naam: 'Lezen',       icoon: 'lezen'       },
+      { sl: 'schrijven',   naam: 'Schrijven',   icoon: 'schrijven'   },
+      { sl: 'spreken',     naam: 'Spreken',     icoon: 'spreken'     },
+      { sl: 'werkhouding', naam: 'Werkhouding', icoon: 'target'      }
     ];
 
     vaardigheden.forEach(v => {
@@ -1729,11 +1914,21 @@ window.RapportEngine = (function() {
       const td = toetsdata[v.sl] || {};
       const heeftData = (td.aantal && td.aantal > 0);
 
-      // Naam links — bold, 12pt
+      // Vaardigheids-icoon links (vector — werkt betrouwbaar in jsPDF)
+      const icoonX = M + 3.5;
+      const icoonY = y + 4;
+      const icoonGrootte = 2.8;
+      if (v.icoon === 'luisteren') _tekenIconLuisteren(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
+      else if (v.icoon === 'lezen') _tekenIconLezen(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
+      else if (v.icoon === 'schrijven') _tekenIconSchrijven(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
+      else if (v.icoon === 'spreken') _tekenIconSpreken(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
+      else if (v.icoon === 'target') _tekenIconTarget(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
+
+      // Naam — bold, 12pt, na het icoon
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(K_HOOFDTITEL);
-      doc.text(v.naam, M, y + 4);
+      doc.text(v.naam, M + 10, y + 4);
 
       // Sterren in het midden, x rond 90mm
       const sterX = M + 55;
@@ -1769,7 +1964,7 @@ window.RapportEngine = (function() {
         sub = '';
       }
       if (sub) {
-        doc.text(sub, M, y + 9);
+        doc.text(sub, M + 10, y + 9);
       }
 
       y += 13;
@@ -1795,11 +1990,11 @@ window.RapportEngine = (function() {
     doc.addPage();
     y = tekenHeader(doc, school, kind.naam, kind.code);
 
-    // Subtitel: "Naam — Periode" (kleiner dan p.1)
+    // Subtitel: "Naam — Rapportperiode N" (kleiner dan p.1)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(K_HOOFDTITEL);
-    doc.text(`${_volledigeNaam(kind)} — ${periodeNaam}`, M, y + 4);
+    doc.text(`${_volledigeNaam(kind)} — ${titelGroot}`, M, y + 4);
     y += 12;
 
     // 3 feedback-categorieën — elk een gekleurde kaart met pictogram
