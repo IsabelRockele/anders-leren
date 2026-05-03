@@ -1559,156 +1559,268 @@ window.RapportEngine = (function() {
   }
 
   // ===== Vaardigheids-iconen voor de sterren-rij in pagina 1 =====
-  // Allemaal getekend in (cx, cy) met grootte = halve breedte. Stijl: lijntekening,
-  // gevuld waar het visueel helpt. Kleur = primair.
+  // Stijl: filled vorm met dikkere outline, 1 hoofdkleur (oranje primair),
+  // accent-details in donkerder/lichter tint. Leesbaar op kleine grootte (~3mm).
 
-  // 👂 Luisteren — stilist oor: ovaal + binnenste curve
+  // Luisteren — gestileerd oor met duidelijke contour
   function _tekenIconLuisteren(doc, cx, cy, grootte, kleur) {
     const donker = _kleurDonkerder(kleur);
-    doc.setDrawColor(donker);
+    doc.setLineWidth(0.6);
+
+    // Buitenste oorvorm: ovaal
     doc.setFillColor(kleur);
-    doc.setLineWidth(0.4);
-    // Buitenste oor-vorm = ellips (iets hoger dan breed, lichtjes gekanteld via 2 ovalen)
-    doc.ellipse(cx, cy, grootte * 0.7, grootte * 0.95, 'FD');
-    // Binnenste lichte vlek
+    doc.setDrawColor(donker);
+    doc.ellipse(cx, cy, grootte * 0.65, grootte * 0.95, 'FD');
+
+    // Binnenste oorholte (witte sikkel-vorm via ovaal)
     doc.setFillColor('#FFFFFF');
-    doc.ellipse(cx + grootte * 0.15, cy + grootte * 0.1, grootte * 0.3, grootte * 0.5, 'F');
-    // Klein donker bolletje (gehoorgang)
+    doc.setDrawColor('#FFFFFF');
+    doc.ellipse(cx + grootte * 0.18, cy + grootte * 0.05, grootte * 0.32, grootte * 0.55, 'F');
+
+    // Cirkelvormige curve van de binnenrand (schedu): cirkel centraal, half wit half kleur
+    doc.setDrawColor(donker);
+    doc.setLineWidth(0.5);
+    doc.setFillColor('#FFFFFF');
+    doc.circle(cx + grootte * 0.05, cy, grootte * 0.32, 'FD');
+
+    // Gehoorgang: klein donker bolletje
     doc.setFillColor(donker);
-    doc.circle(cx + grootte * 0.2, cy + grootte * 0.15, grootte * 0.15, 'F');
+    doc.setDrawColor(donker);
+    doc.circle(cx + grootte * 0.15, cy + grootte * 0.05, grootte * 0.13, 'F');
+
+    // Reset
+    doc.setLineWidth(0.4);
   }
 
-  // 👁️ Lezen / Kijken — open boek (twee rechthoekjes met "rug" in het midden)
+  // Lezen — open boek vanuit zij-aanzicht (twee paginavlakken die naar binnen buigen)
   function _tekenIconLezen(doc, cx, cy, grootte, kleur) {
     const donker = _kleurDonkerder(kleur);
-    const w = grootte * 1.4;
-    const h = grootte * 1.0;
+    const w = grootte * 1.7;
+    const h = grootte * 1.15;
     const x = cx - w / 2;
     const y = cy - h / 2;
-    doc.setFillColor(kleur);
+
+    doc.setLineWidth(0.6);
     doc.setDrawColor(donker);
-    doc.setLineWidth(0.4);
-    // Linker pagina
-    doc.rect(x, y, w / 2 - 0.3, h, 'FD');
-    // Rechter pagina
-    doc.rect(x + w / 2 + 0.3, y, w / 2 - 0.3, h, 'FD');
-    // Tekstlijntjes (witte streepjes op pagina's)
-    doc.setDrawColor('#FFFFFF');
-    doc.setLineWidth(0.3);
-    const lijnY1 = y + h * 0.3;
-    const lijnY2 = y + h * 0.55;
-    const lijnY3 = y + h * 0.78;
-    [lijnY1, lijnY2, lijnY3].forEach(ly => {
-      doc.line(x + 0.6, ly, x + w / 2 - 0.6, ly);
-      doc.line(x + w / 2 + 0.9, ly, x + w - 0.6, ly);
+
+    // Twee paginas met lichte witte vulling, omlijnd in kleur
+    doc.setFillColor('#FFFFFF');
+    // Linker pagina (lichte schuine vorm via 4 punten — geeft "open boek"-gevoel)
+    const lpag = [
+      [x, y + grootte * 0.1],
+      [cx - 0.3, y - grootte * 0.05],
+      [cx - 0.3, y + h - grootte * 0.05],
+      [x, y + h]
+    ];
+    doc.lines(
+      [
+        [lpag[1][0] - lpag[0][0], lpag[1][1] - lpag[0][1]],
+        [lpag[2][0] - lpag[1][0], lpag[2][1] - lpag[1][1]],
+        [lpag[3][0] - lpag[2][0], lpag[3][1] - lpag[2][1]],
+        [lpag[0][0] - lpag[3][0], lpag[0][1] - lpag[3][1]]
+      ],
+      lpag[0][0], lpag[0][1], [1, 1], 'FD', true
+    );
+
+    // Rechter pagina (spiegelbeeld)
+    const rpag = [
+      [cx + 0.3, y - grootte * 0.05],
+      [x + w, y + grootte * 0.1],
+      [x + w, y + h],
+      [cx + 0.3, y + h - grootte * 0.05]
+    ];
+    doc.lines(
+      [
+        [rpag[1][0] - rpag[0][0], rpag[1][1] - rpag[0][1]],
+        [rpag[2][0] - rpag[1][0], rpag[2][1] - rpag[1][1]],
+        [rpag[3][0] - rpag[2][0], rpag[3][1] - rpag[2][1]],
+        [rpag[0][0] - rpag[3][0], rpag[0][1] - rpag[3][1]]
+      ],
+      rpag[0][0], rpag[0][1], [1, 1], 'FD', true
+    );
+
+    // Tekstlijntjes (3 horizontale streepjes per pagina) in kleur
+    doc.setDrawColor(kleur);
+    doc.setLineWidth(0.35);
+    const lijnYs = [y + h * 0.32, y + h * 0.55, y + h * 0.78];
+    lijnYs.forEach(ly => {
+      doc.line(x + grootte * 0.18, ly, cx - grootte * 0.18, ly);
+      doc.line(cx + grootte * 0.18, ly, x + w - grootte * 0.18, ly);
     });
+
+    // Reset
+    doc.setLineWidth(0.4);
   }
 
-  // ✍️ Schrijven — potlood (diagonale rechthoek + driehoek-punt)
+  // Schrijven — staand potlood (verticaal, herkenbaar driehoekige punt + gum)
   function _tekenIconSchrijven(doc, cx, cy, grootte, kleur) {
     const donker = _kleurDonkerder(kleur);
-    const lengte = grootte * 1.6;
-    const dikte = grootte * 0.45;
 
-    // Potlood-lichaam: diagonale rechthoek (van linksboven naar rechtsonder)
-    // Hoek 45°. Centerpunt = cx, cy.
-    const hoek = -Math.PI / 4; // 45° rechtsomhoog
-    const cos = Math.cos(hoek);
-    const sin = Math.sin(hoek);
+    const lengte = grootte * 1.9;
+    const dikte = grootte * 0.55;
+    const xL = cx - dikte / 2;
+    const xR = cx + dikte / 2;
 
-    // 4 hoekpunten van de rechthoek (lokaal: lengte horiz, dikte vert)
-    const punten = [
-      [-lengte / 2, -dikte / 2],
-      [ lengte / 2, -dikte / 2],
-      [ lengte / 2,  dikte / 2],
-      [-lengte / 2,  dikte / 2]
-    ].map(([px, py]) => [cx + px * cos - py * sin, cy + px * sin + py * cos]);
+    const yTop = cy - lengte / 2;
+    const yPunt = cy + lengte / 2;
 
-    // Bouw lijnen-array
-    const lijnen = [];
-    for (let i = 1; i < 4; i++) {
-      lijnen.push([punten[i][0] - punten[i - 1][0], punten[i][1] - punten[i - 1][1]]);
-    }
-    lijnen.push([punten[0][0] - punten[3][0], punten[0][1] - punten[3][1]]);
-
-    doc.setFillColor(kleur);
+    // Gum (donker rondje bovenaan)
+    const gumHoogte = grootte * 0.25;
+    doc.setFillColor('#E57373');
     doc.setDrawColor(donker);
-    doc.setLineWidth(0.4);
-    doc.lines(lijnen, punten[0][0], punten[0][1], [1, 1], 'FD', true);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(xL, yTop, dikte, gumHoogte, dikte * 0.2, dikte * 0.2, 'FD');
 
-    // Donker uiteinde (gum/wisser): kleinere rechthoek bovenaan-links
-    const uiteindeStart = [
-      cx + (-lengte / 2) * cos - (-dikte / 2) * sin,
-      cy + (-lengte / 2) * sin + (-dikte / 2) * cos
+    // Metalen band
+    const bandHoogte = grootte * 0.15;
+    doc.setFillColor('#B0B0B0');
+    doc.rect(xL, yTop + gumHoogte, dikte, bandHoogte, 'FD');
+
+    // Houten body in primair-kleur
+    const bodyTop = yTop + gumHoogte + bandHoogte;
+    const bodyBot = yPunt - grootte * 0.55;
+    doc.setFillColor(kleur);
+    doc.rect(xL, bodyTop, dikte, bodyBot - bodyTop, 'FD');
+
+    // Houten punt-driehoek (lichter — beige)
+    doc.setFillColor('#F5DEB3');
+    const houtPunten = [
+      [xL, bodyBot],
+      [xR, bodyBot],
+      [cx, yPunt - grootte * 0.18]
     ];
-    const uiteindeLengte = lengte * 0.2;
-    const uPunten = [
-      [-lengte / 2, -dikte / 2],
-      [-lengte / 2 + uiteindeLengte, -dikte / 2],
-      [-lengte / 2 + uiteindeLengte,  dikte / 2],
-      [-lengte / 2,  dikte / 2]
-    ].map(([px, py]) => [cx + px * cos - py * sin, cy + px * sin + py * cos]);
-    const uLijnen = [];
-    for (let i = 1; i < 4; i++) {
-      uLijnen.push([uPunten[i][0] - uPunten[i - 1][0], uPunten[i][1] - uPunten[i - 1][1]]);
-    }
-    uLijnen.push([uPunten[0][0] - uPunten[3][0], uPunten[0][1] - uPunten[3][1]]);
-    doc.setFillColor(donker);
-    doc.lines(uLijnen, uPunten[0][0], uPunten[0][1], [1, 1], 'F', true);
-
-    // Punt: driehoek aan rechter-uiteinde
-    const puntTop = [cx + (lengte / 2 + dikte * 0.6) * cos, cy + (lengte / 2 + dikte * 0.6) * sin];
-    const puntL = [cx + (lengte / 2) * cos - (-dikte / 2) * sin, cy + (lengte / 2) * sin + (-dikte / 2) * cos];
-    const puntR = [cx + (lengte / 2) * cos - (dikte / 2) * sin,  cy + (lengte / 2) * sin + (dikte / 2) * cos];
-    doc.setFillColor('#222222');
     doc.lines(
-      [[puntL[0] - puntTop[0], puntL[1] - puntTop[1]],
-       [puntR[0] - puntL[0],   puntR[1] - puntL[1]],
-       [puntTop[0] - puntR[0], puntTop[1] - puntR[1]]],
-      puntTop[0], puntTop[1], [1, 1], 'F', true
+      [
+        [houtPunten[1][0] - houtPunten[0][0], houtPunten[1][1] - houtPunten[0][1]],
+        [houtPunten[2][0] - houtPunten[1][0], houtPunten[2][1] - houtPunten[1][1]],
+        [houtPunten[0][0] - houtPunten[2][0], houtPunten[0][1] - houtPunten[2][1]]
+      ],
+      houtPunten[0][0], houtPunten[0][1], [1, 1], 'FD', true
     );
+
+    // Donkere punt (grafiet) — kleinere driehoek vanaf 60% van het hout naar beneden
+    const grafietTop = bodyBot + (yPunt - grootte * 0.18 - bodyBot) * 0.55;
+    const grafietBreedte = dikte * 0.45;
+    doc.setFillColor('#2D2A32');
+    doc.setDrawColor('#2D2A32');
+    const grPunten = [
+      [cx - grafietBreedte / 2, grafietTop],
+      [cx + grafietBreedte / 2, grafietTop],
+      [cx, yPunt - grootte * 0.18]
+    ];
+    doc.lines(
+      [
+        [grPunten[1][0] - grPunten[0][0], grPunten[1][1] - grPunten[0][1]],
+        [grPunten[2][0] - grPunten[1][0], grPunten[2][1] - grPunten[1][1]],
+        [grPunten[0][0] - grPunten[2][0], grPunten[0][1] - grPunten[2][1]]
+      ],
+      grPunten[0][0], grPunten[0][1], [1, 1], 'F', true
+    );
+
+    // Reset
+    doc.setLineWidth(0.4);
   }
 
-  // 🗣️ Spreken — tekst-ballon (afgeronde rechthoek + driehoekje als 'staartje')
+  // Spreken — tekstballon met driehoekige staart
   function _tekenIconSpreken(doc, cx, cy, grootte, kleur) {
     const donker = _kleurDonkerder(kleur);
-    const w = grootte * 1.6;
-    const h = grootte * 1.1;
+    const w = grootte * 1.7;
+    const h = grootte * 1.25;
     const x = cx - w / 2;
-    const y = cy - h / 2 - grootte * 0.15;
+    const y = cy - h / 2 - grootte * 0.18;
 
+    doc.setLineWidth(0.6);
     doc.setFillColor(kleur);
     doc.setDrawColor(donker);
-    doc.setLineWidth(0.4);
 
     // Hoofdvorm: afgeronde rechthoek
-    doc.roundedRect(x, y, w, h, grootte * 0.3, grootte * 0.3, 'FD');
+    doc.roundedRect(x, y, w, h, grootte * 0.32, grootte * 0.32, 'FD');
 
-    // Staartje onderaan-links (driehoek)
-    const stX = x + w * 0.25;
-    const stY = y + h;
+    // Staartje onderaan-links (driehoek die naar rechts-onder wijst)
+    const stX = x + w * 0.22;
+    const stY = y + h - 0.3; // start net binnen de bollvorm
     const stPunten = [
-      [stX, stY - 0.2],
-      [stX + grootte * 0.4, stY - 0.2],
-      [stX + grootte * 0.1, stY + grootte * 0.5]
+      [stX, stY],
+      [stX + grootte * 0.55, stY],
+      [stX + grootte * 0.15, stY + grootte * 0.65]
     ];
+    doc.setLineWidth(0.5);
     doc.lines(
-      [[stPunten[1][0] - stPunten[0][0], stPunten[1][1] - stPunten[0][1]],
-       [stPunten[2][0] - stPunten[1][0], stPunten[2][1] - stPunten[1][1]],
-       [stPunten[0][0] - stPunten[2][0], stPunten[0][1] - stPunten[2][1]]],
+      [
+        [stPunten[1][0] - stPunten[0][0], stPunten[1][1] - stPunten[0][1]],
+        [stPunten[2][0] - stPunten[1][0], stPunten[2][1] - stPunten[1][1]],
+        [stPunten[0][0] - stPunten[2][0], stPunten[0][1] - stPunten[2][1]]
+      ],
       stPunten[0][0], stPunten[0][1], [1, 1], 'F', true
     );
 
-    // Drie puntjes binnenin (witte cirkeltjes)
+    // Drie witte puntjes binnenin (geven aan: er wordt gepraat)
     doc.setFillColor('#FFFFFF');
-    const dotR = grootte * 0.13;
-    doc.circle(cx - grootte * 0.4, cy - grootte * 0.1, dotR, 'F');
-    doc.circle(cx, cy - grootte * 0.1, dotR, 'F');
-    doc.circle(cx + grootte * 0.4, cy - grootte * 0.1, dotR, 'F');
+    doc.setDrawColor('#FFFFFF');
+    const dotR = grootte * 0.14;
+    const dotY = y + h * 0.45;
+    doc.circle(cx - grootte * 0.42, dotY, dotR, 'F');
+    doc.circle(cx, dotY, dotR, 'F');
+    doc.circle(cx + grootte * 0.42, dotY, dotR, 'F');
+
+    // Reset
+    doc.setLineWidth(0.4);
   }
 
-  // Werkhouding — hergebruikt het target-icoon (al gedefinieerd hierboven)
-  // Geen apart symbool nodig.
+  // Werkhouding — trofee (beker met handvatten + voet)
+  function _tekenIconTrofee(doc, cx, cy, grootte, kleur) {
+    const donker = _kleurDonkerder(kleur);
+    doc.setLineWidth(0.5);
+    doc.setFillColor(kleur);
+    doc.setDrawColor(donker);
+
+    // Beker (afgeronde rechthoek bovenaan)
+    const bekerW = grootte * 1.0;
+    const bekerH = grootte * 1.0;
+    const bekerX = cx - bekerW / 2;
+    const bekerY = cy - grootte * 0.85;
+    doc.roundedRect(bekerX, bekerY, bekerW, bekerH, grootte * 0.18, grootte * 0.18, 'FD');
+
+    // Handvatten links + rechts (open ovaaltjes)
+    doc.setFillColor('#FFFFFF');
+    const handvatW = grootte * 0.4;
+    const handvatH = grootte * 0.55;
+    // Links
+    doc.ellipse(bekerX - handvatW * 0.4, bekerY + bekerH * 0.4, handvatW, handvatH, 'FD');
+    // Rechts
+    doc.ellipse(bekerX + bekerW + handvatW * 0.4, bekerY + bekerH * 0.4, handvatW, handvatH, 'FD');
+
+    // Beker zelf opnieuw tekenen om handvatten af te dekken in het midden
+    doc.setFillColor(kleur);
+    doc.setDrawColor(donker);
+    doc.roundedRect(bekerX, bekerY, bekerW, bekerH, grootte * 0.18, grootte * 0.18, 'FD');
+
+    // Stam (smal balkje onder de beker)
+    const stamW = grootte * 0.25;
+    const stamH = grootte * 0.32;
+    doc.setFillColor(donker);
+    doc.rect(cx - stamW / 2, bekerY + bekerH, stamW, stamH, 'F');
+
+    // Voetstuk (brede afgeronde rechthoek onderaan)
+    const voetW = grootte * 1.1;
+    const voetH = grootte * 0.22;
+    doc.setFillColor(kleur);
+    doc.setDrawColor(donker);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(cx - voetW / 2, bekerY + bekerH + stamH, voetW, voetH, grootte * 0.05, grootte * 0.05, 'FD');
+
+    // Sterretje midden in beker (klein, wit)
+    doc.setFillColor('#FFFFFF');
+    doc.setDrawColor('#FFFFFF');
+    const ster = grootte * 0.32;
+    const sx = cx;
+    const sy = bekerY + bekerH * 0.45;
+    // 5-punt ster benaderd via 5 driehoekjes (eenvoudige variant: cirkel met 5 puntjes)
+    doc.circle(sx, sy, ster * 0.55, 'F');
+
+    // Reset
+    doc.setLineWidth(0.4);
+  }
 
   // Hex-kleur iets donkerder maken (voor randen)
   function _kleurDonkerder(hex) {
@@ -1874,31 +1986,34 @@ window.RapportEngine = (function() {
 
     y += kaderHoogte + 8;
 
-    // ===== Naam (links) + klas (rechts) op één regel =====
+    // ===== Naam (links) + klas (rechts) op één regel — kleiner ontwerp =====
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
+    doc.setFontSize(13);
     doc.setTextColor(K_HOOFDTITEL);
     doc.text(_volledigeNaam(kind), M, y + 4);
 
     const klasTekst = _klasTekst(kind);
     if (klasTekst) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
+      doc.setFontSize(10.5);
       doc.setTextColor(K_SUBTITEL);
       doc.text(klasTekst, PB - M, y + 4, { align: 'right' });
     }
-    y += 7;
+    y += 6;
 
     // Scheidingslijn
     y += 3;
     doc.setDrawColor(K_LICHTGRIJS);
     doc.setLineWidth(0.5);
     doc.line(M, y, PB - M, y);
-    y += 8;
+    y += 10;
 
-    // Sectiekop "Vaardigheden"
-    y = tekenSectiekop(doc, 'Vaardigheden', y, K_PRIMAIR);
-    y += 4;
+    // Sectiekop "Vaardigheden" — eenvoudig, zonder gekleurd vakje
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(K_HOOFDTITEL);
+    doc.text('Vaardigheden', M, y + 4);
+    y += 12;
 
     // Sterren-rijen — 5 vaardigheden met vector-icoon
     const vaardigheden = [
@@ -1906,7 +2021,7 @@ window.RapportEngine = (function() {
       { sl: 'lezen',       naam: 'Lezen',       icoon: 'lezen'       },
       { sl: 'schrijven',   naam: 'Schrijven',   icoon: 'schrijven'   },
       { sl: 'spreken',     naam: 'Spreken',     icoon: 'spreken'     },
-      { sl: 'werkhouding', naam: 'Werkhouding', icoon: 'target'      }
+      { sl: 'werkhouding', naam: 'Werkhouding', icoon: 'trofee'      }
     ];
 
     vaardigheden.forEach(v => {
@@ -1923,6 +2038,7 @@ window.RapportEngine = (function() {
       else if (v.icoon === 'schrijven') _tekenIconSchrijven(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
       else if (v.icoon === 'spreken') _tekenIconSpreken(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
       else if (v.icoon === 'target') _tekenIconTarget(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
+      else if (v.icoon === 'trofee') _tekenIconTrofee(doc, icoonX, icoonY, icoonGrootte, K_PRIMAIR);
 
       // Naam — bold, 12pt, na het icoon
       doc.setFont('helvetica', 'bold');
@@ -1964,10 +2080,18 @@ window.RapportEngine = (function() {
         sub = '';
       }
       if (sub) {
-        doc.text(sub, M + 10, y + 9);
+        doc.text(sub, M + 11, y + 9);
       }
 
-      y += 13;
+      y += 16;
+
+      // Zachte scheidingslijn tussen vaardigheden (niet na de laatste)
+      const isLaatste = (v.sl === 'werkhouding');
+      if (!isLaatste) {
+        doc.setDrawColor('#F0E8D8');
+        doc.setLineWidth(0.2);
+        doc.line(M + 4, y - 4, PB - M - 4, y - 4);
+      }
     });
 
     // Voetnoot onderaan p.1
@@ -2037,26 +2161,34 @@ window.RapportEngine = (function() {
     }
 
     // ==================================================
-    // Handtekening-zone onderaan pagina 2 (of huidige pagina)
+    // Handtekening-zone: 3 vakjes naast elkaar, boven de footer
     // ==================================================
-    const yHand = PH - 50; // ~22mm boven de footer (footer start op PH - 28)
+    // Footer start op PH - 28, dus we laten 4mm marge → vakjes eindigen op PH - 32.
+    // Vakhoogte 26mm → start dus op PH - 58.
+    const vakHoogte = 26;
+    const yHand = PH - 32 - vakHoogte;
     if (y < yHand) {
-      // Scheidingslijn
-      doc.setDrawColor(K_LICHTGRIJS);
+      const tussenruimte = 4;          // mm tussen vakjes
+      const beschikbaar = IB;          // = PB - 2*M
+      const vakBreedte = (beschikbaar - 2 * tussenruimte) / 3;
+
+      const labels = ['Handtekening directie', 'Handtekening leerkracht', 'Handtekening ouder'];
+
+      doc.setDrawColor('#B7A99B');     // zachte beige-grijze omlijning
       doc.setLineWidth(0.3);
-      doc.line(M, yHand - 8, PB - M, yHand - 8);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(K_HOOFDTITEL);
-      doc.text('Handtekening leerkracht', M, yHand);
-      doc.text('Handtekening ouder', M + IB / 2 + 5, yHand);
+      labels.forEach((label, i) => {
+        const x = M + i * (vakBreedte + tussenruimte);
 
-      // Lijnen voor handtekening
-      doc.setDrawColor(K_GRIJS);
-      doc.setLineWidth(0.4);
-      doc.line(M, yHand + 12, M + (IB / 2) - 8, yHand + 12);
-      doc.line(M + IB / 2 + 5, yHand + 12, PB - M, yHand + 12);
+        // Vakje (geen vulling, fijne omlijning)
+        doc.roundedRect(x, yHand, vakBreedte, vakHoogte, 1.5, 1.5, 'D');
+
+        // Label onderaan in het vakje, gecentreerd
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(K_GRIJS);
+        doc.text(label, x + vakBreedte / 2, yHand + vakHoogte - 3, { align: 'center' });
+      });
     }
 
     // Footer op alle pagina's
