@@ -8287,3 +8287,39 @@ h1, h2, h3 {
   border-color: #ffc107;
   box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.15);
 }
+
+
+/* ============================================================
+   SPREEKTOETS — klaargezet-status in lijst
+   ============================================================ */
+
+.lk-spr-status-klaargezet {
+  display: inline-block;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #fff8e7 0%, #ffe8d6 100%);
+  border: 1px solid #ffc107;
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5d4037;
+}
+
+.lk-taakrij.klaargezet {
+  background: #fffdf6;
+  border-left: 3px solid #ffc107;
+}
+
+.lk-taakrij-acties {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.lk-knop-mini.gevaar {
+  background: #fef7f5;
+  border-color: #f5c6c6;
+  color: #c62828;
+}
+.lk-knop-mini.gevaar:hover {
+  background: #ffebee;
+}
