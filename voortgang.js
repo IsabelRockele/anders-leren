@@ -1146,6 +1146,212 @@ window.Voortgang = (function() {
     });
   }
 
+  // ------------------- Rapporten ------------------
+  // Een rapport = snapshot van sterren + feedback voor een leerling per
+  // rapportperiode. Wordt bewaard in /rapporten/{kindCode}-{periodeId}
+  // zodat deterministische upsert mogelijk is (geen duplicaten).
+  //
+  // Doc-structuur:
+  //   { kindCode, rapportperiodeId, gemaakt, laatstAangepast,
+  //     sterren: { luisteren, lezen, schrijven, spreken, werkhouding },
+  //     toetsdata: { luisteren: {aantal, pct}, ... },
+  //     feedback: { watGaatGoed: [...], groeipunten: [...], werkhouding: [...] } }
+
+  function _rapportId(kindCode, periodeId) {
+    return `${kindCode}-${periodeId}`;
+  }
+
+  async function haalRapportOpVoorKind(kindCode, periodeId) {
+    if (!db || !kindCode || !periodeId) return null;
+    try {
+      const doc = await db.collection('rapporten').doc(_rapportId(kindCode, periodeId)).get();
+      if (!doc.exists) return null;
+      return { id: doc.id, ...doc.data() };
+    } catch (e) {
+      console.warn('Rapport ophalen mislukt:', e);
+      return null;
+    }
+  }
+
+  async function bewaarRapport(rapport) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!rapport || !rapport.kindCode || !rapport.rapportperiodeId) {
+      throw new Error('Rapport mist kindCode of rapportperiodeId.');
+    }
+    const id = _rapportId(rapport.kindCode, rapport.rapportperiodeId);
+    const data = {
+      kindCode: rapport.kindCode,
+      rapportperiodeId: rapport.rapportperiodeId,
+      sterren: rapport.sterren || {},
+      toetsdata: rapport.toetsdata || {},
+      feedback: rapport.feedback || {},
+      gemaakt: rapport.gemaakt || Date.now(),
+      laatstAangepast: Date.now()
+    };
+    await db.collection('rapporten').doc(id).set(data, { merge: true });
+    return { id, ...data };
+  }
+
+  // Score-grenzen: <50% = 1*, 50-60% = 2*, 60-80% = 3*, 80-100% = 4*
+  function _pctNaarSterren(pct) {
+    if (pct == null || isNaN(pct)) return null;
+    if (pct < 50) return 1;
+    if (pct < 60) return 2;
+    if (pct < 80) return 3;
+    return 4;
+  }
+
+  // Bereken sterren + toetsdata uit taak-geschiedenis en spreektoetsen
+  // voor een specifieke rapportperiode. Returnt:
+  //   { sterren: {luisteren, lezen, schrijven, spreken, werkhouding},
+  //     toetsdata: {luisteren: {aantal, pct, juist, totaal}, ...},
+  //     foutWoorden: {luisteren: [woordIds], ...} }
+  // Sterren zijn null voor vaardigheden zonder data; werkhouding is altijd null
+  // (manuele invoer door leerkracht).
+  async function berekenRapportSterren(kindCode, periodeId, periode) {
+    const result = {
+      sterren: {
+        luisteren: null,
+        lezen: null,
+        schrijven: null,
+        spreken: null,
+        werkhouding: null
+      },
+      toetsdata: {
+        luisteren: { aantal: 0, juist: 0, totaal: 0, pct: null },
+        lezen:     { aantal: 0, juist: 0, totaal: 0, pct: null },
+        schrijven: { aantal: 0, juist: 0, totaal: 0, pct: null },
+        spreken:   { aantal: 0, juist: 0, totaal: 0, pct: null }
+      },
+      foutWoorden: {
+        luisteren: [],
+        lezen:     [],
+        schrijven: [],
+        spreken:   []
+      }
+    };
+    if (!kindCode || !periodeId) return result;
+
+    // ----- Taken: huidige + geschiedenis -----
+    let huidigeTaak = null;
+    let geschiedenis = [];
+    try {
+      huidigeTaak = await haalTaakOpVoorKind(kindCode);
+    } catch (e) { huidigeTaak = null; }
+    try {
+      geschiedenis = await haalTaakgeschiedenisOpVoorKind(kindCode) || [];
+    } catch (e) { geschiedenis = []; }
+
+    // Verzamel alle taken die in deze periode vallen.
+    // Voorkeur: rapportperiodeId. Fallback: voltooidOp/gestart binnen periode-venster.
+    const alleTaken = [];
+    if (huidigeTaak && huidigeTaak.themaId) alleTaken.push(huidigeTaak);
+    geschiedenis.forEach(t => alleTaken.push(t));
+
+    const venster = periode ? { start: periode.startDatum, eind: periode.eindDatum } : null;
+    function taakInPeriode(t) {
+      if (t.rapportperiodeId === periodeId) return true;
+      if (!venster) return false;
+      const ts = t.voltooidOp || t.gestart;
+      if (!ts) return false;
+      return ts >= venster.start && ts <= venster.eind;
+    }
+
+    const takenInPeriode = alleTaken.filter(taakInPeriode);
+
+    // Per vaardigheid: tel toetsen + woorden via laatste poging per taak
+    ['luisteren', 'lezen', 'schrijven'].forEach(vaardigheid => {
+      let aantalToetsen = 0;
+      let totaalWoorden = 0;
+      let juisteWoorden = 0;
+      const fouteIds = [];
+
+      takenInPeriode.forEach(taak => {
+        const aantalW = (taak.woordIds || []).length;
+        if (aantalW === 0) return;
+
+        // Nieuwe data: toetsResultaten met pogingen
+        const tr = taak.toetsResultaten && taak.toetsResultaten[vaardigheid];
+        if (tr && tr.afgenomen && Array.isArray(tr.pogingen) && tr.pogingen.length > 0) {
+          const laatste = tr.pogingen[tr.pogingen.length - 1];
+          aantalToetsen++;
+          totaalWoorden += aantalW;
+          const fout = Array.isArray(laatste.foutIds) ? laatste.foutIds : [];
+          juisteWoorden += (aantalW - fout.length);
+          fout.forEach(id => fouteIds.push(id));
+        }
+        // Oude data: alleen voor 'luisteren', val terug op foutWoordenLaatsteToets
+        else if (vaardigheid === 'luisteren' && Array.isArray(taak.foutWoordenLaatsteToets)
+                 && (taak.status === 'voltooid' || taak.status === 'moeilijk' || taak.status === 'haperde')) {
+          aantalToetsen++;
+          totaalWoorden += aantalW;
+          const fout = taak.foutWoordenLaatsteToets;
+          juisteWoorden += (aantalW - fout.length);
+          fout.forEach(id => fouteIds.push(id));
+        }
+      });
+
+      const pct = totaalWoorden > 0 ? Math.round(juisteWoorden / totaalWoorden * 100) : null;
+      result.toetsdata[vaardigheid] = {
+        aantal: aantalToetsen,
+        juist: juisteWoorden,
+        totaal: totaalWoorden,
+        pct: pct
+      };
+      result.sterren[vaardigheid] = _pctNaarSterren(pct);
+      result.foutWoorden[vaardigheid] = fouteIds;
+    });
+
+    // ----- Spreektoetsen -----
+    let spreekt = [];
+    try {
+      spreekt = await haalSpreektoetsenOpVoorKind(kindCode) || [];
+    } catch (e) { spreekt = []; }
+
+    function sprToetsInPeriode(st) {
+      if (st.rapportperiodeId === periodeId) return true;
+      if (!venster || !st.datum) return false;
+      return st.datum >= venster.start && st.datum <= venster.eind;
+    }
+    const spreektInPeriode = spreekt.filter(sprToetsInPeriode);
+
+    let aantalSpr = 0;
+    let totaalZinnen = 0;
+    let scoreZinnen = 0; // vlot=1, aarzelt=0.5, niet=0
+    const fouteSpr = [];
+    spreektInPeriode.forEach(st => {
+      const perWoord = st.perWoord || {};
+      const ids = Object.keys(perWoord);
+      if (ids.length === 0) return;
+      aantalSpr++;
+      ids.forEach(id => {
+        // perWoord[id] kan string ('vlot'|'aarzelt'|'niet') of object zijn
+        const waarde = perWoord[id];
+        const oordeel = (waarde && typeof waarde === 'object') ? waarde.oordeel : waarde;
+        totaalZinnen++;
+        if (oordeel === 'vlot') scoreZinnen += 1;
+        else if (oordeel === 'aarzelt') {
+          scoreZinnen += 0.5;
+          fouteSpr.push(id);
+        } else if (oordeel === 'niet') {
+          fouteSpr.push(id);
+        }
+      });
+    });
+    const pctSpr = totaalZinnen > 0 ? Math.round(scoreZinnen / totaalZinnen * 100) : null;
+    result.toetsdata.spreken = {
+      aantal: aantalSpr,
+      juist: scoreZinnen,
+      totaal: totaalZinnen,
+      pct: pctSpr
+    };
+    result.sterren.spreken = _pctNaarSterren(pctSpr);
+    result.foutWoorden.spreken = fouteSpr;
+
+    // werkhouding blijft null — manueel door leerkracht in te vullen
+    return result;
+  }
+
   return {
     init,
     codeBestaat,
@@ -1210,6 +1416,10 @@ window.Voortgang = (function() {
     sluitRapportperiode,
     heropenRapportperiode,
     verwijderRapportperiode,
-    migreerNaarRapportperiodes
+    migreerNaarRapportperiodes,
+    // Rapporten (sterren + feedback per kind per periode)
+    haalRapportOpVoorKind,
+    bewaarRapport,
+    berekenRapportSterren
   };
 })();
