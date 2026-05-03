@@ -432,6 +432,9 @@ function _lkRendererSpreektoetsen(kind) {
     const dt = new Date(st.datum || 0);
     const dStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getFullYear()).slice(2)}`;
 
+    // Bepaal status: 'klaargezet' of 'afgenomen'
+    const isKlaargezet = (st.status === 'klaargezet');
+
     // Tellen met backward-compat helpers
     let v = 0, a = 0, n = 0;
     Object.values(st.perWoord || {}).forEach(r => {
@@ -441,23 +444,47 @@ function _lkRendererSpreektoetsen(kind) {
       else if (o === 'niet') n++;
     });
     const totaal = v + a + n;
+    const aantalWoorden = Array.isArray(st.woordIds) ? st.woordIds.length : totaal;
 
     const idSafe = st.id ? st.id.replace(/'/g, "\\'") : '';
-    const pdfKnop = idSafe
-      ? `<button class="lk-knop-mini" onclick="lkSprPdfVanGeschiedenis('${kind.code}', '${idSafe}')" title="PDF voor toetsenmap">📄</button>`
-      : '';
+
+    // Acties verschillen per status
+    let acties = '';
+    if (isKlaargezet && idSafe) {
+      // Klaargezet: play-knop om afname te starten + vuilbakje
+      acties = `
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkSprStartKlaargezetteAfname('${kind.code}', '${idSafe}')" title="Start de afname met het kind">▶ Afnemen</button>
+        <button class="lk-knop-mini gevaar" onclick="lkSprVerwijder('${kind.code}', '${idSafe}')" title="Verwijderen">🗑️</button>
+      `;
+    } else if (idSafe) {
+      // Afgenomen: PDF-knop + vuilbakje
+      acties = `
+        <button class="lk-knop-mini" onclick="lkSprPdfVanGeschiedenis('${kind.code}', '${idSafe}')" title="PDF voor toetsenmap">📄</button>
+        <button class="lk-knop-mini gevaar" onclick="lkSprVerwijder('${kind.code}', '${idSafe}')" title="Verwijderen">🗑️</button>
+      `;
+    }
+
+    // Status-weergave
+    let statusHtml = '';
+    if (isKlaargezet) {
+      statusHtml = `<span class="lk-spr-status-klaargezet">📅 klaargezet · ${aantalWoorden} woord${aantalWoorden === 1 ? '' : 'en'}</span>`;
+    } else {
+      statusHtml = `
+        <span class="lk-spr-cijfer vlot">✓ ${v}</span>
+        <span class="lk-spr-cijfer aarzelt">🤔 ${a}</span>
+        <span class="lk-spr-cijfer niet">✗ ${n}</span>
+      `;
+    }
 
     html += `
-      <div class="lk-taakrij">
+      <div class="lk-taakrij ${isKlaargezet ? 'klaargezet' : ''}">
         <span class="lk-taakrij-datum">${dStr}</span>
         <span class="lk-taakrij-thema">${themaNaam}</span>
         <span class="lk-taakrij-status">
-          <span class="lk-spr-cijfer vlot">✓ ${v}</span>
-          <span class="lk-spr-cijfer aarzelt">🤔 ${a}</span>
-          <span class="lk-spr-cijfer niet">✗ ${n}</span>
+          ${statusHtml}
         </span>
-        <span class="lk-taakrij-score">${totaal} w.</span>
-        <span class="lk-taakrij-acties">${pdfKnop}</span>
+        <span class="lk-taakrij-score">${isKlaargezet ? '' : totaal + ' w.'}</span>
+        <span class="lk-taakrij-acties">${acties}</span>
       </div>
     `;
   });
@@ -3731,10 +3758,8 @@ function wbRenderModal() {
               <span>Categorie</span>
               <select id="wb-cat">${catOpties}</select>
             </label>
-            <label class="wb-veld">
-              <span>Niveau</span>
-              <select id="wb-niveau">${nivOpties}</select>
-            </label>
+            <!-- Niveau-veld verborgen — woorden hebben geen niveau, niveaus horen bij oefeningen -->
+            <select id="wb-niveau" style="display:none">${nivOpties}</select>
           </div>
         </div>
       </div>
@@ -5806,13 +5831,78 @@ async function lkRapInlineAiSuggestie(kindCode, cat) {
 
     const foutNamen = _rapBouwFoutNamenVoorPrompt(kindCode);
 
+    // Puntenboek-opmerkingen voor deze categorie ophalen
+    const pbOpmerkingenVoorCat = (s.pbOpmerkingen && s.pbOpmerkingen[cat]) || [];
+    const pbContext = pbOpmerkingenVoorCat
+      .filter(o => o.tekst && o.tekst.trim())
+      .map(o => ({
+        opmerking: o.tekst.trim(),
+        toets: o.toetsNaam || ''
+      }));
+
+    // Spreektoets-detail: welke woorden gingen vlot/aarzelt/niet?
+    let spreekDetail = null;
+    try {
+      const spreekToetsen = await Voortgang.haalSpreektoetsenOpVoorKind(kindCode);
+      const venster = periode ? { start: periode.startDatum, eind: periode.eindDatum } : null;
+      const inPeriode = spreekToetsen.filter(st => {
+        if (st.status === 'klaargezet') return false;
+        if (st.rapportperiodeId === s.periodeId) return true;
+        if (!venster || !st.datum) return false;
+        return st.datum >= venster.start && st.datum <= venster.eind;
+      });
+      if (inPeriode.length > 0) {
+        const vlot = [], aarzelt = [], niet = [];
+        inPeriode.forEach(st => {
+          const perWoord = st.perWoord || {};
+          Object.keys(perWoord).forEach(id => {
+            const waarde = perWoord[id];
+            const oordeel = (waarde && typeof waarde === 'object') ? waarde.oordeel : waarde;
+            const naam = _rapZoekWoordnaam(id);
+            if (!naam) return;
+            if (oordeel === 'vlot') vlot.push(naam);
+            else if (oordeel === 'aarzelt') aarzelt.push(naam);
+            else if (oordeel === 'niet') niet.push(naam);
+          });
+        });
+        spreekDetail = {
+          vlot: Array.from(new Set(vlot)).slice(0, 6),
+          aarzelt: Array.from(new Set(aarzelt)).slice(0, 6),
+          niet: Array.from(new Set(niet)).slice(0, 6)
+        };
+      }
+    } catch (e) { /* stil falen */ }
+
+    // Reeds aangevinkte zinnen (zodat Claude geen herhaling geeft)
+    const reedsGekozen = [];
+    const stdZinnen = _RAP_STANDAARDZINNEN[cat] || [];
+    (s.feedbackVink[cat] || []).forEach(id => {
+      if (id.startsWith('std-')) {
+        const idx = parseInt(id.slice(4));
+        const std = stdZinnen[idx];
+        if (std) {
+          const bewerkt = s.feedbackTekst[cat][id];
+          reedsGekozen.push(bewerkt || _rapVervangNaam(std, naam));
+        }
+      } else if (id.startsWith('ai-')) {
+        const idx = parseInt(id.slice(3));
+        const ai = (s.aiZinnen[cat] || [])[idx];
+        if (ai && ai.trim()) reedsGekozen.push(ai);
+      }
+    });
+
     const url = _RAP_AI_URL;
     const body = {
       kindNaam: naam,
       categorie: cat,
       periode: periode ? periode.naam : '',
+      periodeNummer: periode && periode.nummer ? periode.nummer : null,
       toetsdata: s.toetsdata,
-      foutWoorden: foutNamen
+      foutWoorden: foutNamen,
+      // Nieuwe context-velden:
+      puntenboekOpmerkingen: pbContext,
+      spreektoetsDetail: spreekDetail,
+      reedsGekozen: reedsGekozen
     };
 
     const resp = await fetch(url, {
@@ -6040,6 +6130,7 @@ let _sprModalNotitie = '';
 let _sprModalFase = 'kiezen';      // 'kiezen' | 'afnemen' | 'klaar'
 let _sprModalLaatstBewaardId = null; // voor PDF-knop na bewaren
 let _sprModalGeselecteerd = new Set(); // woordIds die in de toets opgenomen worden
+let _sprModalBestaandeId = null;   // als gezet → updaten i.p.v. nieuwe toetst toevoegen (voor klaargezette spreektoetsen)
 
 async function lkOpenSpreektoets(code, naam) {
   _sprModalCode = code;
@@ -6051,6 +6142,7 @@ async function lkOpenSpreektoets(code, naam) {
   _sprModalFase = 'kiezen';
   _sprModalLaatstBewaardId = null;
   _sprModalGeselecteerd = new Set();
+  _sprModalBestaandeId = null;
 
   // Standaard-thema = thema van huidige taak, anders eerste actief thema
   const kind = lkKinderen.find(k => k.code === code);
@@ -6080,6 +6172,11 @@ function _sprVulSelectieAuto() {
   if (!thema) return;
   const verrijkt = lkVerrijkThema(thema);
   (verrijkt.items || []).forEach(it => _sprModalGeselecteerd.add(it.id));
+}
+
+// Alias voor _rendererSpreektoetsModal — voor leesbaarheid bij hervatten van klaargezette toets
+function _toonSpreektoetsModal() {
+  _rendererSpreektoetsModal();
 }
 
 function _rendererSpreektoetsModal() {
@@ -6180,6 +6277,7 @@ function _sprHtmlKiezen() {
       <div class="lk-cat-modal-knoppen">
         <button class="lk-knop-mini" onclick="lkSluitSpreektoetsModal()">Annuleren</button>
         <button class="lk-knop-mini" onclick="lkSprAfnamebladPrint()" ${geselW === 0 ? 'disabled' : ''} title="Print een blanco afnameblad om met pen in te vullen">🖨️ Afnameblad</button>
+        <button class="lk-knop-mini" onclick="lkSprKlaarzetten()" ${geselW === 0 ? 'disabled' : ''} title="Bewaar de selectie en neem later af met het kind">📅 Klaarzetten voor later</button>
         <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkSprStartAfname()" ${geselW === 0 ? 'disabled' : ''}>▶ Start digitaal</button>
       </div>
     </div>
@@ -6237,6 +6335,100 @@ function lkSprKiesThema(themaId) {
   _rendererSpreektoetsModal();
 }
 
+// Klaarzetten voor later: bewaar selectie van woorden zonder af te nemen.
+// De spreektoets verschijnt in de lijst met status 'klaargezet'; juf kan
+// later afname starten met play-knop.
+async function lkSprKlaarzetten() {
+  const thema = ALLE_THEMAS_LK.find(t => t.id === _sprModalThemaId);
+  if (!thema) return;
+  const code = _sprModalCode;
+  if (!code) return;
+
+  const woordIds = Array.from(_sprModalGeselecteerd);
+  if (woordIds.length === 0) {
+    alert('Selecteer eerst minstens één woord.');
+    return;
+  }
+
+  const knop = document.querySelector('#lk-spr-modal-bg .lk-cat-modal-knoppen button[onclick="lkSprKlaarzetten()"]');
+  if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+
+  try {
+    const periodeId = (typeof _actievePeriode !== 'undefined' && _actievePeriode) ? _actievePeriode.id : null;
+    const id = 'spr-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    const toets = {
+      id: id,
+      themaId: _sprModalThemaId,
+      datum: Date.now(),
+      status: 'klaargezet',
+      woordIds: woordIds,            // welke woorden geselecteerd zijn voor deze afname
+      perWoord: {},                  // nog leeg — wordt ingevuld bij afname
+      rapportperiodeId: periodeId
+    };
+
+    await Voortgang.bewaarSpreektoetsVoorKind(code, toets);
+
+    // Sluit modal + ververs lijst
+    lkSluitSpreektoetsModal();
+    if (typeof lkKindtabsRender === 'function') lkKindtabsRender('spreken');
+    setTimeout(() => alert(`Spreektoets klaargezet. Je vindt ze in de lijst met de ▶ knop om af te nemen.`), 50);
+  } catch (e) {
+    console.error('Klaarzetten mislukt:', e);
+    alert('Klaarzetten mislukt: ' + (e.message || 'onbekend'));
+    if (knop) { knop.disabled = false; knop.textContent = '📅 Klaarzetten voor later'; }
+  }
+}
+
+// Hervat een klaargezette spreektoets: open de afname-modal direct in fase 'afnemen'
+async function lkSprStartKlaargezetteAfname(kindCode, toetsId) {
+  const kind = lkKinderen.find(k => k.code === kindCode);
+  if (!kind) return;
+  const toetsen = await Voortgang.haalSpreektoetsenOpVoorKind(kindCode);
+  const toets = toetsen.find(t => t.id === toetsId);
+  if (!toets) {
+    alert('Spreektoets niet gevonden.');
+    return;
+  }
+  const thema = ALLE_THEMAS_LK.find(t => t.id === toets.themaId);
+  if (!thema) {
+    alert('Het thema van deze spreektoets bestaat niet meer.');
+    return;
+  }
+  const verrijkt = lkVerrijkThema(thema);
+
+  // Setup modal-state
+  _sprModalCode = kindCode;
+  _sprModalNaam = kind.naam || lkVolledigeNaam(kind) || kindCode;
+  _sprModalThemaId = toets.themaId;
+  _sprModalGeselecteerd = new Set(toets.woordIds || []);
+  _sprModalItems = (verrijkt.items || []).filter(it => _sprModalGeselecteerd.has(it.id));
+  _sprModalIdx = 0;
+  _sprModalResultaten = { ...(toets.perWoord || {}) };
+  _sprModalNotitie = toets.notitie || '';
+  _sprModalFase = 'afnemen';
+  _sprModalBestaandeId = toetsId; // voor latere update i.p.v. nieuwe toevoegen
+
+  // Toon modal
+  _toonSpreektoetsModal();
+}
+
+// Verwijder een spreektoets uit de lijst (klaargezet of afgenomen)
+async function lkSprVerwijder(kindCode, toetsId) {
+  const toetsen = await Voortgang.haalSpreektoetsenOpVoorKind(kindCode);
+  const toets = toetsen.find(t => t.id === toetsId);
+  const beschrijving = toets
+    ? `de spreektoets van ${new Date(toets.datum || 0).toLocaleDateString('nl-BE')}`
+    : 'deze spreektoets';
+  if (!confirm(`Weet je zeker dat je ${beschrijving} wil verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
+  try {
+    await Voortgang.verwijderSpreektoetsVoorKind(kindCode, toetsId);
+    if (typeof lkKindtabsRender === 'function') lkKindtabsRender('spreken');
+  } catch (e) {
+    console.error('Verwijderen mislukt:', e);
+    alert('Verwijderen mislukt: ' + (e.message || 'onbekend'));
+  }
+}
+
 function lkSprStartAfname() {
   const thema = ALLE_THEMAS_LK.find(t => t.id === _sprModalThemaId);
   if (!thema) return;
@@ -6283,7 +6475,6 @@ function _sprHtmlAfnemen() {
         <div class="lk-spr-juf-info">
           <span class="lk-spr-juf-label">Juf ziet:</span>
           <span class="lk-spr-juf-woord">${item.tekst}</span>
-          <button class="lk-knop-mini lk-spr-hoor" onclick="lkSprHoorWoord('${item.id}')" title="Het woord laten horen">🔊 Hoor</button>
         </div>
       </div>
 
@@ -6530,13 +6721,16 @@ async function lkSprBewaren() {
     return;
   }
 
-  // Genereer een unieke ID voor deze toets — voor PDF-export en latere referentie
-  const toetsId = 'spr-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  // Bij hervatten van klaargezette toets: behoud bestaande ID + update.
+  // Anders nieuwe ID genereren.
+  const toetsId = _sprModalBestaandeId || ('spr-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
 
   const toets = {
     id: toetsId,
     themaId: _sprModalThemaId,
     datum: Date.now(),
+    status: 'afgenomen',
+    woordIds: Array.from(_sprModalGeselecteerd),
     perWoord: perWoord,
     notitie: _sprModalNotitie || '',
     rapportperiodeId: lkActievePeriodeId()
@@ -6546,8 +6740,15 @@ async function lkSprBewaren() {
   if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
 
   try {
-    await Voortgang.bewaarSpreektoetsVoorKind(_sprModalCode, toets);
+    if (_sprModalBestaandeId) {
+      // Update bestaande klaargezette toets
+      await Voortgang.updateSpreektoetsVoorKind(_sprModalCode, _sprModalBestaandeId, toets);
+    } else {
+      // Nieuwe toets toevoegen
+      await Voortgang.bewaarSpreektoetsVoorKind(_sprModalCode, toets);
+    }
     _sprModalLaatstBewaardId = toetsId;
+    _sprModalBestaandeId = null; // reset
     // Toon bevestigings-scherm met PDF-knop
     _sprToonBewaardScherm(toets);
     // Lijst herladen op de achtergrond
