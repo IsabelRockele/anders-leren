@@ -486,14 +486,29 @@ window.Voortgang = (function() {
       oefenvormen_luisteren: Array.isArray(taakObj.oefenvormen_luisteren) && taakObj.oefenvormen_luisteren.length > 0
                        ? [...taakObj.oefenvormen_luisteren]
                        : ['klikspel'],
+      oefenvormen_lezen: Array.isArray(taakObj.oefenvormen_lezen) && taakObj.oefenvormen_lezen.length > 0
+                       ? [...taakObj.oefenvormen_lezen]
+                       : ['woord-beeld'],
       oefenvormen_schrijven: Array.isArray(taakObj.oefenvormen_schrijven) && taakObj.oefenvormen_schrijven.length > 0
                        ? [...taakObj.oefenvormen_schrijven]
-                       : ['slepen'],
+                       : ['overtypen'],
+      toetsen: Array.isArray(taakObj.toetsen)
+                       ? [...taakObj.toetsen]
+                       : ['luisteren'],
       zinscontext: taakObj.zinscontext === true,
       huidigeFase: taakObj.huidigeFase || 'leren',
       perWoord: taakObj.perWoord || {},
       status: taakObj.status || 'bezig',
       foutWoordenLaatsteToets: taakObj.foutWoordenLaatsteToets || [],
+      // Resultaten per vaardigheids-toets, voor de PDF na afloop. Elk veld bevat
+      // een array met woord-ids die fout waren in die toets. afgenomen-vlag toont
+      // of de toets eigenlijk al was afgenomen (leeg fout-array kan zowel 'niet
+      // afgenomen' als 'alles juist' betekenen — daarom aparte vlag).
+      toetsResultaten: taakObj.toetsResultaten || {
+        luisteren: { afgenomen: false, foutIds: [] },
+        lezen:     { afgenomen: false, foutIds: [] },
+        schrijven: { afgenomen: false, foutIds: [] }
+      },
       aantalPogingen: taakObj.aantalPogingen || { luisteren: 0, lezen: 0, schrijven: 0 },
       gestart: taakObj.gestart || Date.now(),
       klassikaalId: taakObj.klassikaalId || null,
@@ -581,12 +596,17 @@ window.Voortgang = (function() {
   }
 
   // Reset de juist-teller voor een woord in een vaardigheid (bij fout antwoord).
+  // Houd ook een fout-teller bij die niet wordt afgebouwd — handig voor de oefen-
+  // logica om te weten of een woord ooit fout was (dan extra herhaling).
   async function registreerFoutInTaak(woordId, vaardigheid) {
     if (!taakCache || !taakCache.perWoord || !taakCache.perWoord[woordId]) return;
     const sleutel = vaardigheid + '_juist';
+    const foutSleutel = vaardigheid + '_fout';
     const huidig = taakCache.perWoord[woordId][sleutel] || 0;
     // Bij fout: 1 stap terug (3→2, 2→1, 1→0). Niet onder 0.
     taakCache.perWoord[woordId][sleutel] = Math.max(0, huidig - 1);
+    // Fout-teller verhogen (cumulatief, gaat niet omlaag)
+    taakCache.perWoord[woordId][foutSleutel] = (taakCache.perWoord[woordId][foutSleutel] || 0) + 1;
     taakCache.perWoord[woordId].laatstGeoefend = Date.now();
     if (huidigKindCode) {
       localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
@@ -609,6 +629,7 @@ window.Voortgang = (function() {
       status: taakCache.status,
       perWoord: JSON.parse(JSON.stringify(taakCache.perWoord || {})),
       foutWoordenLaatsteToets: [...(taakCache.foutWoordenLaatsteToets || [])],
+      toetsResultaten: taakCache.toetsResultaten ? JSON.parse(JSON.stringify(taakCache.toetsResultaten)) : null,
       rapportperiodeId: taakCache.rapportperiodeId || null,
       gestart: taakCache.gestart || null
     };
@@ -654,13 +675,19 @@ window.Voortgang = (function() {
     const nieuw = _bouwTaak(taakObj);
 
     // ARCHIVEER de oude taak (indien aanwezig) voor we hem overschrijven.
-    // Zo kan de leerkracht zien wat eerder geoefend werd.
+    // Belangrijk: alleen archiveren als de oude taak AFGEWERKT was (voltooid,
+    // moeilijk of haperde). Bezige taken die bewerkt worden moeten gewoon
+    // overschreven worden — anders verschijnt dezelfde taak twee keer in de lijst.
     if (db) {
       try {
         const oudeDoc = await db.collection('kinderen').doc(code).get();
         if (oudeDoc.exists) {
           const oudeData = oudeDoc.data();
-          if (oudeData.taak && oudeData.taak.themaId &&
+          const oudeStatus = oudeData.taak && oudeData.taak.status;
+          const oudeAfgewerkt = (oudeStatus === 'voltooid' ||
+                                 oudeStatus === 'moeilijk' ||
+                                 oudeStatus === 'haperde');
+          if (oudeAfgewerkt && oudeData.taak && oudeData.taak.themaId &&
               Array.isArray(oudeData.taak.woordIds) && oudeData.taak.woordIds.length > 0) {
             const archief = {
               themaId: oudeData.taak.themaId,
@@ -672,6 +699,7 @@ window.Voortgang = (function() {
               perWoord: JSON.parse(JSON.stringify(oudeData.taak.perWoord || {})),
               foutWoordenLaatsteToets: Array.isArray(oudeData.taak.foutWoordenLaatsteToets)
                                           ? [...oudeData.taak.foutWoordenLaatsteToets] : [],
+              toetsResultaten: oudeData.taak.toetsResultaten ? JSON.parse(JSON.stringify(oudeData.taak.toetsResultaten)) : null,
               rapportperiodeId: oudeData.taak.rapportperiodeId || null
             };
             const huidigeGeschiedenis = Array.isArray(oudeData.taakgeschiedenis) ? oudeData.taakgeschiedenis : [];
@@ -726,6 +754,26 @@ window.Voortgang = (function() {
     } catch (e) {
       console.warn('Ophalen geschiedenis mislukt:', e);
       return [];
+    }
+  }
+
+  // Schrijf een (gewijzigde) geschiedenis-array terug naar Firestore.
+  // Gebruikt door leerkracht-UI om individuele archief-rijen te wissen.
+  async function zetTaakgeschiedenisVoorKind(code, geschiedenis) {
+    if (!code) return;
+    const arr = Array.isArray(geschiedenis) ? geschiedenis : [];
+    // Lokale cache bijwerken als het over huidig kind gaat
+    if (code === huidigKindCode) {
+      taakgeschiedenisCache = arr;
+      localStorage.setItem('andersleren_taakgeschiedenis_' + code, JSON.stringify(arr));
+    }
+    if (db) {
+      try {
+        await db.collection('kinderen').doc(code).update({ taakgeschiedenis: arr });
+      } catch (e) {
+        console.warn('Bewaren geschiedenis mislukt:', e);
+        throw e;
+      }
     }
   }
 
@@ -1088,6 +1136,7 @@ window.Voortgang = (function() {
     haalTaakOpVoorKind,
     haalTaakgeschiedenisOpVoorKind,
     zetTaakVoorKind,
+    zetTaakgeschiedenisVoorKind,
     // Spreektoetsen
     getSpreektoetsen,
     bewaarSpreektoets,
