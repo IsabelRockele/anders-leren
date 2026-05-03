@@ -7534,3 +7534,734 @@ h1, h2, h3 {
     flex: 1;
   }
 }
+
+
+/* ============================================================
+   SCHOOLJAAR-BALK + MENU
+   ============================================================ */
+
+.lk-schooljaar-balk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin: 0 0 6px 0;
+  background: linear-gradient(135deg, #e8f4fd 0%, #fef5e7 100%);
+  border-radius: 10px;
+  border: 1px solid #d6e6f5;
+  position: relative;
+  font-size: 14px;
+}
+
+.lk-schooljaar-icoon {
+  font-size: 18px;
+}
+
+.lk-schooljaar-label {
+  font-weight: 600;
+  color: #2D2A32;
+}
+
+.lk-schooljaar-knop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #b8d4ec;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: #1565c0;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.lk-schooljaar-knop:hover {
+  background: #f5fafe;
+}
+.lk-schooljaar-pijl {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.lk-schooljaar-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 14px;
+  background: white;
+  border: 1px solid #d6e6f5;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+  padding: 6px 0;
+  min-width: 320px;
+  max-width: 460px;
+  display: none;
+  z-index: 100;
+}
+.lk-schooljaar-menu.open {
+  display: block;
+}
+
+.lk-sj-menu-leeg,
+.lk-sj-menu-kop {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.lk-sj-menu-kop {
+  border-bottom: 1px dashed #f0e8d8;
+  margin-top: 4px;
+}
+
+.lk-sj-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid #f5f1e8;
+}
+.lk-sj-menu-item:last-child {
+  border-bottom: none;
+}
+.lk-sj-menu-item:hover {
+  background: #f9fafd;
+}
+.lk-sj-menu-item-huidig {
+  background: #fff8e7;
+}
+.lk-sj-menu-item-huidig:hover {
+  background: #fff3d4;
+}
+.lk-sj-menu-info {
+  flex: 1;
+  font-size: 14px;
+}
+.lk-sj-menu-info strong {
+  color: #2D2A32;
+}
+.lk-sj-kleine {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: #888;
+}
+.lk-sj-checkmark {
+  color: #4CAF50;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.lk-sj-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.lk-sj-badge.actief {
+  background: #c8e6c9;
+  color: #1b5e20;
+}
+.lk-sj-badge.archief {
+  background: #e0e0e0;
+  color: #555;
+}
+
+.lk-sj-menu-acties {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid #f0e8d8;
+  background: #fafbfd;
+}
+.lk-sj-menu-acties button {
+  width: 100%;
+  text-align: left;
+}
+
+/* ============================================================
+   DOORSTROOM-WIZARD
+   ============================================================ */
+
+.lk-doorstroom-modal {
+  max-width: 680px;
+}
+
+.lk-doorstroom-acties {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 12px 0;
+}
+
+.lk-doorstroom-lijst {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #ece4d2;
+  border-radius: 8px;
+  background: #fdfcf9;
+  padding: 4px;
+}
+
+.lk-doorstroom-rij {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  background: #fff;
+  border: 1px solid #f0e8d8;
+  transition: background 0.15s;
+  flex-wrap: wrap;
+}
+.lk-doorstroom-rij.aan {
+  background: #fff8e7;
+  border-color: #ffd166;
+}
+.lk-doorstroom-rij input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #ff8c42;
+}
+.lk-doorstroom-naam {
+  flex: 1;
+  min-width: 120px;
+  font-weight: 600;
+  color: #2D2A32;
+}
+.lk-doorstroom-pijl {
+  color: #999;
+  font-size: 13px;
+  min-width: 60px;
+  text-align: right;
+}
+.lk-doorstroom-klas {
+  width: 100px;
+  padding: 6px 10px;
+  border: 1px solid #d4cfbf;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.lk-doorstroom-klas:disabled {
+  opacity: 0.4;
+  background: #f5f1e8;
+}
+
+/* ============================================================
+   MIGRATIE-RAPPORT
+   ============================================================ */
+
+.lk-migratie-rapport {
+  background: #f9fafd;
+  border: 1px solid #d6e6f5;
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 13px;
+}
+.lk-migratie-rapport h3 {
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  color: #1565c0;
+}
+.lk-migratie-rapport ul {
+  margin: 4px 0 10px 18px;
+  padding: 0;
+}
+.lk-migratie-rapport li {
+  margin-bottom: 3px;
+}
+.lk-migratie-rapport p {
+  margin: 5px 0;
+}
+
+/* ============================================================
+   PERIODE-MENU UITBREIDINGEN (nummer, schooljaar-label, bewerken-knop)
+   ============================================================ */
+
+.lk-periode-menu-acties-rij {
+  display: flex;
+  gap: 4px;
+}
+.lk-periode-menu-acties-rij button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.lk-periode-sj {
+  color: #888;
+  font-weight: 400;
+  margin-left: 4px;
+}
+.lk-periode-bijnaam {
+  display: block;
+  color: #888;
+  font-size: 11.5px;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   RAPPORT-INLINE — archief-modus + banner + heropen-knop
+   ============================================================ */
+
+.lk-rap-inline-banner {
+  margin: 12px 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.lk-rap-inline-banner.archief {
+  background: #fef7e0;
+  border-left: 4px solid #f57c00;
+  color: #5d4037;
+}
+.lk-rap-inline-banner.archief strong {
+  color: #2D2A32;
+}
+
+.lk-knop-mini-link {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #f57c00;
+  border-radius: 6px;
+  color: #d84315;
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.lk-knop-mini-link:hover {
+  background: #fff3e0;
+}
+
+/* Archief-modus voor sterren-blok: minder felle visual, geen hover */
+.lk-rap-sterren-blok.archief-modus {
+  opacity: 0.85;
+  background: #f9f7f2;
+}
+.lk-rap-ster.vergrendeld {
+  cursor: default;
+}
+.lk-rap-ster.vergrendeld:hover {
+  transform: none;
+}
+
+/* Lees-modus voor categorie-blokken (afgesloten periode) */
+.lk-rap-cat-blok-leesmodus {
+  background: #fafaf7;
+}
+.lk-rap-cat-leeslijst {
+  margin: 4px 0 0 4px;
+  padding-left: 18px;
+  font-size: 13.5px;
+  color: #2D2A32;
+  line-height: 1.55;
+}
+.lk-rap-cat-leeslijst li {
+  margin-bottom: 4px;
+}
+
+/* Archief-knop in dropdown */
+.lk-rap-archief-toggle {
+  margin-left: 8px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid #d4cfbf;
+  border-radius: 6px;
+  color: #5d4037;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+.lk-rap-archief-toggle:hover {
+  background: #f5efe0;
+}
+
+/* Mobiel */
+@media (max-width: 600px) {
+  .lk-schooljaar-balk {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .lk-schooljaar-knop {
+    flex: 1;
+    justify-content: space-between;
+  }
+  .lk-schooljaar-menu {
+    left: 6px;
+    right: 6px;
+    min-width: 0;
+  }
+  .lk-doorstroom-rij {
+    gap: 6px;
+  }
+  .lk-doorstroom-naam {
+    flex-basis: 100%;
+  }
+  .lk-doorstroom-klas {
+    width: 80px;
+  }
+}
+
+
+/* ============================================================
+   PUNTENBOEK
+   ============================================================ */
+
+.lk-pb-inline {
+  margin-top: 4px;
+}
+
+.lk-pb-kop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #ece4d2;
+  flex-wrap: wrap;
+}
+.lk-pb-kop h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #2D2A32;
+  font-weight: 700;
+}
+.lk-pb-periode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lk-pb-periode label {
+  font-size: 13px;
+  color: #5d4037;
+  font-weight: 600;
+}
+.lk-pb-periode .lk-rap-periode-select {
+  width: auto;
+  min-width: 200px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+/* Vaardigheids-blok (collapsable) */
+.lk-pb-blok {
+  margin: 10px 0;
+  background: #fff;
+  border: 1px solid #ece4d2;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.lk-pb-blok.open {
+  border-color: #ffc107;
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.1);
+}
+.lk-pb-blok-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  background: #fdfcf9;
+  transition: background 0.15s;
+}
+.lk-pb-blok-header:hover {
+  background: #fff8e7;
+}
+.lk-pb-blok.open .lk-pb-blok-header {
+  background: #fff8e7;
+  border-bottom: 1px solid #ece4d2;
+}
+.lk-pb-blok-icoon {
+  font-size: 22px;
+}
+.lk-pb-blok-naam {
+  flex: 1;
+  font-weight: 700;
+  font-size: 15px;
+  color: #2D2A32;
+}
+.lk-pb-blok-stat {
+  font-size: 12.5px;
+  color: #888;
+}
+.lk-pb-blok-pct {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FF8C42;
+  min-width: 50px;
+  text-align: right;
+}
+.lk-pb-blok-pct.leeg {
+  color: #b7a99b;
+  font-weight: 400;
+  font-style: italic;
+  font-size: 12.5px;
+}
+.lk-pb-blok-pijl {
+  font-size: 12px;
+  color: #888;
+}
+.lk-pb-blok-inhoud {
+  padding: 8px 16px 14px 16px;
+}
+
+/* Toetsen-tabel */
+.lk-pb-toetsen-tabel {
+  width: 100%;
+}
+.lk-pb-toetsen-kop {
+  display: grid;
+  grid-template-columns: 1fr 70px 60px 50px 45px 70px;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #888;
+  letter-spacing: 0.4px;
+  border-bottom: 1px solid #ece4d2;
+}
+.lk-pb-rij {
+  border-bottom: 1px solid #f5f1e8;
+  padding: 4px 0;
+}
+.lk-pb-rij:last-child {
+  border-bottom: none;
+}
+.lk-pb-rij-hoofd {
+  display: grid;
+  grid-template-columns: 1fr 70px 60px 50px 45px 70px;
+  gap: 8px;
+  padding: 8px;
+  align-items: center;
+  font-size: 13px;
+  border-radius: 6px;
+}
+.lk-pb-rij.online .lk-pb-rij-hoofd {
+  background: #f0f7ff;
+}
+.lk-pb-rij.eigen .lk-pb-rij-hoofd {
+  background: #fffbf3;
+}
+.lk-pb-rij .kop-naam {
+  font-weight: 600;
+  color: #2D2A32;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lk-pb-rij .kop-datum,
+.lk-pb-rij .kop-score,
+.lk-pb-rij .kop-gewicht,
+.lk-pb-rij .kop-pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #5d4037;
+}
+.lk-pb-rij .kop-acties {
+  display: flex;
+  gap: 3px;
+  justify-content: flex-end;
+}
+.lk-pb-rij .kop-acties button {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+.lk-pb-online-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #d6e6f5;
+  color: #1565c0;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.lk-pb-opmerking {
+  margin: 4px 8px 6px 8px;
+  padding: 6px 10px;
+  background: #fff;
+  border-left: 3px solid #ffc107;
+  font-size: 12.5px;
+  color: #5d4037;
+  border-radius: 4px;
+}
+.lk-pb-opm-cat {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: #ff8c42;
+  font-weight: 600;
+}
+
+.lk-pb-leeg {
+  text-align: center;
+  color: #b7a99b;
+  font-style: italic;
+  padding: 20px 10px;
+  margin: 0;
+}
+
+.lk-pb-voeg-toe {
+  margin-top: 10px;
+  width: 100%;
+  padding: 9px;
+  background: linear-gradient(135deg, #fff8e7 0%, #ffe8d6 100%);
+  border: 1px dashed #ffc107;
+  font-weight: 600;
+  color: #5d4037;
+}
+.lk-pb-voeg-toe:hover {
+  background: linear-gradient(135deg, #fff3d4 0%, #ffd8b8 100%);
+}
+
+/* Modal: opmerking-categorie keuzes */
+.lk-pb-opm-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.lk-pb-opm-cat-keuze {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1.5px solid #d4cfbf;
+  border-radius: 18px;
+  cursor: pointer;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #5d4037;
+  transition: all 0.15s;
+}
+.lk-pb-opm-cat-keuze.aan,
+.lk-pb-opm-cat-keuze:has(input:checked) {
+  background: #fff8e7;
+  border-color: #ffc107;
+  color: #2D2A32;
+}
+.lk-pb-opm-cat-keuze input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Puntenboek-opmerkingen blok in rapport-werkomgeving */
+.lk-rap-pb-blok {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #ece4d2;
+}
+.lk-rap-pb-kop {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5d4037;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+}
+.lk-rap-zin-pb {
+  background: #fff8e7;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+.lk-rap-zin-pb .lk-rap-zin-tekst {
+  background: #fff;
+}
+.lk-rap-zin-pb.aangevinkt .lk-rap-zin-tekst {
+  border-color: #ffc107;
+}
+.lk-rap-pb-tekst-blok {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lk-rap-pb-bron {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+  padding-left: 9px;
+}
+
+/* Mobiel — toetsen-tabel grid herorganiseren */
+@media (max-width: 600px) {
+  .lk-pb-toetsen-kop {
+    display: none;  /* op mobiel toont elke rij zijn eigen labels */
+  }
+  .lk-pb-rij-hoofd {
+    grid-template-columns: 1fr 60px 60px;
+    grid-template-areas:
+      "naam naam acties"
+      "datum score pct"
+      "gewicht gewicht gewicht";
+    row-gap: 4px;
+  }
+  .lk-pb-rij-hoofd .kop-naam { grid-area: naam; }
+  .lk-pb-rij-hoofd .kop-datum { grid-area: datum; text-align: left; font-size: 11.5px; color: #888; }
+  .lk-pb-rij-hoofd .kop-score { grid-area: score; }
+  .lk-pb-rij-hoofd .kop-pct { grid-area: pct; }
+  .lk-pb-rij-hoofd .kop-gewicht { grid-area: gewicht; text-align: left; font-size: 11.5px; color: #888; }
+  .lk-pb-rij-hoofd .kop-gewicht::before { content: "Gewicht: "; }
+  .lk-pb-rij-hoofd .kop-acties { grid-area: acties; }
+}
+
+
+/* ============================================================
+   RAPPORT — eigen zin toevoegen knop (naast Claude-suggesties)
+   ============================================================ */
+
+.lk-rap-cat-knoppen {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.lk-rap-eigen-knop {
+  padding: 7px 14px;
+  background: linear-gradient(135deg, #fff8e7 0%, #ffe8d6 100%);
+  border: 1px dashed #ffb74d;
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5d4037;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.lk-rap-eigen-knop:hover {
+  background: linear-gradient(135deg, #fff3d4 0%, #ffd8b8 100%);
+}
+
+@media (max-width: 600px) {
+  .lk-rap-cat-knoppen {
+    flex-direction: column;
+  }
+  .lk-rap-cat-knoppen button {
+    width: 100%;
+  }
+}
