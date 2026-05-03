@@ -215,9 +215,10 @@ window.PDFEngine = (function() {
   /**
    * Tekent een rij met picto-instructies bovenaan een oefening.
    * picto's: array zoals ['👁️', '✏️'] = "kijk → schrijf"
+   * uitleg (optioneel): korte zin in helder lettertype rechts naast de pictogrammen
    * Returns y-positie waar inhoud kan beginnen.
    */
-  function tekenPictoInstructie(doc, y, pictos) {
+  function tekenPictoInstructie(doc, y, pictos, uitleg) {
     const hoogte = 16;
     const startX = M;
 
@@ -249,6 +250,18 @@ window.PDFEngine = (function() {
       }
       pictoX += pictoSpacing;
     });
+
+    // Uitlegtekst rechts naast de pictogrammen — vetgedrukt en in donkergrijs zodat
+    // het kind het meteen ziet
+    if (uitleg) {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      // Start na de laatste picto + wat lucht
+      const tekstX = pictoX + 4;
+      doc.text(uitleg, tekstX, pictoY + 1.5);
+      doc.setFont('helvetica', 'normal');
+    }
 
     return y + hoogte + 6;
   }
@@ -1212,6 +1225,503 @@ window.PDFEngine = (function() {
   }
 
   // ---------------------------------------------------------------
+  // ---------------------------------------------------------------
+  //  OEFENING 11: Categoriseren
+  //  Eén oefening met drie varianten gestuurd door het niveau:
+  //   - basis        → "Welk hoort er niet bij?" (oneven eruit)
+  //   - uitbreiding  → "Sorteer in 2 groepen"
+  //   - verdieping   → "Sorteer in 3+ groepen"
+  //
+  //  De engine kiest zelf welke categorieën spelen op basis van wat
+  //  beschikbaar is in thema.items (categorieën met genoeg woorden).
+  // ---------------------------------------------------------------
+
+  // Helper: groepeer items per categorie. Items zonder categorie → '_geen'.
+  function _itemsPerCategorie(items) {
+    const map = {};
+    items.forEach(it => {
+      const c = it.categorie || '_geen';
+      if (!map[c]) map[c] = [];
+      map[c].push(it);
+    });
+    return map;
+  }
+
+  // Helper: vind categorieën met minstens N items, gesorteerd op aantal (groot→klein)
+  function _bruikbareCategorieen(items, minItems) {
+    const perCat = _itemsPerCategorie(items);
+    const lijst = [];
+    Object.keys(perCat).forEach(cat => {
+      if (cat === '_geen') return; // sla items zonder categorie over
+      if (perCat[cat].length >= minItems) {
+        lijst.push({ categorie: cat, items: perCat[cat] });
+      }
+    });
+    lijst.sort((a, b) => b.items.length - a.items.length);
+    return lijst;
+  }
+
+  // Helper: emoji + label voor categorie (mirror van CATEGORIE_LABELS in leerkracht.js)
+  const PDF_CATEGORIE_LABELS = {
+    // Klas
+    voorwerpen:  { label: 'voorwerpen',  emoji: '📦' },
+    werkwoorden: { label: 'werkwoorden', emoji: '🏃' },
+    personen:    { label: 'personen',    emoji: '👤' },
+    plaatsen:    { label: 'plaatsen',    emoji: '📍' },
+    situaties:   { label: 'situaties',   emoji: '🤫' },
+    // Lichaam & kleding
+    lichaam:     { label: 'lichaam',     emoji: '👤' },
+    kleren:      { label: 'kleren',      emoji: '👕' },
+    // Eten & drinken
+    eten:        { label: 'eten',        emoji: '🥪' },
+    drinken:     { label: 'drinken',     emoji: '🥛' },
+    bestek:      { label: 'bestek',      emoji: '🍽️' },
+    // Familie & gevoelens
+    familie:     { label: 'familie',     emoji: '👨‍👩‍👧' },
+    gevoelens:   { label: 'gevoelens',   emoji: '😊' },
+    // Dieren & natuur
+    dieren:      { label: 'dieren',      emoji: '🐶' },
+    natuur:      { label: 'natuur',      emoji: '🌳' },
+    weer:        { label: 'weer',        emoji: '☀️' },
+    // Cijfers
+    getallen:    { label: 'getallen',    emoji: '🔢' },
+    hoeveelheid: { label: 'hoeveelheid', emoji: '➕' },
+    // Thuis
+    kamers:      { label: 'kamers',      emoji: '🏠' },
+    meubels:     { label: 'meubels',     emoji: '🛏️' },
+    keukenspullen: { label: 'keukenspullen', emoji: '🍳' },
+    // Wat doe ik?
+    'op-school':      { label: 'op school', emoji: '📚' },
+    thuis:            { label: 'thuis',     emoji: '🏠' },
+    'sociale-acties': { label: 'samen',     emoji: '🤝' }
+  };
+  function _catLabel(cat, thema) {
+    // 1. Eerst kijken naar thema-eigen labels (bv. mix-thema met thema-IDs als cat)
+    if (thema && thema._categorieLabels && thema._categorieLabels[cat]) {
+      return thema._categorieLabels[cat];
+    }
+    // 2. Standaard PDF_CATEGORIE_LABELS lookup
+    return PDF_CATEGORIE_LABELS[cat] || { label: cat, emoji: '•' };
+  }
+
+  // ---------------------------------------------------------------
+  //  Variant A: BASIS — "Welk hoort er niet bij?"
+  //  6 rijen × 4 beelden. Per rij: 3 uit één categorie + 1 oneven.
+  // ---------------------------------------------------------------
+  function tekenCategoriseerBasis(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: welk hoort er niet bij?' : 'Oefening: welk hoort er niet bij?');
+    y = tekenPictoInstructie(doc, y, ['👁️', '✗']);
+
+    // Categorieën die minstens 3 items hebben → kunnen "3 uit dezelfde + 1 anders" leveren
+    const bruikbaar = _bruikbareCategorieen(thema.items, 3);
+
+    // Fallback: als er geen 2 categorieën met minstens 3 items zijn, kunnen we deze oefening niet tekenen
+    if (bruikbaar.length < 2) {
+      doc.setFontSize(11);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Deze oefening werkt alleen bij thema\'s met genoeg woorden in minstens 2 categorieën.', M, y + 10);
+      tekenVoet(doc);
+      return;
+    }
+
+    // Bouw 5 rijen
+    const aantalRijen = 5;
+    const rijen = [];
+    for (let i = 0; i < aantalRijen; i++) {
+      // Kies een hoofdcategorie (cycle door bruikbare → variatie)
+      const hoofd = bruikbaar[i % bruikbaar.length];
+      // Kies 3 woorden uit hoofdcategorie
+      const drie = schud(hoofd.items).slice(0, 3);
+      // Kies 1 woord uit een andere categorie
+      const anderen = bruikbaar.filter(b => b.categorie !== hoofd.categorie);
+      const anderCat = anderen[Math.floor(_rng() * anderen.length)];
+      const oneven = schud(anderCat.items).slice(0, 1)[0];
+      // Plaats oneven op willekeurige positie (0-3) tussen de drie
+      const posOneven = Math.floor(_rng() * 4);
+      const vier = [...drie];
+      vier.splice(posOneven, 0, oneven);
+      // (vier heeft nu 5 elementen door splice; truncate naar 4)
+      vier.length = 4;
+      // Borgcheck: oneven echt aanwezig?
+      if (vier.indexOf(oneven) === -1) vier[3] = oneven;
+      rijen.push({ vier, oneven });
+    }
+
+    // Layout: 6 rijen × 4 vakjes naast elkaar
+    // Layout: 5 rijen × 4 vakjes naast elkaar
+    // rH = 40 geeft 11.5mm lucht tussen aankruisvakje en volgend beeld
+    // (beeld 22mm + vakje-offset 1.5 + vakje 5 = 28.5mm → 11.5mm marge tussen rijen)
+    // 5 rijen × 40 = 200mm — past comfortabel binnen pagina-budget (17mm marge)
+    const rH = 40;
+    const beeldGr = 22;
+    const totaleBreedte = 4 * beeldGr + 3 * 8; // 4 beelden + 3 gaps
+    const startX = (PB - totaleBreedte) / 2;
+
+    rijen.forEach((rij, i) => {
+      const yR = y + i * rH;
+      rij.vier.forEach((item, j) => {
+        const x = startX + j * (beeldGr + 8);
+        // Vakje voor beeld
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(220, 210, 190);
+        doc.setLineWidth(0.4);
+        doc.roundedRect(x, yR, beeldGr, beeldGr, 3, 3, 'FD');
+        plaatsItemBeeld(doc, item, x + beeldGr / 2, yR + beeldGr / 2, beeldGr - 4);
+
+        // Aankruisvak onder beeld
+        const vakGr = 5;
+        const vakX = x + beeldGr / 2 - vakGr / 2;
+        const vakY = yR + beeldGr + 1.5;
+        doc.setDrawColor(45, 42, 50);
+        doc.setLineWidth(0.4);
+        doc.rect(vakX, vakY, vakGr, vakGr);
+
+        // OPLOSSING: kruisje + groen kader bij oneven
+        if (opgelost && item === rij.oneven) {
+          doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+          doc.setLineWidth(0.8);
+          doc.rect(vakX, vakY, vakGr, vakGr);
+          doc.setLineWidth(0.6);
+          doc.line(vakX + 0.8, vakY + 0.8, vakX + vakGr - 0.8, vakY + vakGr - 0.8);
+          doc.line(vakX + vakGr - 0.8, vakY + 0.8, vakX + 0.8, vakY + vakGr - 0.8);
+        }
+      });
+
+      // Lichte scheidingslijn tussen rijen
+      if (i < rijen.length - 1) {
+        doc.setDrawColor(240, 232, 215);
+        doc.setLineWidth(0.2);
+        doc.line(M, yR + rH - 2, PB - M, yR + rH - 2);
+      }
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  Variant B: UITBREIDING — "Sorteer in 2 groepen" met kleurcode
+  //  Bovenaan: 2 kolom-koppen, elk met een gekleurd vak (kleur cycleert per werkblad)
+  //  Daaronder: woorden met een wit cirkeltje. Kind kleurt elk cirkeltje
+  //  in de kleur van de juiste groep.
+  // ---------------------------------------------------------------
+  function tekenCategoriseerUitbreiding(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: kleur per groep' : 'Oefening: kleur per groep');
+    y = tekenPictoInstructie(doc, y, ['👁️', '🎨']);
+    return _tekenSorteerKleur(doc, thema, opgelost, y, 2);
+  }
+
+  // ---------------------------------------------------------------
+  //  Variant C: VERDIEPING — "Schrijf in juiste kolom"
+  //  Bovenaan: woordvoorraad in een kader.
+  //  Daaronder: 3+ kolommen met kop + lege schrijflijntjes.
+  // ---------------------------------------------------------------
+  function tekenCategoriseerVerdieping(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: schrijf in juiste kolom' : 'Oefening: schrijf in juiste kolom');
+    y = tekenPictoInstructie(doc, y, ['👁️', '✏️']);
+    return _tekenSorteerSchrijven(doc, thema, opgelost, y, 3);
+  }
+
+  // Kleurpalet voor uitbreiding — pastel/krijtkleuren goed onderscheidbaar voor kinderen
+  // Kind kleurt met potlood/stift; de PDF toont op de oplossing de juiste kleur.
+  const _SORTEER_KLEUREN = [
+    { naam: 'blauw',  rgb: [76, 145, 215] },
+    { naam: 'geel',   rgb: [240, 195, 70] },
+    { naam: 'groen',  rgb: [120, 185, 95] },
+    { naam: 'rood',   rgb: [220, 100, 95] },
+    { naam: 'paars',  rgb: [165, 130, 200] },
+    { naam: 'oranje', rgb: [240, 145, 65] }
+  ];
+
+  // Gemeenschappelijke setup: kies categorieën + bouw woordenlijst + check minimum
+  // Returns: { gekozen, alle } of null bij onvoldoende data (en tekent fallback-melding)
+  function _sorteerSetup(doc, thema, y, gewensteAantalGroepen, perGroep) {
+    const bruikbaar = _bruikbareCategorieen(thema.items, 2);
+    if (bruikbaar.length < gewensteAantalGroepen) {
+      doc.setFontSize(11);
+      doc.setTextColor(120, 120, 120);
+      const minTekst = gewensteAantalGroepen === 2
+        ? 'minstens 2 categorieën'
+        : 'minstens 3 categorieën';
+      doc.text('Deze oefening werkt alleen bij thema\'s met ' + minTekst + ' (elk met 2+ woorden).', M, y + 10);
+      tekenVoet(doc);
+      return null;
+    }
+    const maxGroepen = gewensteAantalGroepen === 2 ? 2 : Math.min(4, bruikbaar.length);
+    const gekozen = bruikbaar.slice(0, maxGroepen);
+    const alle = [];
+    gekozen.forEach(g => {
+      const stuk = schud(g.items).slice(0, perGroep);
+      stuk.forEach(item => alle.push({ item, categorie: g.categorie }));
+    });
+    return { gekozen, alle };
+  }
+
+  // ---------------------------------------------------------------
+  //  Renderer voor UITBREIDING — kleurcode per groep
+  // ---------------------------------------------------------------
+  function _tekenSorteerKleur(doc, thema, opgelost, y, gewensteAantalGroepen) {
+    const setup = _sorteerSetup(doc, thema, y, gewensteAantalGroepen, 3);
+    if (!setup) return;
+    const { gekozen, alle } = setup;
+
+    // Cycle door kleuren — eerste categorie krijgt eerste kleur, enz.
+    // Schud de kleuren-volgorde zodat het per werkblad anders is (gebruikt _rng → seed)
+    const kleurenGeschud = schud(_SORTEER_KLEUREN);
+    const kleurMap = {};
+    gekozen.forEach((g, i) => {
+      kleurMap[g.categorie] = kleurenGeschud[i % kleurenGeschud.length];
+    });
+
+    // ============== LEGENDE BOVENAAN ==============
+    // Per categorie: gekleurd vak + categorie-naam + kleurnaam
+    const aantalKol = gekozen.length;
+    const kolGap = 6;
+    const kolBreed = (IB - (aantalKol - 1) * kolGap) / aantalKol;
+    const legHoog = 18;
+
+    gekozen.forEach((g, i) => {
+      const x = M + i * (kolBreed + kolGap);
+      const lab = _catLabel(g.categorie, thema);
+      const kl = kleurMap[g.categorie];
+
+      // Categorie-vak met lichte achtergrond
+      doc.setFillColor(255, 252, 246);
+      doc.setDrawColor(220, 210, 190);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(x, y, kolBreed, legHoog, 3, 3, 'FD');
+
+      // Emoji + categorie-naam links
+      plaatsEmoji(doc, lab.emoji, x + 8, y + legHoog / 2, 9);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      doc.text(lab.label, x + 16, y + legHoog / 2 + 1.5);
+      doc.setFont('helvetica', 'normal');
+
+      // Gekleurd staal rechts + kleurnaam
+      const staalGr = 8;
+      const staalX = x + kolBreed - staalGr - 22;
+      const staalY = y + (legHoog - staalGr) / 2;
+      doc.setFillColor(kl.rgb[0], kl.rgb[1], kl.rgb[2]);
+      doc.setDrawColor(120, 120, 120);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(staalX, staalY, staalGr, staalGr, 1.5, 1.5, 'FD');
+
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text(kl.naam, staalX + staalGr + 3, y + legHoog / 2 + 1);
+    });
+
+    const woordenStartY = y + legHoog + 10;
+
+    // ============== WOORDEN ==============
+    // Woorden geschud — 2 kolommen, met klein cirkeltje om te kleuren
+    const geschud = schud(alle);
+    const wH = 16;
+    const wBreed = 80;
+    const wGap = 6;
+    const totaalRijBr = 2 * wBreed + wGap;
+    const startWX = (PB - totaalRijBr) / 2;
+
+    geschud.forEach((entry, i) => {
+      const kol = i % 2;
+      const rij = Math.floor(i / 2);
+      const x = startWX + kol * (wBreed + wGap);
+      const yW = woordenStartY + rij * (wH + 4);
+
+      // Vak met woord
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 210, 190);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(x, yW, wBreed, wH, 3, 3, 'FD');
+
+      // Beeld links
+      plaatsItemBeeld(doc, entry.item, x + 8, yW + wH / 2, 11);
+
+      // Tekst
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      doc.text(entry.item.tekst, x + 17, yW + wH / 2 + 1.5);
+      doc.setFont('helvetica', 'normal');
+
+      // Kleur-cirkel rechts in vak — leeg om te kleuren
+      const cirkelR = 3;
+      const cirkelX = x + wBreed - cirkelR - 4;
+      const cirkelY = yW + wH / 2;
+
+      if (opgelost) {
+        // OPLOSSING: cirkel ingekleurd in juiste kleur
+        const kl = kleurMap[entry.categorie];
+        if (kl) {
+          doc.setFillColor(kl.rgb[0], kl.rgb[1], kl.rgb[2]);
+          doc.setDrawColor(80, 80, 80);
+          doc.setLineWidth(0.4);
+          doc.circle(cirkelX, cirkelY, cirkelR, 'FD');
+        }
+      } else {
+        // OEFENING: leeg cirkeltje om te kleuren
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(160, 160, 160);
+        doc.setLineWidth(0.4);
+        doc.circle(cirkelX, cirkelY, cirkelR, 'FD');
+      }
+    });
+
+    tekenVoet(doc);
+  }
+
+  // ---------------------------------------------------------------
+  //  Renderer voor VERDIEPING — woordvoorraad + schrijflijntjes
+  // ---------------------------------------------------------------
+  function _tekenSorteerSchrijven(doc, thema, opgelost, y, gewensteAantalGroepen) {
+    // Verdieping: bij minder woorden per groep om plaats te laten voor schrijfruimte
+    const setup = _sorteerSetup(doc, thema, y, gewensteAantalGroepen, 3);
+    if (!setup) return;
+    const { gekozen, alle } = setup;
+
+    // ============== WOORDVOORRAAD BOVENAAN ==============
+    const woordenGeschud = schud(alle);
+
+    // Eerst meten: hoeveel rijen heeft de woordvoorraad nodig?
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    const itemGap = 4;
+    const beeldGr = 8;
+    const beeldRuimte = 9; // beeld + kleine offset naar tekst
+    const lijnHoog = 8;
+    const padX = 6;
+    const startInhoud = M + padX;
+    const eindInhoud = M + IB - padX;
+
+    // Bereken posities zodat we vooraf de hoogte kennen
+    const posities = []; // {x, y, item, tekst, breedte}
+    let cursorX = startInhoud;
+    let huidigeRij = 0;
+    woordenGeschud.forEach((entry) => {
+      const tekstBr = doc.getTextWidth(entry.item.tekst);
+      const itemBr = beeldRuimte + tekstBr;
+      // Past het nog op deze regel?
+      if (cursorX + itemBr > eindInhoud && cursorX > startInhoud) {
+        huidigeRij++;
+        cursorX = startInhoud;
+      }
+      posities.push({ x: cursorX, rij: huidigeRij, item: entry.item, tekstX: cursorX + beeldRuimte });
+      cursorX += itemBr + itemGap + 4;
+    });
+    const aantalRijen = huidigeRij + 1;
+    const voorraadHoog = Math.max(22, 8 + aantalRijen * lijnHoog + 6);
+    doc.setFont('helvetica', 'normal');
+
+    doc.setFillColor(255, 252, 246);
+    doc.setDrawColor(220, 180, 100);
+    doc.setLineWidth(0.5);
+    doc.setLineDashPattern([1.5, 1], 0);
+    doc.roundedRect(M, y, IB, voorraadHoog, 3, 3, 'FD');
+    doc.setLineDashPattern([], 0);
+
+    // Label "WOORDEN" linksboven
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(232, 159, 15);
+    doc.text('WOORDEN', M + 4, y + 5);
+
+    // Woorden tekenen op de berekende posities
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(45, 42, 50);
+    const eersteRijY = y + 13;
+    posities.forEach(p => {
+      const yItem = eersteRijY + p.rij * lijnHoog;
+      plaatsItemBeeld(doc, p.item, p.x + 4, yItem - 2, beeldGr);
+      doc.text(p.item.tekst, p.tekstX, yItem);
+    });
+    doc.setFont('helvetica', 'normal');
+
+    const kolStartY = y + voorraadHoog + 8;
+
+    // ============== KOLOMMEN MET SCHRIJFLIJNTJES ==============
+    // Layout-regels:
+    //   2 cat → 2 naast elkaar (1 rij)
+    //   3 cat → 3 naast elkaar (1 rij)
+    //   4+ cat → 2 kolommen per rij, dus 4 cats = 2×2 grid met dubbele kolombreedte
+    const aantalCat = gekozen.length;
+    const kolGap = 4;
+    const rijGap = 6;
+    const kolPerRij = (aantalCat >= 4) ? 2 : aantalCat;
+    const kolBreed = (IB - (kolPerRij - 1) * kolGap) / kolPerRij;
+    const kopHoog = 16;
+
+    // Aantal schrijflijntjes per kolom — gebaseerd op aantal woorden in die categorie in 'alle'
+    // Bij 2-rij layout (4+ cats): max 3 lijntjes per kolom om binnen pagina te blijven
+    // Bij 1-rij layout: max 4 lijntjes per kolom
+    const maxLijnenInRij = (kolPerRij === 2 && aantalCat >= 4) ? 3 : 4;
+    const lijnenPerKol = {};
+    gekozen.forEach(g => {
+      const aantal = alle.filter(a => a.categorie === g.categorie).length;
+      lijnenPerKol[g.categorie] = Math.min(maxLijnenInRij, aantal);
+    });
+
+    // Bepaal de hoogte van één rij (kop + ruimte + lijnen + lucht onderaan)
+    const lijnGap = 12;
+    const ruimteKopNaarLijn = 12; // meer lucht tussen kop en eerste schrijflijn
+    const rijHoog = kopHoog + ruimteKopNaarLijn + maxLijnenInRij * lijnGap + 6;
+
+    gekozen.forEach((g, i) => {
+      const kolIdx = i % kolPerRij;
+      const rijIdx = Math.floor(i / kolPerRij);
+      const x = M + kolIdx * (kolBreed + kolGap);
+      const yKop = kolStartY + rijIdx * (rijHoog + rijGap);
+      const lab = _catLabel(g.categorie, thema);
+
+      // Kop-vak
+      doc.setFillColor(255, 244, 224);
+      doc.setDrawColor(255, 182, 39);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(x, yKop, kolBreed, kopHoog, 3, 3, 'FD');
+      plaatsEmoji(doc, lab.emoji, x + 8, yKop + kopHoog / 2, 9);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 42, 50);
+      doc.text(lab.label, x + 16, yKop + kopHoog / 2 + 1.5);
+      doc.setFont('helvetica', 'normal');
+
+      // Schrijflijntjes onder de kop — kleinere padding zodat lijnen langer zijn
+      const lijnenStart = yKop + kopHoog + ruimteKopNaarLijn;
+      const lijnPadding = 2;
+      const lijnX1 = x + lijnPadding;
+      const lijnX2 = x + kolBreed - lijnPadding;
+      const aantalLijnen = lijnenPerKol[g.categorie];
+
+      for (let j = 0; j < aantalLijnen; j++) {
+        const lijnY = lijnenStart + j * lijnGap;
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineWidth(0.3);
+        doc.line(lijnX1, lijnY, lijnX2, lijnY);
+      }
+
+      // OPLOSSING: woorden uit deze categorie groen op de lijntjes
+      if (opgelost) {
+        const woordenInGroep = alle.filter(a => a.categorie === g.categorie);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
+        woordenInGroep.slice(0, aantalLijnen).forEach((entry, j) => {
+          const lijnY = lijnenStart + j * lijnGap;
+          doc.text(entry.item.tekst, lijnX1 + 1, lijnY - 1);
+        });
+        doc.setFont('helvetica', 'normal');
+      }
+    });
+
+    tekenVoet(doc);
+  }
+
+  // Niveau-bepaling per categoriseer-variant gebeurt nu via aparte oefen-keys
+  // (categoriseerBasis / categoriseerUitbreiding / categoriseerVerdieping).
+  // De ctx-parameter wordt niet meer gebruikt voor categoriseer, maar blijft
+  // beschikbaar voor toekomstige uitbreidingen.
+
   //  HOOFDFUNCTIE
   //  themaConfigs: array van { thema, oefeningen[], niveau }
   //  opties.verdeling: 'mengen' (alle items door elkaar — alleen zinvol als alle thema's dezelfde oefeningen hebben)
@@ -1227,7 +1737,10 @@ window.PDFEngine = (function() {
     knip: tekenKnipoefening,
     kleurkoppel: tekenKleurKoppel,
     woordzoeker: tekenWoordzoeker,
-    kaartjes: tekenWoordkaartjes
+    kaartjes: tekenWoordkaartjes,
+    categoriseerBasis: tekenCategoriseerBasis,
+    categoriseerUitbreiding: tekenCategoriseerUitbreiding,
+    categoriseerVerdieping: tekenCategoriseerVerdieping
   };
 
   function maakWerkblad(themaConfigs, opties) {
@@ -1299,7 +1812,7 @@ window.PDFEngine = (function() {
 
     let eerste = true;
     const add = () => { if (!eerste) doc.addPage(); eerste = false; };
-    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes'];
+    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
     if (isMengen) {
       const allItems = [];
