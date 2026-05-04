@@ -312,11 +312,16 @@ function taakStartFase(fase) {
 }
 
 // Helper: welke fases krijgen een intro-tussenscherm?
+// Uitzondering: 'luisteren-oef' krijgt GEEN algemene intro meer, want daar volgt
+// meteen daarna een oefenvorm-specifieke intro (Klikspel/Verbinden/Verslepen).
+// Dat dubbele uitleg-scherm was overbodig en verwarrend.
+// 'lezen-oef' en 'schrijven-oef' hebben geen sub-varianten en krijgen wel hun
+// eigen intro.
 function _isIntroFase(fase) {
   return [
-    'luisteren-oef', 'luisteren-toets',
     'lezen-oef',     'lezen-toets',
-    'schrijven-oef', 'schrijven-toets'
+    'schrijven-oef', 'schrijven-toets',
+    'luisteren-toets'
   ].indexOf(fase) !== -1;
 }
 
