@@ -20,6 +20,82 @@ function lkBekijkKindApp(code) {
   window.open(lkKindAppUrl(code), '_blank', 'noopener');
 }
 
+// Preview-modus: open de kind-app in een grote popup binnen het leerkracht-scherm.
+// Voortgang wordt NIET aangetast (preview=1 schakelt schrijfacties uit).
+function lkPreviewTaak(code, naam) {
+  // CSS voor preview-popup eenmalig injecteren
+  if (!document.getElementById('lk-preview-style')) {
+    const style = document.createElement('style');
+    style.id = 'lk-preview-style';
+    style.textContent = `
+      .lk-preview-bg {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+        z-index: 10000; display: flex; align-items: center; justify-content: center;
+        padding: 20px;
+      }
+      .lk-preview-doos {
+        background: #fff; border-radius: 12px;
+        width: 100%; max-width: 1000px; height: 90vh; max-height: 800px;
+        display: flex; flex-direction: column; overflow: hidden;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+      }
+      .lk-preview-kop {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 12px 18px; border-bottom: 1px solid #e5e7eb;
+        background: #fef3c7;
+      }
+      .lk-preview-titel {
+        font-weight: 600; color: #78350f; font-size: 15px;
+        display: flex; align-items: center; gap: 8px;
+      }
+      .lk-preview-uitleg {
+        font-size: 12px; color: #92400e; font-weight: 400;
+      }
+      .lk-preview-sluit {
+        background: #fff; border: 1px solid #d1d5db; border-radius: 6px;
+        padding: 6px 14px; font-size: 14px; cursor: pointer; color: #1f2937;
+      }
+      .lk-preview-sluit:hover { background: #f3f4f6; }
+      .lk-preview-iframe {
+        flex: 1; width: 100%; border: 0; background: #fff;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Bouw URL met code + preview-flag
+  const url = lkKindAppUrl(code) + '&preview=1';
+  const naamWeergave = naam || code;
+
+  // Verwijder bestaande popup als die er nog is
+  const oud = document.getElementById('lk-preview-bg');
+  if (oud) oud.remove();
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-preview-bg';
+  bg.className = 'lk-preview-bg';
+  bg.onclick = (e) => { if (e.target === bg) lkSluitPreview(); };
+
+  bg.innerHTML = `
+    <div class="lk-preview-doos">
+      <div class="lk-preview-kop">
+        <div class="lk-preview-titel">
+          👁️ Preview taak van ${naamWeergave}
+          <span class="lk-preview-uitleg">— niets wordt bewaard</span>
+        </div>
+        <button class="lk-preview-sluit" onclick="lkSluitPreview()">✕ Sluiten</button>
+      </div>
+      <iframe class="lk-preview-iframe" src="${url}" title="Preview voor leerkracht"></iframe>
+    </div>
+  `;
+  document.body.appendChild(bg);
+}
+
+function lkSluitPreview() {
+  const bg = document.getElementById('lk-preview-bg');
+  if (bg) bg.remove();
+}
+
 // Lijst van alle verwachte thema-globals
 const VERWACHTE_THEMAS_LK = [
   ['THEMA_STARTPAKKET', 'startpakket.js'],
@@ -480,13 +556,15 @@ function _lkRendererTaken(kind) {
       wbKnop = `<button class="lk-knop-mini" onclick="lkTaakWerkbladen('${kind.code}', ${entry.archiefIdx})" title="Werkbladen maken met deze woorden">📝</button>`;
     }
 
-    // Bewerken + wissen logica:
-    //   - Huidige taak  → ✏️ bewerken + 🗑️ wissen (verwijdert huidige taak)
+    // Bewerken + wissen + preview logica:
+    //   - Huidige taak  → 👁️ bekijken + ✏️ bewerken + 🗑️ wissen
     //   - Archief-taak  → 🗑️ wissen (verwijdert uit geschiedenis)
     let bewerkKnop = '';
     let wisKnop = '';
+    let previewKnop = '';
     if (entry.isHuidig) {
       const naamSafe2 = (kind.naam || '').replace(/'/g, "\\'");
+      previewKnop = `<button class="lk-knop-mini" onclick="lkPreviewTaak('${kind.code}', '${naamSafe2}')" title="Bekijk de taak zoals het kind hem ziet (zonder voortgang aan te tasten)">👁️</button>`;
       bewerkKnop = `<button class="lk-knop-mini" onclick="lkBeheerTaak('${kind.code}', '${naamSafe2}')" title="Taak bewerken">✏️</button>`;
       wisKnop = `<button class="lk-knop-mini gevaar" onclick="lkTaakWissenDirect('${kind.code}')" title="Huidige taak wissen">🗑️</button>`;
     } else {
@@ -501,7 +579,7 @@ function _lkRendererTaken(kind) {
         <span class="lk-taakrij-thema">${themaNaam} ${huidigBadge}</span>
         <span class="lk-taakrij-status">${statusBadge}</span>
         <span class="lk-taakrij-score">${scoreTekst}</span>
-        <span class="lk-taakrij-acties">${bewerkKnop}${wbKnop}${pdfKnop}${wisKnop}</span>
+        <span class="lk-taakrij-acties">${previewKnop}${bewerkKnop}${wbKnop}${pdfKnop}${wisKnop}</span>
       </div>
     `;
   });
