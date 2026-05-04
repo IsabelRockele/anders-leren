@@ -3944,24 +3944,40 @@ const CATEGORIE_LABELS = {
   // Lichaam & kleding
   lichaam:     { label: 'lichaam',     emoji: '👤' },
   kleren:      { label: 'kleren',      emoji: '👕' },
-  // Eten & drinken
+  // Eten & drinken (oud, blijven voor backward compat)
   eten:        { label: 'eten',        emoji: '🥪' },
   drinken:     { label: 'drinken',     emoji: '🥛' },
   bestek:      { label: 'bestek',      emoji: '🍽️' },
+  // Eten & drinken (nieuwe categorieën)
+  groenten:    { label: 'groenten',    emoji: '🥕' },
+  fruit:       { label: 'fruit',       emoji: '🍎' },
+  drank:       { label: 'drank',       emoji: '🥛' },
+  snoepgoed:   { label: 'snoepgoed',   emoji: '🍬' },
+  broodbeleg:  { label: 'broodbeleg',  emoji: '🧀' },
+  andere:      { label: 'andere',      emoji: '🍲' },
+  optafel:     { label: 'op tafel',    emoji: '🍽️' },
   // Familie & gevoelens
   familie:     { label: 'familie',     emoji: '👨‍👩‍👧' },
   gevoelens:   { label: 'gevoelens',   emoji: '😊' },
-  // Dieren & natuur
+  // Dieren & natuur (oud, backward compat)
   dieren:      { label: 'dieren',      emoji: '🐶' },
   natuur:      { label: 'natuur',      emoji: '🌳' },
   weer:        { label: 'weer',        emoji: '☀️' },
+  // Dieren & natuur (nieuwe categorieën)
+  boerderijdieren:  { label: 'boerderijdieren',  emoji: '🐮' },
+  huisdieren:       { label: 'huisdieren',       emoji: '🐱' },
+  waterdieren:      { label: 'in het water',     emoji: '🐟' },
+  dierentuindieren: { label: 'dierentuin',       emoji: '🦁' },
+  planten:          { label: 'planten',          emoji: '🌿' },
   // Cijfers
   getallen:    { label: 'getallen',    emoji: '🔢' },
   hoeveelheid: { label: 'hoeveelheid', emoji: '➕' },
-  // Thuis
+  // Thuis (oud, backward compat)
   kamers:      { label: 'kamers',      emoji: '🏠' },
   meubels:     { label: 'meubels',     emoji: '🛏️' },
   keukenspullen: { label: 'keukenspullen', emoji: '🍳' },
+  // Thuis (nieuwe categorie)
+  toestellen:  { label: 'toestellen',  emoji: '📺' },
   // Wat doe ik?
   'op-school':      { label: 'op school',     emoji: '📚' },
   thuis:            { label: 'thuis',         emoji: '🏠' },
@@ -4003,7 +4019,11 @@ function nieuwThemaConfig(thema) {
     // zijn altijd zichtbaar en aanvinkbaar onder hun groepslabel
     niveau: 'basis',
     oefeningen: new Set(),  // niets default aangevinkt — leerkracht kiest zelf
-    categorieen: cats
+    categorieen: cats,
+    // Nieuw: per-item uitsluiting binnen een werkblad. Standaard leeg (alles aan).
+    // Leerkracht opent "Kies woorden" en vinkt items uit die ze niet wil.
+    // State per sessie — niet bewaard in storage.
+    uitgeslotenItems: new Set()
   };
 }
 
@@ -4018,7 +4038,9 @@ function toggleThemaOefening(themaId, oefKey) {
   if (!cfg) return;
   if (cfg.oefeningen.has(oefKey)) cfg.oefeningen.delete(oefKey);
   else cfg.oefeningen.add(oefKey);
+  const scrollY = window.scrollY;
   rendererThemaPaneel(themaId);
+  window.scrollTo({ top: scrollY, behavior: 'instant' });
 }
 
 function toggleThemaCategorie(themaId, cat) {
@@ -4026,7 +4048,359 @@ function toggleThemaCategorie(themaId, cat) {
   if (!cfg) return;
   if (cfg.categorieen.has(cat)) cfg.categorieen.delete(cat);
   else cfg.categorieen.add(cat);
+  // Scrolpositie bewaren bij paneel-rerender
+  const scrollY = window.scrollY;
   rendererThemaPaneel(themaId);
+  window.scrollTo({ top: scrollY, behavior: 'instant' });
+}
+
+// === Woorden kiezen — modal ===
+// Opent een paneel waarin de leerkracht per categorie kan zien welke woorden
+// in het werkblad komen, en losse woorden kan uitvinken.
+// Standaard alles aan; uitgevinkte items komen in cfg.uitgeslotenItems.
+function openWoordenKiezer(themaId) {
+  const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+  const cfg = werkbladPerThema.get(themaId);
+  if (!thema || !cfg) return;
+
+  // Verrijkt thema gebruiken zodat ook eigen woorden + overrides meekomen
+  const verrijkt = lkVerrijkThema(thema);
+  const items = verrijkt.items || [];
+  if (items.length === 0) {
+    alert('Dit thema bevat nog geen woorden.');
+    return;
+  }
+
+  // Groepeer items per categorie. Items zonder categorie komen onder 'overig'.
+  const cats = (verrijkt.categorieen && verrijkt.categorieen.length > 0)
+    ? [...verrijkt.categorieen]
+    : [];
+  const heeftOverig = items.some(it => !it.categorie || (cats.length && !cats.includes(it.categorie)));
+  if (heeftOverig) cats.push('overig');
+
+  const groepen = {};
+  cats.forEach(c => { groepen[c] = []; });
+  items.forEach(it => {
+    const c = (it.categorie && cats.includes(it.categorie)) ? it.categorie : (cats.includes('overig') ? 'overig' : (cats[0] || 'overig'));
+    if (!groepen[c]) groepen[c] = [];
+    groepen[c].push(it);
+  });
+
+  // Bouw HTML voor de modal
+  let html = `
+    <div class="wk-modal-achtergrond" onclick="sluitWoordenKiezer(event)">
+      <div class="wk-modal" onclick="event.stopPropagation()">
+        <div class="wk-modal-kop">
+          <div class="wk-modal-titel">
+            <span style="font-size:24px">${verrijkt.emoji || '📚'}</span>
+            <span>Kies woorden — ${verrijkt.naam}</span>
+          </div>
+          <button class="wk-modal-sluit" onclick="sluitWoordenKiezer()" aria-label="Sluiten">✕</button>
+        </div>
+        <div class="wk-modal-uitleg">
+          Standaard staan alle woorden aan. Vink uit wat je niet in dit werkblad wil.
+        </div>
+        <div class="wk-modal-acties-boven">
+          <button class="wk-mini-knop" onclick="wkAllesAan('${themaId}')">✓ Alles aanzetten</button>
+        </div>
+        <div class="wk-modal-body">
+  `;
+
+  cats.forEach(c => {
+    const groepItems = groepen[c] || [];
+    if (groepItems.length === 0) return;
+
+    // Categorie alleen tonen als hij actief is in cfg.categorieen.
+    // Niet-actieve categorieën grijs tonen met uitleg.
+    const catActief = (c === 'overig')
+      ? true
+      : cfg.categorieen.has(c);
+
+    const lab = (c === 'overig')
+      ? { label: 'Andere woorden', emoji: '•' }
+      : (CATEGORIE_LABELS[c] || { label: c, emoji: '•' });
+
+    // Tel hoeveel items uitgesloten zijn in deze groep
+    const aantalUit = groepItems.filter(it => cfg.uitgeslotenItems.has(it.id)).length;
+    const aantalAan = groepItems.length - aantalUit;
+
+    html += `
+      <div class="wk-cat-blok ${catActief ? '' : 'inactief'}" data-wk-cat="${c}">
+        <div class="wk-cat-kop">
+          <span class="wk-cat-naam">${lab.emoji} ${lab.label}</span>
+          <span class="wk-cat-teller">${aantalAan}/${groepItems.length}</span>
+          ${catActief ? `
+            <button class="wk-cat-toggle" onclick="wkCatAllemaal('${themaId}', '${c}', true)">alles aan</button>
+            <button class="wk-cat-toggle" onclick="wkCatAllemaal('${themaId}', '${c}', false)">alles uit</button>
+          ` : `<span class="wk-cat-uitleg">categorie staat uit — eerst aanvinken in het paneel</span>`}
+        </div>
+        ${catActief ? `
+          <div class="wk-woorden-grid">
+            ${groepItems.map(it => {
+              const aan = !cfg.uitgeslotenItems.has(it.id);
+              const tekst = it.tekst || it.kort || it.id;
+              const beeld = it.beeld || '';
+              return `
+                <label class="wk-woord-chip ${aan ? 'aan' : 'uit'}" data-wk-item="${it.id}">
+                  <input type="checkbox" ${aan ? 'checked' : ''} onchange="toggleWoordUitsluiting('${themaId}', '${it.id}')">
+                  <span class="wk-woord-beeld">${beeld}</span>
+                  <span class="wk-woord-tekst">${tekst}</span>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  });
+
+  html += `
+        </div>
+        <div class="wk-modal-voet">
+          <button class="wk-knop-klaar" onclick="sluitWoordenKiezer()">Klaar</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // CSS één keer injecteren
+  _wkInjecteerCSS();
+
+  // Modal toevoegen aan body
+  const wrap = document.createElement('div');
+  wrap.id = 'wk-modal-wrap';
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+}
+
+function sluitWoordenKiezer(ev) {
+  // Bij click op achtergrond: alleen sluiten als de click NIET in de modal zelf was
+  if (ev && ev.target && !ev.target.classList.contains('wk-modal-achtergrond')) return;
+  const wrap = document.getElementById('wk-modal-wrap');
+  if (wrap) wrap.remove();
+  // Hoofdpaneel her-renderen zodat de teller op de knop geüpdatet wordt
+  // We weten niet meer welk thema, dus alle panelen her-renderen
+  const scrollY = window.scrollY;
+  rendererThemaPanelen();
+  window.scrollTo({ top: scrollY, behavior: 'instant' });
+}
+
+function toggleWoordUitsluiting(themaId, itemId) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  const wasUit = cfg.uitgeslotenItems.has(itemId);
+  if (wasUit) cfg.uitgeslotenItems.delete(itemId);
+  else cfg.uitgeslotenItems.add(itemId);
+
+  // Synchronisatie: woord weer aangezet → categorie-chip ook weer aan.
+  // (cat uit → woorden NIET automatisch uit, dat behoudt de leerkracht-keuze.)
+  if (wasUit) {
+    // Item wordt weer aangezet — vind de categorie van dit item
+    const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+    if (thema) {
+      const verrijkt = lkVerrijkThema(thema);
+      const item = (verrijkt.items || []).find(it => it.id === itemId);
+      if (item && item.categorie && !cfg.categorieen.has(item.categorie)) {
+        cfg.categorieen.add(item.categorie);
+      }
+    }
+  }
+
+  // In-place updaten van DE EEN chip + de teller in zijn categorie-blok,
+  // zonder de hele modal te herbouwen (anders springt scroll naar boven).
+  _wkUpdateInPlace(themaId, itemId);
+}
+
+// Werk de visuele staat van één chip + teller bij na een toggle.
+// Vermijdt volledige modal-rebuild zodat scrolpositie behouden blijft.
+function _wkUpdateInPlace(themaId, itemId) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  const wrap = document.getElementById('wk-modal-wrap');
+  if (!wrap) return;
+
+  // Chip terugvinden via data-attribuut
+  const chip = wrap.querySelector(`[data-wk-item="${itemId}"]`);
+  if (chip) {
+    const aan = !cfg.uitgeslotenItems.has(itemId);
+    chip.classList.toggle('aan', aan);
+    chip.classList.toggle('uit', !aan);
+    const checkbox = chip.querySelector('input[type="checkbox"]');
+    if (checkbox) checkbox.checked = aan;
+  }
+
+  // Teller(s) van categorie-blokken bijwerken — eenvoudigste: alle tellers herrekenen
+  _wkUpdateAlleTellers(themaId);
+}
+
+// Herbereken alle "X/Y"-tellers in de zichtbare modal.
+function _wkUpdateAlleTellers(themaId) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  const wrap = document.getElementById('wk-modal-wrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('.wk-cat-blok').forEach(blok => {
+    const cat = blok.getAttribute('data-wk-cat');
+    if (!cat) return;
+    const chips = blok.querySelectorAll('[data-wk-item]');
+    let totaal = chips.length;
+    let aan = 0;
+    chips.forEach(c => {
+      const id = c.getAttribute('data-wk-item');
+      if (!cfg.uitgeslotenItems.has(id)) aan++;
+    });
+    const teller = blok.querySelector('.wk-cat-teller');
+    if (teller) teller.textContent = `${aan}/${totaal}`;
+  });
+}
+
+function wkCatAllemaal(themaId, cat, aanzetten) {
+  const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+  const cfg = werkbladPerThema.get(themaId);
+  if (!thema || !cfg) return;
+  const verrijkt = lkVerrijkThema(thema);
+  let isAlleenWeerAangezet = false;
+  (verrijkt.items || []).forEach(it => {
+    const itemCat = it.categorie || 'overig';
+    const matchOverig = (cat === 'overig' && (!it.categorie || (verrijkt.categorieen && !verrijkt.categorieen.includes(it.categorie))));
+    if (itemCat === cat || matchOverig) {
+      if (aanzetten) {
+        cfg.uitgeslotenItems.delete(it.id);
+        isAlleenWeerAangezet = true;
+      }
+      else cfg.uitgeslotenItems.add(it.id);
+    }
+  });
+  // Synchronisatie: alle woorden van een cat aangezet → categorie-chip ook aan
+  if (aanzetten && isAlleenWeerAangezet && cat !== 'overig' && !cfg.categorieen.has(cat)) {
+    cfg.categorieen.add(cat);
+  }
+  // In-place update: alle chips in de modal en tellers herzetten zonder herbouw
+  _wkRefreshAllVisible(themaId);
+}
+
+function wkAllesAan(themaId) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  cfg.uitgeslotenItems.clear();
+  // Synchronisatie: alle categorieën weer aanzetten
+  const thema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+  if (thema && thema.categorieen) {
+    thema.categorieen.forEach(c => cfg.categorieen.add(c));
+  }
+  _wkRefreshAllVisible(themaId);
+}
+
+// Update alle chips in de zichtbare modal volgens cfg.uitgeslotenItems,
+// zonder te herbouwen — scrolpositie blijft behouden.
+function _wkRefreshAllVisible(themaId) {
+  const cfg = werkbladPerThema.get(themaId);
+  if (!cfg) return;
+  const wrap = document.getElementById('wk-modal-wrap');
+  if (!wrap) return;
+  wrap.querySelectorAll('[data-wk-item]').forEach(chip => {
+    const id = chip.getAttribute('data-wk-item');
+    const aan = !cfg.uitgeslotenItems.has(id);
+    chip.classList.toggle('aan', aan);
+    chip.classList.toggle('uit', !aan);
+    const checkbox = chip.querySelector('input[type="checkbox"]');
+    if (checkbox) checkbox.checked = aan;
+  });
+  _wkUpdateAlleTellers(themaId);
+}
+
+// CSS voor de woordenkiezer-modal. Wordt eenmalig geïnjecteerd.
+function _wkInjecteerCSS() {
+  if (document.getElementById('wk-modal-style')) return;
+  const style = document.createElement('style');
+  style.id = 'wk-modal-style';
+  style.textContent = `
+    .wk-modal-achtergrond {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999; padding: 20px;
+    }
+    .wk-modal {
+      background: #fff; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+      width: 100%; max-width: 720px; max-height: 90vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .wk-modal-kop {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid #e5e7eb;
+    }
+    .wk-modal-titel {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 18px; font-weight: 600; color: #1f2937;
+    }
+    .wk-modal-sluit {
+      background: none; border: none; font-size: 22px; cursor: pointer;
+      color: #6b7280; padding: 4px 10px; border-radius: 6px;
+    }
+    .wk-modal-sluit:hover { background: #f3f4f6; color: #111827; }
+    .wk-modal-uitleg {
+      padding: 10px 20px; color: #6b7280; font-size: 14px;
+      background: #f9fafb; border-bottom: 1px solid #e5e7eb;
+    }
+    .wk-modal-acties-boven {
+      padding: 10px 20px; border-bottom: 1px solid #e5e7eb;
+      display: flex; gap: 8px;
+    }
+    .wk-mini-knop {
+      background: #fff; border: 1px solid #d1d5db; border-radius: 6px;
+      padding: 6px 12px; cursor: pointer; font-size: 13px; color: #374151;
+    }
+    .wk-mini-knop:hover { background: #f3f4f6; }
+    .wk-modal-body {
+      overflow-y: auto; padding: 16px 20px; flex: 1;
+    }
+    .wk-cat-blok {
+      margin-bottom: 18px; border: 1px solid #e5e7eb; border-radius: 10px;
+      padding: 12px; background: #fafbfc;
+    }
+    .wk-cat-blok.inactief { opacity: 0.55; background: #f3f4f6; }
+    .wk-cat-kop {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .wk-cat-naam { font-weight: 600; color: #1f2937; font-size: 15px; }
+    .wk-cat-teller {
+      background: #fff; border: 1px solid #d1d5db; border-radius: 12px;
+      padding: 2px 8px; font-size: 12px; color: #6b7280;
+    }
+    .wk-cat-toggle {
+      background: #fff; border: 1px solid #d1d5db; border-radius: 6px;
+      padding: 3px 8px; font-size: 12px; cursor: pointer; color: #4b5563;
+    }
+    .wk-cat-toggle:hover { background: #eff6ff; border-color: #93c5fd; }
+    .wk-cat-uitleg { font-size: 12px; color: #9ca3af; font-style: italic; }
+    .wk-woorden-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 6px;
+    }
+    .wk-woord-chip {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border-radius: 8px;
+      background: #fff; border: 1px solid #e5e7eb; cursor: pointer;
+      font-size: 13px; transition: background 0.1s;
+    }
+    .wk-woord-chip:hover { background: #f9fafb; }
+    .wk-woord-chip input { margin: 0; cursor: pointer; }
+    .wk-woord-chip.aan { border-color: #86efac; background: #f0fdf4; }
+    .wk-woord-chip.uit { opacity: 0.5; text-decoration: line-through; background: #fef2f2; border-color: #fecaca; }
+    .wk-woord-beeld { font-size: 16px; line-height: 1; }
+    .wk-woord-tekst { color: #1f2937; }
+    .wk-modal-voet {
+      padding: 12px 20px; border-top: 1px solid #e5e7eb;
+      display: flex; justify-content: flex-end;
+    }
+    .wk-knop-klaar {
+      background: #2563eb; color: #fff; border: none; border-radius: 8px;
+      padding: 9px 22px; font-size: 14px; font-weight: 500; cursor: pointer;
+    }
+    .wk-knop-klaar:hover { background: #1d4ed8; }
+  `;
+  document.head.appendChild(style);
 }
 
 // === Mix-paneel handlers ===
@@ -4352,9 +4726,22 @@ function rendererThemaPaneel(themaId) {
 
   // ===== Categorieën-chips (alleen tonen als thema categorieën heeft) =====
   if (thema.categorieen && thema.categorieen.length > 0) {
+    // Tellers berekenen voor de "Kies woorden"-knop
+    const verrijkt = lkVerrijkThema(thema);
+    const totaalItems = (verrijkt.items || []).length;
+    const aantalUitgesloten = cfg.uitgeslotenItems ? cfg.uitgeslotenItems.size : 0;
+    const knopLabel = aantalUitgesloten > 0
+      ? `🔍 Kies woorden (${aantalUitgesloten} uit)`
+      : `🔍 Kies woorden`;
+
     html += `
       <div class="categorieen-paneel">
-        <div class="categorieen-paneel-kop">🏷️ Categorieën in dit werkblad</div>
+        <div class="categorieen-paneel-kop">
+          <span>🏷️ Categorieën in dit werkblad</span>
+          <button class="kies-woorden-knop" onclick="openWoordenKiezer('${themaId}')" title="Vink losse woorden uit die je niet wil gebruiken">
+            ${knopLabel}
+          </button>
+        </div>
         <div class="categorie-chips">
     `;
     thema.categorieen.forEach(cat => {
@@ -4367,7 +4754,29 @@ function rendererThemaPaneel(themaId) {
         </label>
       `;
     });
-    html += `</div></div>`;
+    html += `</div>`;
+
+    // Uitleg + eventuele waarschuwing voor categoriseer-oefeningen
+    const categoriseerKeys = ['categoriseerBasis', 'categoriseerUitbreiding', 'categoriseerVerdieping'];
+    const heeftCategoriseerActief = categoriseerKeys.some(k => cfg.oefeningen.has(k));
+    const aantalActieveCats = cfg.categorieen.size;
+
+    html += `<div class="cat-uitleg">
+      💡 De aangevinkte categorieën bepalen welke woorden in de oefeningen komen.
+      Voor "Sorteer in groepen"-oefeningen heb je <strong>minstens 2 categorieën</strong> nodig.
+    </div>`;
+
+    if (heeftCategoriseerActief && aantalActieveCats < 2) {
+      html += `<div class="cat-waarschuwing">
+        ⚠️ Je hebt een sorteeroefening gekozen, maar er ${aantalActieveCats === 0 ? 'staan geen categorieën aan' : 'staat maar 1 categorie aan'}.
+        Vink minstens 2 categorieën aan, anders kan deze oefening niet gemaakt worden.
+      </div>`;
+    }
+
+    html += `</div>`;
+
+    // CSS voor de knop één keer injecteren
+    _kiesWoordenKnopCSS();
   }
 
   // Voor zinnen-thema's: ongeschikte oefeningen uit de actieve set halen zodat ze niet
@@ -4406,6 +4815,40 @@ function rendererThemaPaneel(themaId) {
   paneel.innerHTML = html;
 }
 
+function _kiesWoordenKnopCSS() {
+  if (document.getElementById('kies-woorden-knop-style')) return;
+  const style = document.createElement('style');
+  style.id = 'kies-woorden-knop-style';
+  style.textContent = `
+    .categorieen-paneel-kop {
+      display: flex !important;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .kies-woorden-knop {
+      background: #fff; border: 1px solid #d1d5db; border-radius: 6px;
+      padding: 5px 11px; font-size: 13px; cursor: pointer; color: #374151;
+      transition: all 0.15s;
+    }
+    .kies-woorden-knop:hover {
+      background: #eff6ff; border-color: #93c5fd; color: #1e40af;
+    }
+    .cat-uitleg {
+      margin-top: 8px; padding: 8px 12px;
+      background: #eff6ff; border-left: 3px solid #93c5fd; border-radius: 4px;
+      font-size: 13px; color: #1e3a8a; line-height: 1.4;
+    }
+    .cat-waarschuwing {
+      margin-top: 6px; padding: 8px 12px;
+      background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;
+      font-size: 13px; color: #78350f; font-weight: 500; line-height: 1.4;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 async function genereerWerkblad() {
   if (werkbladThemaIds.length === 0) {
     alert('Kies minstens één thema.');
@@ -4423,8 +4866,10 @@ async function genereerWerkblad() {
     const basis = ALLE_THEMAS_LK.find(t => t.id === id);
     const verrijkt = lkVerrijkThema(basis);
     const cfg = werkbladPerThema.get(id);
+    // Pas item-uitsluiting toe op het verrijkte thema (clone met gefilterde items)
+    const themaGefilterd = _pasUitsluitingToe(verrijkt, cfg.uitgeslotenItems);
     return {
-      thema: verrijkt,
+      thema: themaGefilterd,
       oefeningen: Array.from(cfg.oefeningen),
       niveau: cfg.niveau,
       categorieen: Array.from(cfg.categorieen)
@@ -4437,15 +4882,32 @@ async function genereerWerkblad() {
     return;
   }
 
-  // Controleer per thema dat er nog items overblijven na categorie-filter
+  // Controleer per thema dat er nog items overblijven na categorie-filter en uitsluiting
   const leegThema = themaConfigs.find(tc => {
-    if (!tc.thema.categorieen || tc.thema.categorieen.length === 0) return false;
+    if (!tc.thema.categorieen || tc.thema.categorieen.length === 0) {
+      // Geen categorieën, alleen item-uitsluiting telt
+      return tc.thema.items.length === 0;
+    }
     if (tc.categorieen.length === 0) return true;
     const overig = tc.thema.items.filter(it => !it.categorie || tc.categorieen.includes(it.categorie));
     return overig.length === 0;
   });
   if (leegThema) {
-    alert(`In "${leegThema.thema.naam}" zijn er geen woorden geselecteerd. Vink minstens één categorie aan.`);
+    alert(`In "${leegThema.thema.naam}" zijn er geen woorden geselecteerd. Vink minstens één categorie aan, of zet woorden terug aan via "Kies woorden".`);
+    return;
+  }
+
+  // Validatie voor categoriseer-oefeningen: minstens 2 categorieën nodig
+  const categoriseerKeys = ['categoriseerBasis', 'categoriseerUitbreiding', 'categoriseerVerdieping'];
+  const themaMetTeWeinigCats = themaConfigs.find(tc => {
+    const heeftCategoriseer = tc.oefeningen.some(k => categoriseerKeys.includes(k));
+    if (!heeftCategoriseer) return false;
+    // Alleen tellen als het thema überhaupt categorieën heeft (zinnen-thema's hebben er geen)
+    if (!tc.thema.categorieen || tc.thema.categorieen.length === 0) return false;
+    return tc.categorieen.length < 2;
+  });
+  if (themaMetTeWeinigCats) {
+    alert(`In "${themaMetTeWeinigCats.thema.naam}" staan sorteer-oefeningen aan, maar er ${themaMetTeWeinigCats.categorieen.length === 0 ? 'staan geen categorieën' : 'staat maar 1 categorie'} aangevinkt.\n\nVink minstens 2 categorieën aan om sorteer-oefeningen te kunnen maken, of vink de sorteer-oefening uit.`);
     return;
   }
 
@@ -4455,6 +4917,17 @@ async function genereerWerkblad() {
     console.error('Werkblad genereren mislukt:', e);
     alert('Het werkblad kon niet gemaakt worden. Probeer opnieuw.');
   }
+}
+
+// Helper: filter items van een (verrijkt) thema op basis van een Set met
+// uitgesloten item-ids. Geeft een nieuw thema-object terug met gefilterde items.
+// Als de set leeg is, wordt het origineel teruggegeven (geen onnodige clone).
+function _pasUitsluitingToe(verrijktThema, uitgeslotenSet) {
+  if (!uitgeslotenSet || uitgeslotenSet.size === 0) return verrijktThema;
+  if (!verrijktThema || !Array.isArray(verrijktThema.items)) return verrijktThema;
+  const gefilterd = verrijktThema.items.filter(it => !uitgeslotenSet.has(it.id));
+  if (gefilterd.length === verrijktThema.items.length) return verrijktThema;
+  return { ...verrijktThema, items: gefilterd };
 }
 
 async function genereerOplossingssleutel() {
@@ -4470,8 +4943,10 @@ async function genereerOplossingssleutel() {
     const basis = ALLE_THEMAS_LK.find(t => t.id === id);
     const verrijkt = lkVerrijkThema(basis);
     const cfg = werkbladPerThema.get(id);
+    // Pas item-uitsluiting toe — moet identiek zijn aan werkblad-versie
+    const themaGefilterd = _pasUitsluitingToe(verrijkt, cfg.uitgeslotenItems);
     return {
-      thema: verrijkt,
+      thema: themaGefilterd,
       oefeningen: Array.from(cfg.oefeningen),
       niveau: cfg.niveau,
       categorieen: Array.from(cfg.categorieen)
