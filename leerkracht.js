@@ -56,6 +56,21 @@ function lkPreviewTaak(code, naam) {
         padding: 6px 14px; font-size: 14px; cursor: pointer; color: #1f2937;
       }
       .lk-preview-sluit:hover { background: #f3f4f6; }
+      .lk-preview-skipbalk {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 18px; background: #fffbea;
+        border-bottom: 1px solid #fde68a;
+        font-size: 13px;
+      }
+      .lk-preview-skipbalk-uitleg {
+        color: #78350f; font-style: italic;
+      }
+      .lk-preview-skipknop {
+        background: var(--kleur-zisa, #ffd166); color: #1f2937;
+        border: 1px solid #f59e0b; border-radius: 6px;
+        padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+      }
+      .lk-preview-skipknop:hover { filter: brightness(0.95); }
       .lk-preview-iframe {
         flex: 1; width: 100%; border: 0; background: #fff;
       }
@@ -85,10 +100,29 @@ function lkPreviewTaak(code, naam) {
         </div>
         <button class="lk-preview-sluit" onclick="lkSluitPreview()">✕ Sluiten</button>
       </div>
-      <iframe class="lk-preview-iframe" src="${url}" title="Preview voor leerkracht"></iframe>
+      <div class="lk-preview-skipbalk">
+        <span class="lk-preview-skipbalk-uitleg">Snel doorbladeren?</span>
+        <button class="lk-preview-skipknop" onclick="lkPreviewSkip()">⏭️ Volgende oefenvorm</button>
+      </div>
+      <iframe class="lk-preview-iframe" id="lk-preview-iframe" src="${url}" title="Preview voor leerkracht"></iframe>
     </div>
   `;
   document.body.appendChild(bg);
+}
+
+// Roep de skip-functie aan in de iframe (kind-app).
+function lkPreviewSkip() {
+  const iframe = document.getElementById('lk-preview-iframe');
+  if (!iframe || !iframe.contentWindow) return;
+  try {
+    if (typeof iframe.contentWindow.taakPreviewVolgendeOefenvorm === 'function') {
+      iframe.contentWindow.taakPreviewVolgendeOefenvorm();
+    } else {
+      console.warn('Skip-functie niet gevonden in iframe');
+    }
+  } catch (e) {
+    console.warn('Skip mislukt:', e);
+  }
 }
 
 function lkSluitPreview() {
