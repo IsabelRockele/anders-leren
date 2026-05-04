@@ -11,7 +11,7 @@ window.THEMA_WOORDEN_DIEREN = {
   emoji: '🐶',
   kleur: '#2A9D8F',
   niveaus: ['basis'],
-  categorieen: ['boerderijdieren', 'huisdieren', 'waterdieren', 'dierentuindieren', 'planten', 'weer', 'natuur'],
+  categorieen: ['boerderijdieren', 'huisdieren', 'in het water', 'dierentuin', 'planten', 'weer', 'natuur'],
   items: [
     // ========== BOERDERIJDIEREN ==========
     { id: 'koe',    niveau: 'basis', categorie: 'boerderijdieren', tekst: 'de koe',     kort: 'koe',    beeld: '🐮', zin: 'De koe geeft melk.' },
@@ -28,12 +28,12 @@ window.THEMA_WOORDEN_DIEREN = {
     { id: 'konijn', niveau: 'basis', categorie: 'huisdieren', tekst: 'het konijn', kort: 'konijn', beeld: '🐰', zin: 'Het konijn springt.' },
     { id: 'vogel',  niveau: 'basis', categorie: 'huisdieren', tekst: 'de vogel',   kort: 'vogel',  beeld: '🐦', zin: 'De vogel vliegt.' },
 
-    // ========== WATERDIEREN ==========
+    // ========== IN HET WATER ==========
     { id: 'vis',    niveau: 'basis', categorie: 'waterdieren', tekst: 'de vis',    kort: 'vis',    beeld: '🐟', zin: 'De vis zwemt.' },
     { id: 'eend',   niveau: 'basis', categorie: 'waterdieren', tekst: 'de eend',   kort: 'eend',   beeld: '🦆', zin: 'De eend zwemt in de vijver.' },
     { id: 'kikker', niveau: 'basis', categorie: 'waterdieren', tekst: 'de kikker', kort: 'kikker', beeld: '🐸', zin: 'De kikker springt in het water.' },
 
-    // ========== DIERENTUINDIEREN ==========
+    // ========== DIERENTUIN ==========
     { id: 'leeuw',   niveau: 'basis', categorie: 'dierentuindieren', tekst: 'de leeuw',    kort: 'leeuw',   beeld: '🦁', zin: 'De leeuw brult.' },
     { id: 'tijger',  niveau: 'basis', categorie: 'dierentuindieren', tekst: 'de tijger',   kort: 'tijger',  beeld: '🐯', zin: 'De tijger heeft strepen.' },
     { id: 'olifant', niveau: 'basis', categorie: 'dierentuindieren', tekst: 'de olifant',  kort: 'olifant', beeld: '🐘', zin: 'De olifant heeft een grote slurf.' },
