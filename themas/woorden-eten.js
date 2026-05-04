@@ -10,7 +10,7 @@ window.THEMA_WOORDEN_ETEN = {
   emoji: '🍎',
   kleur: '#06A77D',
   niveaus: ['basis'],
-  categorieen: ['groenten', 'fruit', 'drank', 'snoepgoed', 'broodbeleg', 'andere', 'optafel'],
+  categorieen: ['groenten', 'fruit', 'drank', 'snoepgoed', 'broodbeleg', 'andere', 'op tafel'],
   items: [
     // ========== GROENTEN ==========
     { id: 'wortel',     niveau: 'basis', categorie: 'groenten', tekst: 'de wortel',     kort: 'wortel',     beeld: '🥕', zin: 'Een konijn eet wortels.' },
