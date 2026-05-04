@@ -13,11 +13,9 @@ function _veiligThemas(verwacht) {
     .filter(t => t && t.id);
 }
 
-// Survival-thema's — altijd open, hoogste prioriteit voor nieuwkomers
-const THEMAS_SURVIVAL = _veiligThemas([
-  ['THEMA_SURVIVAL_KLAS', 'survival-klas.js'],
-  ['THEMA_SURVIVAL_SPEELPLAATS', 'survival-speelplaats.js'],
-  ['THEMA_SURVIVAL_HEENTERUG', 'survival-heenterug.js'],
+// Startpakket — eerste thema voor anderstalige nieuwkomers (~20 essentiële items)
+const THEMAS_STARTPAKKET = _veiligThemas([
+  ['THEMA_STARTPAKKET', 'startpakket.js'],
 ]);
 
 // Leerlijn-thema's — in volgorde van eenvoud
@@ -42,7 +40,7 @@ const THEMAS_ZINNEN = _veiligThemas([
   ['THEMA_ZINNEN_TIJD', 'zinnen-tijd.js'],
 ]);
 
-const ALLE_THEMAS = [...THEMAS_SURVIVAL, ...THEMAS_WOORDEN, ...THEMAS_ZINNEN];
+const ALLE_THEMAS = [...THEMAS_STARTPAKKET, ...THEMAS_WOORDEN, ...THEMAS_ZINNEN];
 
 // State
 let huidigThema = null;
@@ -2624,8 +2622,9 @@ function rendererSurvivalGrid() {
   const grid = document.getElementById('survival-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  const actieveThemas = THEMAS_SURVIVAL.filter(t => Voortgang.isThemaActiefVoorKind(t));
-  // Toon de hele zone enkel als er minstens één survival-thema actief is
+  // Was vroeger survival, nu startpakket — zelfde CSS-zone hergebruikt
+  const actieveThemas = THEMAS_STARTPAKKET.filter(t => Voortgang.isThemaActiefVoorKind(t));
+  // Toon de hele zone enkel als er minstens één startpakket-thema actief is
   const zone = grid.closest('.survival-zone');
   if (zone) zone.style.display = actieveThemas.length === 0 ? 'none' : '';
   actieveThemas.forEach(thema => {
