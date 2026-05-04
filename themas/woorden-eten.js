@@ -15,9 +15,9 @@ window.THEMA_WOORDEN_ETEN = {
     // ========== GROENTEN ==========
     { id: 'wortel',     niveau: 'basis', categorie: 'groenten', tekst: 'de wortel',     kort: 'wortel',     beeld: '🥕', zin: 'Een konijn eet wortels.' },
     { id: 'sla',        niveau: 'basis', categorie: 'groenten', tekst: 'de sla',        kort: 'sla',        beeld: '🥬', zin: 'Ik eet sla bij mijn boterham.' },
-    { id: 'bloemkool',  niveau: 'basis', categorie: 'groenten', tekst: 'de bloemkool',  kort: 'bloemkool',  beeld: '🥦', zin: 'De bloemkool is wit.' },
-    { id: 'witloof',    niveau: 'basis', categorie: 'groenten', tekst: 'het witloof',   kort: 'witloof',    beeld: '🥬', zin: 'Witloof met hesp en kaas is lekker.' },
-    { id: 'komkommer',  niveau: 'basis', categorie: 'groenten', tekst: 'de komkommer',  kort: 'komkommer',  beeld: '🥒', zin: 'De komkommer is groen en lang.' },
+    { id: 'bloemkool',  niveau: 'basis', categorie: 'groenten', tekst: 'de bloemkool',  kort: 'bloemkool',  beeld: '🥦', picto: 'eten/bloemkool.png', zin: 'De bloemkool is wit.' },
+    { id: 'witloof',    niveau: 'basis', categorie: 'groenten', tekst: 'het witloof',   kort: 'witloof',    beeld: '🥬', picto: 'eten/witloof.png',    zin: 'Witloof met hesp en kaas is lekker.' },
+    { id: 'komkommer',  niveau: 'basis', categorie: 'groenten', tekst: 'de komkommer',  kort: 'komkommer',  beeld: '🥒', picto: 'eten/komkommer.png', zin: 'De komkommer is groen en lang.' },
     { id: 'paprika',    niveau: 'basis', categorie: 'groenten', tekst: 'de paprika',    kort: 'paprika',    beeld: '🫑', zin: 'Een paprika kan rood of groen zijn.' },
     { id: 'aardappel',  niveau: 'basis', categorie: 'groenten', tekst: 'de aardappel',  kort: 'aardappel',  beeld: '🥔', zin: 'Ik eet aardappelen met saus.' },
     { id: 'erwten',     niveau: 'basis', categorie: 'groenten', tekst: 'de erwten',     kort: 'erwten',     beeld: '🟢', zin: 'Erwten zijn klein en groen.' },
