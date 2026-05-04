@@ -30,6 +30,23 @@ window.Voortgang = (function() {
   // themaActiefCache: array of null. null = "geen instelling" → backward-compat: alles aan.
   // [] = expliciet niets aan. ['w-klas', ...] = die thema's aan.
   let themaActiefCache = null;
+
+  // ============================================================
+  //  PREVIEW-MODUS — leerkracht bekijkt taak van een kind
+  // ============================================================
+  // Wanneer aan: ALLE schrijfmethodes naar Firebase worden geblokkeerd.
+  // Lezen werkt normaal — anders zou de leerkracht niets te zien krijgen.
+  // De voortgang van het kind blijft dus 100% intact.
+  // Wordt geactiveerd door zetPreviewModus(true) of via URL-parameter.
+  let _previewModus = false;
+  function zetPreviewModus(aan) {
+    _previewModus = !!aan;
+    if (aan) console.info('[Voortgang] PREVIEW-MODUS actief — geen schrijfacties naar Firebase.');
+  }
+  function isPreviewModus() {
+    return _previewModus;
+  }
+
   // taakCache: huidige taak voor dit kind, of null. Schema:
   // {
   //   themaId, woordIds[],
@@ -133,6 +150,7 @@ window.Voortgang = (function() {
 
   async function bewaar(code) {
     if (!code) return;
+    if (_previewModus) return; // preview: geen schrijfacties
     // Lokaal altijd opslaan
     localStorage.setItem('andersleren_voortgang_' + code, JSON.stringify(lokaalCache));
 
@@ -548,6 +566,7 @@ window.Voortgang = (function() {
   // Schrijf een nieuwe taak voor het huidige kind.
   async function zetTaak(taakObj) {
     taakCache = _bouwTaak(taakObj);
+    if (_previewModus) return; // preview: cache wel updaten zodat UI werkt, maar niet persisten
     if (huidigKindCode) {
       localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
       if (db) {
@@ -571,6 +590,7 @@ window.Voortgang = (function() {
   async function updateTaak(velden) {
     if (!taakCache) return;
     Object.assign(taakCache, velden);
+    if (_previewModus) return; // preview: in-memory bijwerken volstaat
     if (huidigKindCode) {
       localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
       if (db) {
@@ -592,6 +612,7 @@ window.Voortgang = (function() {
       taakCache.perWoord[woordId][sleutel] = huidig + 1;
     }
     taakCache.perWoord[woordId].laatstGeoefend = Date.now();
+    if (_previewModus) return; // preview: lokaal bijhouden, niet persisten
     if (huidigKindCode) {
       localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
       if (db) {
@@ -635,6 +656,7 @@ window.Voortgang = (function() {
       }
     }
 
+    if (_previewModus) return { rondeAfgerond, nieuweRonde: status.huidigeRonde };
     if (huidigKindCode) {
       localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
       if (db) {
@@ -661,6 +683,7 @@ window.Voortgang = (function() {
     // Fout-teller verhogen (cumulatief, gaat niet omlaag)
     taakCache.perWoord[woordId][foutSleutel] = (taakCache.perWoord[woordId][foutSleutel] || 0) + 1;
     taakCache.perWoord[woordId].laatstGeoefend = Date.now();
+    if (_previewModus) return; // preview: geen persistence
     if (huidigKindCode) {
       localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
       if (db) {
@@ -692,6 +715,7 @@ window.Voortgang = (function() {
       taakgeschiedenisCache = taakgeschiedenisCache.slice(-50);
     }
     taakCache = null;
+    if (_previewModus) return; // preview: geen persistence
     localStorage.setItem('andersleren_taak_' + huidigKindCode, 'null');
     localStorage.setItem('andersleren_taakgeschiedenis_' + huidigKindCode, JSON.stringify(taakgeschiedenisCache));
     if (db) {
@@ -837,6 +861,7 @@ window.Voortgang = (function() {
 
   async function bewaarSpreektoets(toets) {
     spreektoetsenCache.push(toets);
+    if (_previewModus) return; // preview: geen persistence
     if (huidigKindCode) {
       localStorage.setItem('andersleren_spreektoetsen_' + huidigKindCode, JSON.stringify(spreektoetsenCache));
       if (db) {
@@ -2046,6 +2071,9 @@ window.Voortgang = (function() {
 
   return {
     init,
+    // Preview-modus (leerkracht bekijkt taak van een kind)
+    zetPreviewModus,
+    isPreviewModus,
     codeBestaat,
     haalNaamOp,
     laad,
