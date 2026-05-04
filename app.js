@@ -2292,6 +2292,10 @@ async function init() {
 
   if (!ingelogd) {
     const urlParams = new URLSearchParams(window.location.search);
+    // Preview-modus: leerkracht bekijkt de taak van een kind zonder voortgang aan te tasten
+    if (urlParams.get('preview') === '1' && window.Voortgang && Voortgang.zetPreviewModus) {
+      Voortgang.zetPreviewModus(true);
+    }
     const urlCode = (urlParams.get('code') || '').trim();
     if (urlCode) {
       try {
@@ -2350,8 +2354,32 @@ async function naDuoLogin() {
   const welk = document.getElementById('welkom-naam');
   if (welk) welk.textContent = naam ? naam + '!' : '!';
 
+  // Preview-modus: toon een banner bovenaan zodat de leerkracht ziet dat
+  // niets bewaard wordt. Banner is non-intrusive maar duidelijk.
+  if (window.Voortgang && Voortgang.isPreviewModus && Voortgang.isPreviewModus()) {
+    _toonPreviewBanner();
+  }
+
   rendererStart();
   toonScherm('scherm-start');
+}
+
+function _toonPreviewBanner() {
+  if (document.getElementById('preview-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'preview-banner';
+  banner.style.cssText = `
+    position: fixed; top: 0; left: 0; right: 0; z-index: 99999;
+    background: #fef3c7; color: #78350f;
+    padding: 6px 14px; font-size: 13px; font-weight: 600;
+    text-align: center; border-bottom: 2px solid #f59e0b;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    font-family: system-ui, sans-serif;
+  `;
+  banner.textContent = '👁️ PREVIEW — niets wordt bewaard, leerlingvoortgang blijft intact';
+  document.body.appendChild(banner);
+  // Een beetje extra ruimte bovenaan zodat banner niet over content valt
+  document.body.style.paddingTop = '34px';
 }
 
 function uitloggen() {
