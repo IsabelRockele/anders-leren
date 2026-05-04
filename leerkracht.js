@@ -3273,14 +3273,10 @@ function rendererTaakModal(huidigeTaak) {
   bg.onclick = (e) => { if (e.target === bg) lkSluitTaakModal(); };
 
   // Bepaal beschikbare thema's voor dit kind
+  // Alle thema's zijn beschikbaar voor een taak — vrij oefenen is een aparte instelling.
+  // Een leerkracht kan dus een gerichte taak geven in een thema dat (nog) niet vrij staat.
   const kind = lkKinderen.find(k => k.code === _taakModalKindCode);
-  let beschikbareThemaIds;
-  if (kind && Array.isArray(kind.thema_actief) && kind.thema_actief.length > 0) {
-    beschikbareThemaIds = kind.thema_actief;
-  } else {
-    beschikbareThemaIds = ALLE_THEMAS_LK.map(t => t.id);
-  }
-  const beschikbareThemas = ALLE_THEMAS_LK.filter(t => beschikbareThemaIds.indexOf(t.id) !== -1);
+  const beschikbareThemas = ALLE_THEMAS_LK.slice();
 
   // Status-strook van vorige taak (als er een is)
   let statusBlok = '';
@@ -3337,7 +3333,7 @@ function rendererTaakModal(huidigeTaak) {
   `;
 
   if (beschikbareThemas.length === 0) {
-    html += `<option value="">⚠️ Geen actieve thema's</option>`;
+    html += `<option value="">⚠️ Geen thema's geladen</option>`;
   } else {
     beschikbareThemas.forEach(t => {
       const sel = (t.id === _taakModalThemaId) ? 'selected' : '';
@@ -3347,7 +3343,7 @@ function rendererTaakModal(huidigeTaak) {
 
   html += `
         </select>
-        <p class="lk-taak-tip">💡 Enkel thema's die jij hebt aangevinkt voor "vrij oefenen" verschijnen hier.</p>
+        <p class="lk-taak-tip">💡 Je kan een taak maken uit elk thema, ook als het kind dat thema (nog) niet vrij mag oefenen.</p>
       </div>
   `;
 
