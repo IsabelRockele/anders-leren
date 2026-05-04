@@ -22,9 +22,7 @@ function lkBekijkKindApp(code) {
 
 // Lijst van alle verwachte thema-globals
 const VERWACHTE_THEMAS_LK = [
-  ['THEMA_SURVIVAL_KLAS', 'survival-klas.js'],
-  ['THEMA_SURVIVAL_SPEELPLAATS', 'survival-speelplaats.js'],
-  ['THEMA_SURVIVAL_HEENTERUG', 'survival-heenterug.js'],
+  ['THEMA_STARTPAKKET', 'startpakket.js'],
   ['THEMA_WOORDEN_KLAS', 'woorden-klas.js'],
   ['THEMA_WOORDEN_LICHAAM', 'woorden-lichaam.js'],
   ['THEMA_WOORDEN_ETEN', 'woorden-eten.js'],
@@ -150,8 +148,9 @@ function lkKiesTab(tab) {
 const _lkKindtabsState = {
   taken: { gekozenCode: null },
   spreken: { gekozenCode: null },
-  rapporten: { gekozenCode: null },
-  puntenboek: { gekozenCode: null }
+  // Rapporten en puntenboek: twee-laagse tabs (klas → namen)
+  rapporten: { gekozenCode: null, gekozenKlas: null },
+  puntenboek: { gekozenCode: null, gekozenKlas: null }
 };
 
 // Volledige naam: "Voornaam Achternaam", met fallback op het oude 'naam'-veld
@@ -230,20 +229,68 @@ function lkKindtabsRender(welkeTab) {
     klassen[klasIdx[klasLabel]].kinderen.push(k);
   });
 
+  // Twee-laagse tabs alleen voor rapporten en puntenboek (compacte weergave bij vele klassen)
+  const tweeLaags = (welkeTab === 'rapporten' || welkeTab === 'puntenboek');
+
   let tabsHtml = '';
-  const meerdereKlassen = klassen.length > 1;
-  klassen.forEach((groep) => {
-    if (meerdereKlassen) {
-      const labelTekst = groep.klas || 'Geen klas';
-      tabsHtml += `<span class="lk-kindtabs-klaslabel">${labelTekst}</span>`;
+
+  if (tweeLaags) {
+    // CSS één keer injecteren voor de klas-tabs
+    _lkInjecteerKlasTabsCSS();
+
+    // Bepaal actieve klas: indien niet gezet of niet meer bestaand, neem klas van gekozen kind
+    const huidigKind = gesorteerd.find(k => k.code === state.gekozenCode);
+    const klasVanHuidig = huidigKind && huidigKind.klas ? huidigKind.klas.trim() : '';
+    const klasLabels = klassen.map(g => g.klas);
+    if (!state.gekozenKlas || klasLabels.indexOf(state.gekozenKlas) === -1) {
+      state.gekozenKlas = klasLabels.indexOf(klasVanHuidig) !== -1 ? klasVanHuidig : klasLabels[0];
     }
-    groep.kinderen.forEach(k => {
-      const actief = (k.code === state.gekozenCode) ? 'actief' : '';
-      const naam = lkVolledigeNaam(k);
-      const codeSafe = k.code.replace(/'/g, "\\'");
-      tabsHtml += `<button class="lk-kindtab ${actief}" onclick="lkKindtabKies('${welkeTab}', '${codeSafe}')">${naam}</button>`;
+
+    // Bouw klas-tabs (eerste rij) + namen-tabs (tweede rij, gefilterd op gekozen klas)
+    tabsHtml += '<div class="lk-klastabs-rij">';
+    klassen.forEach(groep => {
+      const klasLabel = groep.klas || 'Geen klas';
+      const actief = (groep.klas === state.gekozenKlas) ? 'actief' : '';
+      const aantal = groep.kinderen.length;
+      const klasSafe = (groep.klas || '').replace(/'/g, "\\'");
+      tabsHtml += `<button class="lk-klastab ${actief}" onclick="lkKindtabKiesKlas('${welkeTab}', '${klasSafe}')">${klasLabel} <span class="lk-klastab-aantal">(${aantal})</span></button>`;
     });
-  });
+    tabsHtml += '</div>';
+
+    // Namenrij: alleen kinderen van de gekozen klas
+    const huidigeGroep = klassen.find(g => g.klas === state.gekozenKlas);
+    if (huidigeGroep) {
+      // Als gekozenCode niet in deze klas zit, schuif door naar eerste van deze klas
+      const codesInKlas = huidigeGroep.kinderen.map(k => k.code);
+      if (codesInKlas.indexOf(state.gekozenCode) === -1) {
+        state.gekozenCode = codesInKlas[0];
+      }
+      tabsHtml += '<div class="lk-namentabs-rij">';
+      huidigeGroep.kinderen.forEach(k => {
+        const actief = (k.code === state.gekozenCode) ? 'actief' : '';
+        const naam = lkVolledigeNaam(k);
+        const codeSafe = k.code.replace(/'/g, "\\'");
+        tabsHtml += `<button class="lk-kindtab ${actief}" onclick="lkKindtabKies('${welkeTab}', '${codeSafe}')">${naam}</button>`;
+      });
+      tabsHtml += '</div>';
+    }
+  } else {
+    // Bestaande oudere weergave: klaslabels tussen de namen door (taken + spreken)
+    const meerdereKlassen = klassen.length > 1;
+    klassen.forEach((groep) => {
+      if (meerdereKlassen) {
+        const labelTekst = groep.klas || 'Geen klas';
+        tabsHtml += `<span class="lk-kindtabs-klaslabel">${labelTekst}</span>`;
+      }
+      groep.kinderen.forEach(k => {
+        const actief = (k.code === state.gekozenCode) ? 'actief' : '';
+        const naam = lkVolledigeNaam(k);
+        const codeSafe = k.code.replace(/'/g, "\\'");
+        tabsHtml += `<button class="lk-kindtab ${actief}" onclick="lkKindtabKies('${welkeTab}', '${codeSafe}')">${naam}</button>`;
+      });
+    });
+  }
+
   tabsEl.innerHTML = tabsHtml;
 
   // Content renderen op basis van tab
@@ -266,6 +313,65 @@ function lkKindtabKies(welkeTab, code) {
   lkKindtabsRender(welkeTab);
 }
 
+// Voor twee-laagse tabs (rapporten, puntenboek): klas kiezen.
+// Schuift gekozenCode automatisch door naar eerste kind van die klas.
+function lkKindtabKiesKlas(welkeTab, klas) {
+  const state = _lkKindtabsState[welkeTab];
+  if (!state) return;
+  state.gekozenKlas = klas;
+  // Schuif gekozenCode naar eerste kind van deze klas (als huidige niet in deze klas zit)
+  const kinderenInKlas = lkKinderen.filter(k => {
+    const kKlas = (k.klas || '').trim();
+    return kKlas === klas;
+  });
+  if (kinderenInKlas.length > 0) {
+    const huidigInKlas = kinderenInKlas.some(k => k.code === state.gekozenCode);
+    if (!huidigInKlas) {
+      // Sorteren binnen de klas op achternaam → voornaam
+      kinderenInKlas.sort((a, b) => _lkSortSleutel(a).localeCompare(_lkSortSleutel(b)));
+      state.gekozenCode = kinderenInKlas[0].code;
+    }
+  }
+  lkKindtabsRender(welkeTab);
+}
+
+// CSS voor klas-tabs en namen-tabs in rapporten/puntenboek.
+// Eenmalig injecteren — geen styling-bestand om te wijzigen.
+function _lkInjecteerKlasTabsCSS() {
+  if (document.getElementById('lk-klastabs-style')) return;
+  const style = document.createElement('style');
+  style.id = 'lk-klastabs-style';
+  style.textContent = `
+    .lk-klastabs-rij {
+      display: flex; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 10px; padding-bottom: 8px;
+      border-bottom: 2px solid #e5e7eb;
+    }
+    .lk-klastab {
+      background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 8px;
+      padding: 8px 16px; font-size: 14px; font-weight: 600;
+      color: #374151; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .lk-klastab:hover {
+      background: #fefce8; border-color: #fbbf24;
+    }
+    .lk-klastab.actief {
+      background: var(--kleur-zisa, #ffd166); border-color: #f59e0b;
+      color: #1f2937;
+    }
+    .lk-klastab-aantal {
+      font-size: 12px; font-weight: 400; opacity: 0.7;
+      margin-left: 2px;
+    }
+    .lk-namentabs-rij {
+      display: flex; gap: 6px; flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 // === Renderer: TAKEN ===
 function _lkRendererTaken(kind) {
   if (!kind) return '<p class="lk-kind-leeg">Geen leerling geselecteerd.</p>';
@@ -275,7 +381,7 @@ function _lkRendererTaken(kind) {
   // Bouw lijst: huidige taak (indien) bovenaan + geschiedenis
   let html = `
     <div class="lk-kind-acties">
-      <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBeheerTaak('${kind.code}', '${naamSafe}')">+ Nieuwe taak</button>
+      <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkOpenKindBeheer('${kind.code}', '${naamSafe}')">📋 Taken &amp; vrije thema\u2019s</button>
     </div>
   `;
 
@@ -1833,8 +1939,33 @@ function lkRendererTabel() {
     return;
   }
 
+  // CSS voor klikbare gecombineerde cel één keer injecteren
+  if (!document.getElementById('lk-taakvrij-cel-style')) {
+    const style = document.createElement('style');
+    style.id = 'lk-taakvrij-cel-style';
+    style.textContent = `
+      .lk-taakvrij-cel {
+        cursor: pointer;
+        padding: 4px 6px;
+        border-radius: 6px;
+        transition: background 0.12s;
+      }
+      .lk-taakvrij-cel:hover {
+        background: #fefce8;
+      }
+      .lk-vrij-onderkant {
+        margin-top: 4px;
+        padding-top: 4px;
+        border-top: 1px dashed #e5e7eb;
+        font-size: 12px;
+        color: #6b7280;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   let html = '<table class="lk-tabel"><thead><tr>';
-  html += '<th></th><th>Klas</th><th>Naam</th><th>📋 Taak</th><th>🏷️ Vrij oefenen</th><th>Acties</th>';
+  html += '<th></th><th>Klas</th><th>Naam</th><th>📋 Taken &amp; thema\u2019s</th><th>Acties</th>';
   html += '</tr></thead><tbody>';
 
   // Gesorteerde lijst (klas → achternaam → voornaam)
@@ -1890,15 +2021,20 @@ function lkRendererTabel() {
     const naamCel = naamVolledig
       ? naamVolledig
       : '<em style="opacity:0.5">geen naam</em>';
+    // Gecombineerde cel: taakstatus boven, vrij-tekst onder
+    const gecombineerdeCel = `
+      <div class="lk-taakvrij-cel" onclick="event.stopPropagation(); lkOpenKindBeheer('${code}', '${naamSafe}')" title="Klik om taken en vrije thema's te beheren">
+        ${taakCel}
+        <div class="lk-vrij-onderkant">🏷️ Vrij: <span class="lk-vrij-tekst">${vrijTekst}</span></div>
+      </div>
+    `;
     html += `<tr class="lk-tabel-rij ${isOpen ? 'open' : ''}" data-code="${code}">
       <td class="lk-rij-pijl-cel" onclick="lkRijToggle('${code}')"><span class="lk-rij-pijl">${isOpen ? '▼' : '▶'}</span></td>
       <td onclick="lkRijToggle('${code}')" class="lk-klas-cel">${klasTekst}</td>
       <td onclick="lkRijToggle('${code}')">${naamCel}<br><small class="lk-code-mini">${code}</small></td>
-      <td onclick="lkRijToggle('${code}')">${taakCel}</td>
-      <td onclick="lkRijToggle('${code}')"><span class="lk-vrij-tekst">${vrijTekst}</span></td>
+      <td>${gecombineerdeCel}</td>
       <td class="lk-acties-cel">
         <button class="lk-knop-mini" onclick="lkWijzigNaam('${code}', '${naamSafe}')" title="Naam van deze leerling wijzigen">⌨️</button>
-        <button class="lk-knop-mini" onclick="lkBeheerCategorieen('${code}', '${naamSafe}')" title="Welke thema's mag de leerling vrij oefenen?">🏷️</button>
         <button class="lk-knop-mini" onclick="lkToonQR('${code}', '${naamSafe}')" title="QR-code voor inloggen">📱</button>
         <button class="lk-knop-mini" onclick="lkBekijkKindApp('${code}')" title="Open de kind-app als deze leerling">👁️</button>
         <button class="lk-knop-mini gevaar" onclick="lkVerwijder('${code}', '${naamSafe}')" title="Leerling verwijderen">🗑️</button>
@@ -1907,7 +2043,7 @@ function lkRendererTabel() {
 
     // Uitklapbare detailrij
     if (isOpen) {
-      html += `<tr class="lk-tabel-detailrij"><td colspan="6">${_lkRendererDetail(kind)}</td></tr>`;
+      html += `<tr class="lk-tabel-detailrij"><td colspan="5">${_lkRendererDetail(kind)}</td></tr>`;
     }
   });
 
@@ -2192,6 +2328,27 @@ async function lkVoegToe() {
       achternaam: achternaam.trim(),
       klas: klas.trim()
     });
+
+    // Koppel nieuw kind automatisch aan actief schooljaar — anders wordt het
+    // gefilterd weggehouden uit de tabel (filterKinderenOpSchooljaar).
+    if (_actiefSchooljaar && _actiefSchooljaar.id) {
+      try {
+        const huidigeCodes = Array.isArray(_actiefSchooljaar.kinderen) ? _actiefSchooljaar.kinderen : [];
+        const huidigeKlasMap = (_actiefSchooljaar.klasPerKind && typeof _actiefSchooljaar.klasPerKind === 'object')
+          ? { ..._actiefSchooljaar.klasPerKind }
+          : {};
+        if (!huidigeCodes.includes(codeNorm)) huidigeCodes.push(codeNorm);
+        if (klas.trim()) huidigeKlasMap[codeNorm] = klas.trim();
+        await Voortgang.updateSchooljaarKinderen(_actiefSchooljaar.id, huidigeCodes, huidigeKlasMap);
+        // Lokaal cachebeeld bijwerken zodat lkLaadKinderen meteen het juiste filter gebruikt
+        _actiefSchooljaar.kinderen = huidigeCodes;
+        _actiefSchooljaar.klasPerKind = huidigeKlasMap;
+      } catch (e) {
+        console.warn('Kind toevoegen aan actief schooljaar mislukt:', e);
+        // Niet blokkerend — kind bestaat in Firestore, alleen niet zichtbaar in deze view
+      }
+    }
+
     // Velden leegmaken
     ['nieuw-voornaam', 'nieuw-achternaam', 'nieuw-klas', 'nieuw-code'].forEach(id => {
       const el = document.getElementById(id);
@@ -2639,6 +2796,100 @@ function lkPrintAlleQR() {
 
 
 // =================================================================
+//  KIND-BEHEER — keuzemodal met 2 knoppen
+//  Toegangspoort tot zowel "vrij oefenen" als "taak maken" voor één kind.
+//  Vervangt de oude verspreide knopjes in de tabel.
+// =================================================================
+function lkOpenKindBeheer(code, naam) {
+  // Verwijder evt bestaande modal
+  const oud = document.getElementById('lk-kindbeheer-modal-bg');
+  if (oud) oud.remove();
+
+  const naamSafe = (naam || code).replace(/'/g, "\\'");
+  const naamWeergave = naam || code;
+
+  // CSS één keer injecteren
+  if (!document.getElementById('lk-kindbeheer-style')) {
+    const style = document.createElement('style');
+    style.id = 'lk-kindbeheer-style';
+    style.textContent = `
+      .lk-kindbeheer-modal {
+        background: #fff; border-radius: 12px; padding: 24px;
+        max-width: 480px; width: calc(100% - 40px);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+      }
+      .lk-kindbeheer-modal h2 {
+        margin: 0 0 6px 0; color: #1f2937; font-size: 20px;
+      }
+      .lk-kindbeheer-modal .modal-uitleg {
+        margin: 0 0 18px 0; color: #6b7280; font-size: 14px;
+      }
+      .lk-kindbeheer-keuzeknop {
+        display: block; width: 100%; text-align: left;
+        background: #fff; border: 2px solid #e5e7eb; border-radius: 10px;
+        padding: 14px 18px; margin-bottom: 12px; cursor: pointer;
+        transition: all 0.15s; font-size: 15px;
+      }
+      .lk-kindbeheer-keuzeknop:hover {
+        background: #fefce8; border-color: #fbbf24;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+      }
+      .lk-kindbeheer-titel {
+        font-weight: 600; color: #1f2937; font-size: 16px;
+        display: flex; align-items: center; gap: 8px;
+        margin-bottom: 4px;
+      }
+      .lk-kindbeheer-uitleg {
+        color: #6b7280; font-size: 13px; line-height: 1.4;
+      }
+      .lk-kindbeheer-sluiten {
+        margin-top: 8px; text-align: right;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-kindbeheer-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+
+  bg.innerHTML = `
+    <div class="lk-kindbeheer-modal" onclick="event.stopPropagation()">
+      <h2>Beheer voor ${naamWeergave}</h2>
+      <p class="modal-uitleg">Wat wil je instellen voor deze leerling?</p>
+
+      <button class="lk-kindbeheer-keuzeknop" onclick="lkSluitKindBeheer(); lkBeheerCategorieen('${code}', '${naamSafe}')">
+        <div class="lk-kindbeheer-titel">🏷️ Kies vrije thema's</div>
+        <div class="lk-kindbeheer-uitleg">
+          Welke thema's mag deze leerling zelfstandig oefenen in haar/zijn eigen app?
+          Bekijk hier ook de aanbevolen leerpad-volgorde voor anderstalige nieuwkomers.
+        </div>
+      </button>
+
+      <button class="lk-kindbeheer-keuzeknop" onclick="lkSluitKindBeheer(); lkBeheerTaak('${code}', '${naamSafe}')">
+        <div class="lk-kindbeheer-titel">📋 Maak / wijzig taak</div>
+        <div class="lk-kindbeheer-uitleg">
+          Zet een gerichte oefening klaar bij één thema: kies specifieke woorden,
+          vaardigheden en oefenvormen.
+        </div>
+      </button>
+
+      <div class="lk-kindbeheer-sluiten">
+        <button class="lk-knop-mini" onclick="lkSluitKindBeheer()">Sluiten</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
+}
+
+function lkSluitKindBeheer() {
+  const bg = document.getElementById('lk-kindbeheer-modal-bg');
+  if (bg) bg.remove();
+}
+
+// =================================================================
 //  VRIJ OEFENEN — welke thema's zijn open voor dit kind?
 // =================================================================
 //
@@ -2679,7 +2930,7 @@ function rendererVrijModal() {
   bg.onclick = (e) => { if (e.target === bg) lkSluitVrijModal(); };
 
   const groepen = [
-    { titel: 'Survival-thema\u2019s — eerste week', emoji: '🚨', themas: ALLE_THEMAS_LK.filter(t => t.categorie === 'survival') },
+    { titel: 'Startpakket — voor wie net begint', emoji: '🌱', themas: ALLE_THEMAS_LK.filter(t => t.categorie === 'startpakket') },
     { titel: 'Woorden-thema\u2019s', emoji: '📚', themas: ALLE_THEMAS_LK.filter(t => t.type === 'woorden') },
     { titel: 'Zinnen-thema\u2019s', emoji: '💬', themas: ALLE_THEMAS_LK.filter(t => t.type === 'zinnen') }
   ];
@@ -2692,10 +2943,22 @@ function rendererVrijModal() {
         Voor een gerichte oefenopdracht met specifieke woorden: gebruik het 📋-knopje.
       </p>
 
+      <div class="lk-leerpad-tip">
+        <strong>💡 Aanbevolen volgorde voor anderstalige nieuwkomers:</strong>
+        <ol class="lk-leerpad-lijst">
+          <li><strong>Week 1–2:</strong> 🌱 Startpakket — overlevingswoorden voor in de klas</li>
+          <li><strong>Week 3–4:</strong> 👨‍👩‍👧 Familie & gevoelens · 👕 Lichaam & kleding</li>
+          <li><strong>Week 5–6:</strong> 🎒 Klas & schoolspullen · 🏫 Op school</li>
+          <li><strong>Week 7–8:</strong> 🍎 Eten & drinken · 🎨 Kleuren · 🔢 Cijfers</li>
+          <li><strong>Daarna:</strong> 🐶 Dieren · 🏠 Thuis · 🏃 Wat doe ik? · 🕐 Tijd · 🔷 Vormen</li>
+        </ol>
+        <p class="lk-leerpad-uitleg">Dit is een gids — pas aan aan het tempo van het kind.</p>
+      </div>
+
       <div class="lk-cat-snelacties">
         <button class="lk-knop-mini" onclick="lkVrijSnelactie('alles')">✓ Alles aan</button>
         <button class="lk-knop-mini" onclick="lkVrijSnelactie('niets')">✗ Alles uit</button>
-        <button class="lk-knop-mini" onclick="lkVrijSnelactie('survival')" title="Alleen de drie survival-thema's aanzetten">🏫 Enkel survival</button>
+        <button class="lk-knop-mini" onclick="lkVrijSnelactie('startpakket')" title="Alleen het startpakket aanzetten">🌱 Enkel startpakket</button>
       </div>
   `;
 
@@ -2729,6 +2992,29 @@ function rendererVrijModal() {
 
   bg.innerHTML = html;
   document.body.appendChild(bg);
+
+  // CSS voor leerpad-tip één keer injecteren
+  if (!document.getElementById('lk-leerpad-style')) {
+    const style = document.createElement('style');
+    style.id = 'lk-leerpad-style';
+    style.textContent = `
+      .lk-leerpad-tip {
+        margin: 14px 0; padding: 12px 16px;
+        background: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 6px;
+      }
+      .lk-leerpad-tip strong { color: #166534; }
+      .lk-leerpad-lijst {
+        margin: 8px 0 6px 0; padding-left: 20px; font-size: 13.5px;
+        color: #15803d; line-height: 1.7;
+      }
+      .lk-leerpad-lijst li { margin-bottom: 2px; }
+      .lk-leerpad-uitleg {
+        margin: 6px 0 0 0; font-size: 12px; color: #16a34a;
+        font-style: italic;
+      }
+    `;
+    document.head.appendChild(style);
+  }
 }
 
 function lkVrijToggleThema(themaId) {
@@ -2743,8 +3029,8 @@ function lkVrijSnelactie(soort) {
     _vrijModalThemaActief = new Set(ALLE_THEMAS_LK.map(t => t.id));
   } else if (soort === 'niets') {
     _vrijModalThemaActief = new Set();
-  } else if (soort === 'survival') {
-    _vrijModalThemaActief = new Set(ALLE_THEMAS_LK.filter(t => t.categorie === 'survival').map(t => t.id));
+  } else if (soort === 'startpakket') {
+    _vrijModalThemaActief = new Set(ALLE_THEMAS_LK.filter(t => t.categorie === 'startpakket').map(t => t.id));
   }
   rendererVrijModal();
 }
@@ -2753,6 +3039,9 @@ async function lkBewaarVrijModal() {
   if (!_vrijModalKindCode) return;
   const knop = document.querySelector('#lk-vrij-modal-bg .lk-cat-modal-knoppen button:last-child');
   if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
+  // Onthoud kind-info voor de eventuele vervolgvraag
+  const codeBewaard = _vrijModalKindCode;
+  const naamBewaard = _vrijModalNaam;
   try {
     const lijst = Array.from(_vrijModalThemaActief);
     await Voortgang.zetThemaActiefVoorKind(_vrijModalKindCode, lijst);
@@ -2761,11 +3050,69 @@ async function lkBewaarVrijModal() {
     lkSluitVrijModal();
     if (typeof lkRendererTabel === 'function') lkRendererTabel();
     if (typeof lkKindtabsRender === 'function') lkKindtabsRender();
+
+    // Vraag of leerkracht ook een taak wil maken — bespaart een klik
+    // Alleen als er minstens één thema vrij staat (anders heeft een taak geen zin)
+    if (lijst.length > 0) {
+      _toonVervolgvraagNaTaakofVrij(codeBewaard, naamBewaard);
+    }
   } catch (e) {
     console.error('Bewaren mislukt:', e);
     alert('Kon de instellingen niet bewaren. Probeer opnieuw.');
     if (knop) { knop.disabled = false; knop.textContent = '💾 Bewaren'; }
   }
+}
+
+// Kleine vervolgmodal: na het bewaren van vrije thema's vragen of de
+// leerkracht ook een taak wil klaarzetten voor dezelfde leerling.
+function _toonVervolgvraagNaTaakofVrij(code, naam) {
+  // CSS één keer injecteren (hergebruikt voor nette popup)
+  if (!document.getElementById('lk-vervolg-style')) {
+    const style = document.createElement('style');
+    style.id = 'lk-vervolg-style';
+    style.textContent = `
+      .lk-vervolg-modal {
+        background: #fff; border-radius: 12px; padding: 22px 24px;
+        max-width: 420px; width: calc(100% - 40px);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+      }
+      .lk-vervolg-modal h3 { margin: 0 0 6px 0; color: #1f2937; font-size: 17px; }
+      .lk-vervolg-modal p { margin: 0 0 18px 0; color: #4b5563; font-size: 14px; line-height: 1.5; }
+      .lk-vervolg-knoppen { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+      .lk-vervolg-primair {
+        background: var(--kleur-zisa, #ffd166); color: #1f2937;
+        border: none; border-radius: 8px; padding: 10px 18px;
+        font-size: 14px; font-weight: 500; cursor: pointer;
+      }
+      .lk-vervolg-primair:hover { filter: brightness(0.95); }
+      .lk-vervolg-secundair {
+        background: #fff; color: #4b5563; border: 1px solid #d1d5db;
+        border-radius: 8px; padding: 10px 18px; font-size: 14px; cursor: pointer;
+      }
+      .lk-vervolg-secundair:hover { background: #f3f4f6; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  const naamSafe = (naam || code).replace(/'/g, "\\'");
+  const naamWeergave = naam || code;
+
+  const bg = document.createElement('div');
+  bg.id = 'lk-vervolg-modal-bg';
+  bg.className = 'lk-cat-modal-bg';
+  bg.onclick = (e) => { if (e.target === bg) bg.remove(); };
+
+  bg.innerHTML = `
+    <div class="lk-vervolg-modal" onclick="event.stopPropagation()">
+      <h3>✓ Vrije thema's bewaard</h3>
+      <p>Wil je nu ook een taak klaarzetten voor ${naamWeergave}?</p>
+      <div class="lk-vervolg-knoppen">
+        <button class="lk-vervolg-secundair" onclick="document.getElementById('lk-vervolg-modal-bg').remove()">Nee, klaar</button>
+        <button class="lk-vervolg-primair" onclick="document.getElementById('lk-vervolg-modal-bg').remove(); lkBeheerTaak('${code}', '${naamSafe}')">📋 Ja, taak maken</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(bg);
 }
 
 function lkSluitVrijModal() {
@@ -3935,6 +4282,12 @@ const WB_OEFENING_LABELS = {
 
 // Labels voor categorieën — gebruikt in chips
 const CATEGORIE_LABELS = {
+  // Startpakket — voor nieuwkomers
+  'lichaam-behoeften': { label: 'lichaamsbehoeften', emoji: '🆘' },
+  'hulp-vragen':       { label: 'hulp vragen',       emoji: '❓' },
+  'beleefd':           { label: 'beleefd',           emoji: '👋' },
+  'jezelf':            { label: 'jezelf',            emoji: '🙋' },
+  'gevoel':            { label: 'gevoel',            emoji: '❤️' },
   // Klas (oud)
   voorwerpen:  { label: 'voorwerpen',  emoji: '📦' },
   werkwoorden: { label: 'werkwoorden', emoji: '🏃' },
