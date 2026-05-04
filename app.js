@@ -311,6 +311,74 @@ function taakStartFase(fase) {
   }
 }
 
+// =================================================================
+//  PREVIEW-SKIP — alleen voor leerkracht in preview-modus
+// =================================================================
+// Roept de leerkracht aan vanuit de preview-popup (via iframe.contentWindow).
+// Logica:
+//   - Als we in een oefen-fase zijn met meerdere oefenvormen (bv. luisteren-oef
+//     met klikspel + verbinden + verslepen), spring naar de volgende oefenvorm
+//     door de ronde-teller te verhogen.
+//   - Als we al de laatste oefenvorm hebben gehad, of als er maar 1 oefenvorm
+//     is, spring naar de volgende fase.
+window.taakPreviewVolgendeOefenvorm = function() {
+  if (!window.Voortgang || !Voortgang.isPreviewModus || !Voortgang.isPreviewModus()) {
+    console.warn('Preview-skip alleen beschikbaar in preview-modus');
+    return;
+  }
+  const taak = Voortgang.getTaak();
+  if (!taak) return;
+
+  // Bepaal huidige doel-fase (negeer 'intro:'-prefix)
+  let huidigeFase = taakHuidigeFase || taak.huidigeFase || 'leren';
+  if (typeof huidigeFase === 'string' && huidigeFase.startsWith('intro:')) {
+    huidigeFase = huidigeFase.replace('intro:', '');
+  }
+
+  // Welke vaardigheid hoort bij deze fase?
+  let vaardigheid = null;
+  if (huidigeFase.indexOf('luisteren') === 0) vaardigheid = 'luisteren';
+  else if (huidigeFase.indexOf('lezen') === 0) vaardigheid = 'lezen';
+  else if (huidigeFase.indexOf('schrijven') === 0) vaardigheid = 'schrijven';
+
+  // Is dit een oef-fase met meerdere oefenvormen?
+  const isOefFase = huidigeFase.endsWith('-oef');
+  if (isOefFase && vaardigheid) {
+    const veld = 'oefenvormen_' + vaardigheid;
+    const aangevinkt = Array.isArray(taak[veld]) ? taak[veld] : [];
+    if (aangevinkt.length > 1) {
+      // Bepaal huidige oefenvorm-index
+      const r = _ruweRonde(vaardigheid);
+      const huidigeIdx = (r - 1) % aangevinkt.length;
+      const isLaatste = (huidigeIdx === aangevinkt.length - 1);
+      if (!isLaatste) {
+        // Volgende oefenvorm: ronde-teller met 1 verhogen → cyclus rolt door
+        if (!taak.rondeStatus) taak.rondeStatus = {};
+        if (!taak.rondeStatus[vaardigheid]) {
+          taak.rondeStatus[vaardigheid] = { huidigeRonde: 1, behandeldDezeRonde: [] };
+        }
+        taak.rondeStatus[vaardigheid].huidigeRonde =
+          (taak.rondeStatus[vaardigheid].huidigeRonde || 1) + 1;
+        taak.rondeStatus[vaardigheid].behandeldDezeRonde = [];
+        // Reset de bezochte-intro's voor deze oefenvorm zodat intro opnieuw verschijnt
+        if (typeof _taakIntroBezocht !== 'undefined' && _taakIntroBezocht.clear) {
+          // We laten de fase-intro's staan, alleen de oefenvorm-specifieke intro's wissen
+          const teVerwijderen = [];
+          _taakIntroBezocht.forEach(s => { if (s.indexOf(':') !== -1) teVerwijderen.push(s); });
+          teVerwijderen.forEach(s => _taakIntroBezocht.delete(s));
+        }
+        // Herstart de fase — die zal nu de volgende oefenvorm pakken
+        taakStartFase(huidigeFase);
+        return;
+      }
+    }
+  }
+
+  // Anders: spring naar volgende fase
+  const volgende = _volgendeFase(huidigeFase, taak);
+  if (volgende) taakStartFase(volgende);
+};
+
 // Helper: welke fases krijgen een intro-tussenscherm?
 // Uitzondering: 'luisteren-oef' krijgt GEEN algemene intro meer, want daar volgt
 // meteen daarna een oefenvorm-specifieke intro (Klikspel/Verbinden/Verslepen).
@@ -2284,18 +2352,27 @@ async function init() {
   // een ?code= in de URL, doen we hier nog een handmatige login als vangnet —
   // zo komt de leerkracht zonder code typen direct in de kind-app.
   let ingelogd = false;
-  try {
-    ingelogd = await Auth.probeerAutoLogin();
-  } catch (e) {
-    console.warn('Auth.probeerAutoLogin gaf een fout:', e);
+  // Preview-modus: leerkracht bekijkt de taak van een kind zonder voortgang aan te tasten.
+  // Moet ALTIJD geactiveerd worden vóór login — ook als auto-login al lukt — anders
+  // zouden voortgang-acties tijdens preview alsnog opgeslagen worden.
+  const __urlParams = new URLSearchParams(window.location.search);
+  const __isPreview = (__urlParams.get('preview') === '1');
+  if (__isPreview && window.Voortgang && Voortgang.zetPreviewModus) {
+    Voortgang.zetPreviewModus(true);
+  }
+
+  // In preview-modus: skip auto-login zodat we gegarandeerd inloggen met de
+  // code uit de URL (en dus de juiste leerling tonen aan de leerkracht).
+  if (!__isPreview) {
+    try {
+      ingelogd = await Auth.probeerAutoLogin();
+    } catch (e) {
+      console.warn('Auth.probeerAutoLogin gaf een fout:', e);
+    }
   }
 
   if (!ingelogd) {
     const urlParams = new URLSearchParams(window.location.search);
-    // Preview-modus: leerkracht bekijkt de taak van een kind zonder voortgang aan te tasten
-    if (urlParams.get('preview') === '1' && window.Voortgang && Voortgang.zetPreviewModus) {
-      Voortgang.zetPreviewModus(true);
-    }
     const urlCode = (urlParams.get('code') || '').trim();
     if (urlCode) {
       try {
