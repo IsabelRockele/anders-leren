@@ -47,7 +47,10 @@
     window.schoolAuth = typeof firebase.auth === 'function' ? schoolApp.auth() : null;
     window.schoolDb = schoolApp.firestore();
     window.taalgroeiApp = taalgroeiApp;
-    window.db = taalgroeiApp.firestore();
+    window.legacyTaalgroeiDb = taalgroeiApp.firestore();
+    // taalgroei-data.js kiest na een veilige markercontrole tussen deze
+    // bestaande database en afgeschermde taalgroei_* collecties in schoolDb.
+    window.db = window.legacyTaalgroeiDb;
     window.taalgroeiStorage = typeof taalgroeiApp.storage === 'function' ? taalgroeiApp.storage() : null;
     window.FIREBASE_INGESTELD = true;
     console.log('[firebase-config] Centrale aanmelding en Taalgroei-data ingesteld ✓');

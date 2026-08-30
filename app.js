@@ -2338,7 +2338,7 @@ async function init() {
     } catch (e) {
       // Al geïnitialiseerd
     }
-    Voortgang.init();
+    await Voortgang.init();
     if (window.Woordenbeheer) Woordenbeheer.init();
   }
 

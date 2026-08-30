@@ -76,8 +76,11 @@ window.Voortgang = (function() {
   let rapportNotitiesCache = '';
   let huidigKindCode = null; // welke kind is geladen — voor categorie-bewaring
 
-  function init() {
+  async function init() {
     if (window.FIREBASE_INGESTELD && window.firebase) {
+      if (window.TaalgroeiData && typeof window.TaalgroeiData.init === 'function') {
+        await window.TaalgroeiData.init();
+      }
       db = window.db;
     }
   }
@@ -1286,10 +1289,42 @@ window.Voortgang = (function() {
 
   async function alleKinderen() {
     if (!db) return [];
-    const snap = await db.collection('kinderen').orderBy('gemaakt', 'desc').get();
+    const centraal = !!window.TAALGROEI_CENTRAAL;
+    const sessie = window.SchoolSessie && typeof window.SchoolSessie.get === 'function'
+      ? window.SchoolSessie.get() : null;
+    const rol = String(sessie && sessie.rol || '').toLowerCase();
+    const schoolbreed = ['beheerder', 'directie', 'zorgcoordinator', 'zorgleerkracht'].includes(rol);
+
+    let docs = [];
+    if (centraal && sessie && sessie.aangemeld && !schoolbreed) {
+      // Een klasleerkracht vraagt alleen de klassen op waaraan het centrale
+      // schoolaccount gekoppeld is. Zo voldoen query en beveiligingsregel aan
+      // dezelfde beperking.
+      const koppelingen = Array.isArray(sessie.klassen) ? sessie.klassen : [];
+      const gezien = new Map();
+      for (const koppeling of koppelingen) {
+        const schooljaar = String(koppeling.schooljaar || '').trim();
+        const klas = String(koppeling.klas || koppeling.klasId || '').trim();
+        if (!schooljaar || !klas) continue;
+        const deel = await db.collection('kinderen')
+          .where('centraleSchooljaar', '==', schooljaar)
+          .where('klas', '==', klas)
+          .get();
+        deel.forEach(doc => gezien.set(doc.id, doc));
+      }
+      docs = [...gezien.values()];
+    } else {
+      const snap = await db.collection('kinderen').orderBy('gemaakt', 'desc').get();
+      docs = snap.docs;
+    }
     const lijst = [];
-    snap.forEach(doc => {
+    docs.forEach(doc => {
       lijst.push({ code: doc.id, ...doc.data() });
+    });
+    lijst.sort((a, b) => {
+      const av = a.gemaakt && typeof a.gemaakt.toMillis === 'function' ? a.gemaakt.toMillis() : 0;
+      const bv = b.gemaakt && typeof b.gemaakt.toMillis === 'function' ? b.gemaakt.toMillis() : 0;
+      return bv - av;
     });
     return lijst;
   }

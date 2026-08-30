@@ -170,10 +170,13 @@ let lkHuidigQRCode = null;
 // =================================================================
 async function lkInit() {
   if (window.FIREBASE_INGESTELD && window.firebase) {
+    if (window.SchoolSessie && typeof window.SchoolSessie.wachtTotKlaar === 'function') {
+      await window.SchoolSessie.wachtTotKlaar();
+    }
     try {
       window.firebase.initializeApp(window.FIREBASE_CONFIG);
     } catch (e) { /* al geinit */ }
-    Voortgang.init();
+    await Voortgang.init();
     if (window.Woordenbeheer) {
       Woordenbeheer.init();
       try { await Woordenbeheer.laad(); } catch (e) { console.warn('Woordenbeheer kon niet laden:', e); }

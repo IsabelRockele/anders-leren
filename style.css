@@ -7155,6 +7155,24 @@ h1, h2, h3 {
   line-height: 1.25;
 }
 
+.taalgroei-pilot-knop {
+  align-self: center;
+  border: 1px solid #197464;
+  border-radius: 999px;
+  background: #ecf8f3;
+  color: #125c50;
+  padding: 8px 13px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.taalgroei-pilot-knop:disabled {
+  cursor: default;
+  opacity: .82;
+}
+
 .lk-taakrij-status {
   display: flex;
   gap: 4px;
