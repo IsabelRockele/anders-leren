@@ -507,6 +507,18 @@ function _lkRendererTaken(kind) {
     });
   }
 
+  const gepland = Array.isArray(kind.taakwachtrij) ? kind.taakwachtrij : [];
+  gepland.forEach((taak, idx) => {
+    items.push({
+      taak,
+      isHuidig: false,
+      isGepland: true,
+      geplandIdx: idx,
+      tijd: taak.toegewezenOp || taak.gestart || 0,
+      sorteerTijd: taak.toegewezenOp || taak.gestart || 0
+    });
+  });
+
   const gesch = Array.isArray(kind.taakgeschiedenis) ? kind.taakgeschiedenis : [];
   gesch.forEach((arch, idx) => {
     // Voor de zichtbare datum gebruiken we 'gestart' als primair (= wanneer
@@ -544,7 +556,10 @@ function _lkRendererTaken(kind) {
     // Status
     let statusBadge = '';
     let scoreTekst = '';
-    if (t.status === 'voltooid') {
+    if (entry.isGepland) {
+      statusBadge = '<span class="lk-status-badge bezig">🗓️ gepland</span>';
+      scoreTekst = `${aantalW} woorden`;
+    } else if (t.status === 'voltooid') {
       const fout = (t.foutWoordenLaatsteToets || []).length;
       const juist = aantalW - fout;
       statusBadge = '<span class="lk-status-badge voltooid">🏆 voltooid</span>';
@@ -587,7 +602,7 @@ function _lkRendererTaken(kind) {
     let wbKnop = '';
     if (entry.isHuidig) {
       wbKnop = `<button class="lk-knop-mini" onclick="lkTaakWerkbladen('${kind.code}', 'huidig')" title="Werkbladen maken met deze woorden">📝</button>`;
-    } else {
+    } else if (!entry.isGepland) {
       wbKnop = `<button class="lk-knop-mini" onclick="lkTaakWerkbladen('${kind.code}', ${entry.archiefIdx})" title="Werkbladen maken met deze woorden">📝</button>`;
     }
 
@@ -600,18 +615,22 @@ function _lkRendererTaken(kind) {
     if (entry.isHuidig) {
       const naamSafe2 = (kind.naam || '').replace(/'/g, "\\'");
       previewKnop = `<button class="lk-knop-mini" onclick="lkPreviewTaak('${kind.code}', '${naamSafe2}')" title="Bekijk de taak zoals het kind hem ziet (zonder voortgang aan te tasten)">👁️</button>`;
-      bewerkKnop = `<button class="lk-knop-mini" onclick="lkBeheerTaak('${kind.code}', '${naamSafe2}')" title="Taak bewerken">✏️</button>`;
+      bewerkKnop = `<button class="lk-knop-mini" onclick="lkBeheerTaak('${kind.code}', '${naamSafe2}')" title="Extra taak plannen">➕</button>`;
       wisKnop = `<button class="lk-knop-mini gevaar" onclick="lkTaakWissenDirect('${kind.code}')" title="Huidige taak wissen">🗑️</button>`;
+    } else if (entry.isGepland) {
+      wisKnop = `<button class="lk-knop-mini gevaar" onclick="lkGeplandeTaakWissen('${kind.code}', '${t.taakId || ''}', ${entry.geplandIdx})" title="Geplande taak verwijderen">🗑️</button>`;
     } else {
       wisKnop = `<button class="lk-knop-mini gevaar" onclick="lkTaakArchiefWissen('${kind.code}', ${entry.archiefIdx})" title="Uit geschiedenis verwijderen">🗑️</button>`;
     }
 
-    const huidigBadge = entry.isHuidig ? '<span class="lk-huidig-badge">huidig</span>' : '';
+    const huidigBadge = entry.isHuidig ? '<span class="lk-huidig-badge">huidig</span>'
+      : (entry.isGepland ? '<span class="lk-huidig-badge">volgende</span>' : '');
+    const meta = `${_taakVeiligeTekst(t.toegewezenDoorRol || 'leerkracht')}${t.doel ? ' · ' + _taakVeiligeTekst(t.doel) : ''}`;
 
     html += `
       <div class="lk-taakrij ${entry.isHuidig ? 'huidig' : ''}">
         <span class="lk-taakrij-datum">${dStr}</span>
-        <span class="lk-taakrij-thema">${themaNaam} ${huidigBadge}</span>
+        <span class="lk-taakrij-thema">${themaNaam} ${huidigBadge}<small>${meta}</small></span>
         <span class="lk-taakrij-status">${statusBadge}</span>
         <span class="lk-taakrij-score">${scoreTekst}</span>
         <span class="lk-taakrij-acties">${previewKnop}${bewerkKnop}${wbKnop}${pdfKnop}${wisKnop}</span>
@@ -1140,8 +1159,9 @@ function lkSchooljaarNieuwModal() {
     <div class="lk-cat-modal" onclick="event.stopPropagation()">
       <h2>🎒 Nieuw schooljaar starten</h2>
       <p class="modal-uitleg">
-        Een nieuw schooljaar betekent een nieuwe lijst leerlingen (eventueel met klaswisseling) en nieuwe rapportperiodes.
-        Het huidige schooljaar wordt automatisch <strong>gearchiveerd</strong> — je kan alle data nog raadplegen, maar niet meer wijzigen.
+        Je opent hier het nieuwe werkjaar voor Taalgroei en kiest alleen met welke leerlingen je <strong>voorlopig</strong> start.
+        Tijdens het hele schooljaar kan je nog kinderen toevoegen, uit een taalgroep halen of naar een andere taalgroep verplaatsen. Hun eerdere resultaten blijven bewaard.
+        Alleen het vorige schooljaar verhuist naar het archief.
       </p>
 
       <div class="lk-taak-veld">
@@ -1153,10 +1173,10 @@ function lkSchooljaarNieuwModal() {
       <div class="lk-cat-modal-knoppen" style="flex-direction:column;gap:8px">
         ${heeftHuidig && heeftKinderen ? `
         <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166);width:100%;padding:11px" onclick="lkSchooljaarStartDoorstroom()">
-          🎓 Doorstroom-wizard: kies welke leerlingen meegaan
+          🎓 Startselectie maken uit bestaande leerlingen
         </button>` : ''}
         <button class="lk-knop-mini" style="width:100%;padding:11px" onclick="lkSchooljaarStartLeeg()">
-          ✨ Nieuw schooljaar zonder leerlingen overnemen
+          ✨ Leeg starten en leerlingen later kiezen
         </button>
         <button class="lk-knop-mini" style="width:100%" onclick="document.getElementById('lk-sj-modal-bg').remove()">
           Annuleren
@@ -1258,8 +1278,9 @@ function _lkSchooljaarDoorstroomModal(schooljaarId) {
     <div class="lk-cat-modal lk-doorstroom-modal" onclick="event.stopPropagation()">
       <h2>🎓 Doorstroom naar ${schooljaarId}</h2>
       <p class="modal-uitleg">
-        Vink aan welke leerlingen meegaan naar het nieuwe schooljaar en pas hun klas aan indien nodig.
-        Niet-aangevinkte leerlingen blijven in het archief van ${(_actiefSchooljaar && _actiefSchooljaar.id) || 'huidig schooljaar'}.
+        Kies met welke leerlingen je bij de start begint en pas hun klas aan indien nodig.
+        Deze keuze staat niet vast: je kan tijdens ${schooljaarId} nog leerlingen toevoegen of verwijderen uit Taalgroei en je taalgroepen blijven aanpassen.
+        Niet-aangevinkte leerlingen behouden hun eerdere gegevens.
       </p>
 
       <div class="lk-doorstroom-acties">
@@ -1341,7 +1362,7 @@ async function lkDoorstroomBevestigen() {
 
   const bevestiging = confirm(
     `Klaar om schooljaar "${sjId}" te starten met ${kinderenCodes.length} leerling${kinderenCodes.length === 1 ? '' : 'en'}?\n\n` +
-    `Het huidige schooljaar wordt gearchiveerd. Niet-meegenomen leerlingen blijven in het archief.`
+    `Het vorige schooljaar wordt gearchiveerd. Deze startselectie kan je tijdens het nieuwe schooljaar nog aanpassen.`
   );
   if (!bevestiging) return;
 
@@ -2189,6 +2210,15 @@ function _lkRendererDetail(kind) {
     html += '<div class="lk-detail-blok">';
     html += `<h4>📋 Taak — ${themaNaam}</h4>`;
 
+    const toegewezenDatum = t.toegewezenOp || t.gestart || 0;
+    const toegewezenStr = toegewezenDatum
+      ? new Date(toegewezenDatum).toLocaleDateString('nl-BE')
+      : 'datum onbekend';
+    html += `<p class="lk-detail-rij"><strong>Toegewezen door:</strong> ${_taakVeiligeTekst(t.toegewezenDoorRol || 'leerkracht')} · ${toegewezenStr}</p>`;
+    if (t.doel) html += `<p class="lk-detail-rij"><strong>Doel:</strong> ${_taakVeiligeTekst(t.doel)}</p>`;
+    if (t.bronGroepNaam) html += `<p class="lk-detail-rij"><strong>Taalgroep:</strong> ${_taakVeiligeTekst(t.bronGroepNaam)}</p>`;
+    if (t.vrijHerhalenNaAfronding) html += '<p class="lk-detail-rij">🔁 Daarna vrij blijven herhalen</p>';
+
     // PDF-knop voor huidige taak — alleen tonen als er een toets is afgelegd
     const heeftToets = (Array.isArray(t.foutWoordenLaatsteToets) && t.foutWoordenLaatsteToets.length > 0)
                        || t.status === 'voltooid'
@@ -2247,6 +2277,26 @@ function _lkRendererDetail(kind) {
     html += '</div>';
   } else {
     html += '<div class="lk-detail-blok"><h4>📋 Taak</h4><p class="lk-detail-leeg">Nog geen taak ingesteld voor deze leerling.</p></div>';
+  }
+
+  // === Geplande taken die na de actieve taak volgen ===
+  const geplandeTaken = Array.isArray(kind.taakwachtrij) ? kind.taakwachtrij : [];
+  if (geplandeTaken.length > 0) {
+    html += `<div class="lk-detail-blok"><h4>🗓️ Gepland (${geplandeTaken.length})</h4>`;
+    geplandeTaken.forEach((taak, index) => {
+      const thema = ALLE_THEMAS_LK.find(x => x.id === taak.themaId);
+      const themaNaam = thema ? `${thema.emoji} ${thema.naam}` : (taak.themaId || 'Thema');
+      const datum = taak.toegewezenOp || taak.gestart || 0;
+      const datumStr = datum ? new Date(datum).toLocaleDateString('nl-BE') : 'datum onbekend';
+      const doel = taak.doel ? `<small><strong>Doel:</strong> ${_taakVeiligeTekst(taak.doel)}</small>` : '';
+      html += `<div class="lk-taakgesch-rij">
+        <span class="lk-taakgesch-datum">${index + 1}</span>
+        <span class="lk-taakgesch-thema"><strong>${themaNaam}</strong>${doel}</span>
+        <span class="lk-taakgesch-status bezig">${_taakVeiligeTekst(taak.toegewezenDoorRol || 'leerkracht')} · ${datumStr}</span>
+        <button class="lk-knop-mini gevaar" onclick="lkGeplandeTaakWissen('${kind.code}', '${_taakVeiligeTekst(taak.taakId || '')}', ${index})" title="Geplande taak verwijderen">🗑️</button>
+      </div>`;
+    });
+    html += '</div>';
   }
 
   // === Vrij oefenen detail ===
@@ -2985,10 +3035,10 @@ function lkOpenKindBeheer(code, naam) {
       </button>
 
       <button class="lk-kindbeheer-keuzeknop" onclick="lkSluitKindBeheer(); lkBeheerTaak('${code}', '${naamSafe}')">
-        <div class="lk-kindbeheer-titel">📋 Maak / wijzig taak</div>
+        <div class="lk-kindbeheer-titel">📋 Nieuwe taak klaarzetten</div>
         <div class="lk-kindbeheer-uitleg">
           Zet een gerichte oefening klaar bij één thema: kies specifieke woorden,
-          vaardigheden en oefenvormen.
+          vaardigheden en oefenvormen. Een bestaande taak wordt niet overschreven.
         </div>
       </button>
 
@@ -3276,6 +3326,25 @@ let _taakModalGeschiedenis = [];
 let _taakModalHuidigeTaak = null;
 let _taakModalDoelCodes = [];
 let _taakModalGroepsnaam = '';
+let _taakModalDoel = '';
+let _taakModalVrijHerhalen = false;
+
+function _taakVeiligeTekst(waarde) {
+  return String(waarde || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function _taakToewijzerRol() {
+  const sessie = window.SchoolSessie && typeof window.SchoolSessie.get === 'function'
+    ? window.SchoolSessie.get() : null;
+  const rol = String(sessie && sessie.rol || 'leerkracht').toLowerCase();
+  const labels = {
+    zorgleerkracht: 'zorgleerkracht', zorgcoordinator: 'zorgcoördinator',
+    directie: 'directie', beheerder: 'beheerder', klasleerkracht: 'klasleerkracht',
+    leerkracht: 'leerkracht'
+  };
+  return labels[rol] || 'leerkracht';
+}
 
 // Helper: bepaal kleur voor een woord-id binnen het huidig gekozen thema
 //   'geel'  = woord was fout in de MEEST RECENTE toets waar het in zat
@@ -3327,6 +3396,8 @@ async function lkBeheerTaak(code, naam, doelCodes, groepsnaam) {
   _taakModalNaam = naam || code;
   _taakModalDoelCodes = Array.isArray(doelCodes) && doelCodes.length ? [...new Set(doelCodes)] : [code];
   _taakModalGroepsnaam = groepsnaam || '';
+  _taakModalDoel = '';
+  _taakModalVrijHerhalen = false;
   // Standaard start de modal op de woorden-sectie open
   _taakModalOpenSectie = 'woorden';
 
@@ -3350,16 +3421,16 @@ async function lkBeheerTaak(code, naam, doelCodes, groepsnaam) {
   // (wel met groen/geel-codering zichtbaar zodat ze weet wat al kende of fout was).
   if (huidigeTaak && huidigeTaak.themaId) {
     _taakModalThemaId = huidigeTaak.themaId;
-    const taakAfgewerkt = (huidigeTaak.status === 'voltooid' ||
-                           huidigeTaak.status === 'moeilijk' ||
-                           huidigeTaak.status === 'haperde');
-    _taakModalWoordIds = taakAfgewerkt ? new Set() : new Set(huidigeTaak.woordIds || []);
+    // We maken een nieuwe taak. Het bestaande pakket blijft actief of gepland.
+    _taakModalWoordIds = new Set();
     _taakModalVaardigheden = new Set(huidigeTaak.vaardigheden || ['luisteren']);
     _taakModalOefenvormenLuisteren = new Set(huidigeTaak.oefenvormen_luisteren || ['klikspel']);
     _taakModalOefenvormenLezen     = new Set(huidigeTaak.oefenvormen_lezen     || ['woord-beeld']);
     _taakModalOefenvormenSchrijven = new Set(huidigeTaak.oefenvormen_schrijven || ['overtypen']);
     _taakModalToetsen              = new Set(huidigeTaak.toetsen              || ['luisteren']);
     _taakModalZinscontext = huidigeTaak.zinscontext === true;
+    _taakModalDoel = '';
+    _taakModalVrijHerhalen = false;
   } else {
     // Pak eerste thema dat actief is voor dit kind, anders eerste van de lijst
     const kind = lkKinderen.find(k => k.code === code);
@@ -3439,14 +3510,23 @@ function rendererTaakModal(huidigeTaak) {
 
   let html = `
     <div class="lk-cat-modal lk-taak-modal-doos" onclick="event.stopPropagation()">
-      <h2>📋 ${_taakModalDoelCodes.length > 1 ? `Taak voor groep ${_taakModalGroepsnaam || ''}` : `Taak voor ${_taakModalNaam}`}</h2>
+      <h2>📋 ${_taakModalDoelCodes.length > 1 ? `Nieuwe taak voor groep ${_taakModalGroepsnaam || ''}` : `Nieuwe taak voor ${_taakModalNaam}`}</h2>
       <p class="modal-uitleg">
-        ${_taakModalDoelCodes.length > 1 ? `<strong>${_taakModalDoelCodes.length} leerlingen krijgen dezelfde taak.</strong> Een eventuele actieve taak per leerling wordt vervangen; afgewerkte taken blijven in de geschiedenis.` : 'Stel een taak samen in 3 stappen.'}
+        ${_taakModalDoelCodes.length > 1 ? `<strong>${_taakModalDoelCodes.length} leerlingen krijgen dezelfde taak.</strong> Bestaande taken blijven behouden; deze taak wordt actief of sluit achteraan aan.` : 'Stel een taak samen in 3 stappen.'}
         Klik op een sectie om hem open of dicht te klappen.
         Open één sectie tegelijk om overzichtelijk te werken.
       </p>
 
       ${statusBlok}
+
+      <div class="lk-taak-veld">
+        <label class="lk-taak-label" for="lk-taak-doel">Doel van deze taak</label>
+        <input id="lk-taak-doel" class="lk-taak-select" type="text"
+          value="${_taakVeiligeTekst(_taakModalDoel)}"
+          placeholder="bv. schoolwoorden begrijpen en zelfstandig gebruiken"
+          oninput="_taakModalDoel=this.value">
+        <p class="lk-taak-tip">Dit doel verschijnt in het gedeelde overzicht voor zorg- en klasleerkrachten.</p>
+      </div>
 
       <div class="lk-taak-veld">
         <label class="lk-taak-label">Thema</label>
@@ -3555,6 +3635,15 @@ function rendererTaakModal(huidigeTaak) {
   }
   html += `
       </div>
+    </div>
+
+    <div class="lk-taak-veld">
+      <label class="lk-taak-zinscontext ${_taakModalVrijHerhalen ? 'aan' : ''}">
+        <input type="checkbox" ${_taakModalVrijHerhalen ? 'checked' : ''} onchange="_taakModalVrijHerhalen=this.checked; rendererTaakModal(null)">
+        <span class="lk-vaardigheid-icoon">🔁</span>
+        <span class="lk-vaardigheid-naam">Dit thema na de taak vrij laten herhalen</span>
+      </label>
+      <p class="lk-taak-tip">Wanneer de taak is afgerond, komt dit thema automatisch bij de vrije herhaling van het kind.</p>
     </div>
   `;
 
@@ -3730,9 +3819,9 @@ function rendererTaakModal(huidigeTaak) {
 
   html += `
       <div class="lk-cat-modal-knoppen">
-        ${_taakModalDoelCodes.length === 1 ? '<button class="lk-knop-mini gevaar" onclick="lkTaakWissen()">🗑️ Taak wissen</button>' : '<span></span>'}
+        <span></span>
         <button class="lk-knop-mini" onclick="lkSluitTaakModal()">Annuleren</button>
-        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarTaak()">💾 Bewaren</button>
+          <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarTaak()">➕ Taak klaarzetten</button>
       </div>
     </div>
   `;
@@ -3875,7 +3964,7 @@ async function lkBewaarTaak() {
   }
   const knop = document.querySelector('#lk-taak-modal-bg .lk-cat-modal-knoppen button:last-child');
   const doelCodes = _taakModalDoelCodes.length ? _taakModalDoelCodes : [_taakModalKindCode];
-  if (doelCodes.length > 1 && !confirm(`Deze taak klaarzetten voor ${doelCodes.length} leerlingen van ${_taakModalGroepsnaam || 'de groep'}?\n\nEen nog actieve taak wordt per leerling vervangen. Afgewerkte taken blijven bewaard.`)) return;
+  if (doelCodes.length > 1 && !confirm(`Deze taak klaarzetten voor ${doelCodes.length} leerlingen van ${_taakModalGroepsnaam || 'de groep'}?\n\nBestaande taken worden niet overschreven. Waar nodig sluit deze taak aan in de planning.`)) return;
   if (knop) { knop.disabled = true; knop.textContent = '⏳ Bezig...'; }
   try {
     const taak = {
@@ -3892,9 +3981,16 @@ async function lkBewaarTaak() {
       foutWoordenLaatsteToets: [],
       aantalPogingen: { luisteren: 0, lezen: 0, schrijven: 0 },
       gestart: Date.now(),
+      toegewezenOp: Date.now(),
+      toegewezenDoorRol: _taakToewijzerRol(),
+      doel: _taakModalDoel.trim(),
+      bronGroepNaam: _taakModalGroepsnaam || '',
+      vrijHerhalenNaAfronding: _taakModalVrijHerhalen,
       rapportperiodeId: lkActievePeriodeId()
     };
-    await Promise.all(doelCodes.map(code => Voortgang.zetTaakVoorKind(code, { ...taak, gestart: Date.now() })));
+    const resultaten = await Promise.all(doelCodes.map(code =>
+      Voortgang.voegTaakToeVoorKind(code, { ...taak, gestart: Date.now(), toegewezenOp: Date.now() })
+    ));
     // Lokale lijst bijwerken
     doelCodes.forEach(code => {
     const kind = lkKinderen.find(k => k.code === code);
@@ -3927,7 +4023,13 @@ async function lkBewaarTaak() {
           kind.taakgeschiedenis = kind.taakgeschiedenis.slice(-50);
         }
       }
-      kind.taak = taak;
+      const resultaat = resultaten[doelCodes.indexOf(code)];
+      if (resultaat && resultaat.positie === 'actief') {
+        kind.taak = resultaat.taak;
+      } else if (resultaat && resultaat.taak) {
+        if (!Array.isArray(kind.taakwachtrij)) kind.taakwachtrij = [];
+        kind.taakwachtrij.push(resultaat.taak);
+      }
     }
     });
     lkSluitTaakModal();
@@ -3983,6 +4085,20 @@ async function lkTaakWissenDirect(kindCode) {
   }
 }
 
+async function lkGeplandeTaakWissen(kindCode, taakId, index) {
+  if (!kindCode || !confirm('Deze geplande taak verwijderen? De actieve taak blijft behouden.')) return;
+  try {
+    const wachtrij = await Voortgang.verwijderGeplandeTaakVoorKind(kindCode, taakId || null, index);
+    const kind = lkKinderen.find(k => k.code === kindCode);
+    if (kind) kind.taakwachtrij = wachtrij;
+    if (typeof lkRendererTabel === 'function') lkRendererTabel();
+    if (typeof lkKindtabsRender === 'function') lkKindtabsRender();
+  } catch (e) {
+    console.error('Geplande taak wissen mislukt:', e);
+    alert('Kon de geplande taak niet wissen. Probeer opnieuw.');
+  }
+}
+
 // Wis een specifieke taak uit de geschiedenis (archief) van een kind.
 // Wordt aangeroepen via de 🗑️-knop op een archief-rij.
 async function lkTaakArchiefWissen(kindCode, archiefIdx) {
@@ -4015,6 +4131,8 @@ function lkSluitTaakModal() {
   _taakModalKindCode = null;
   _taakModalThemaId = null;
   _taakModalWoordIds = new Set();
+  _taakModalDoel = '';
+  _taakModalVrijHerhalen = false;
 }
 
 // =================================================================

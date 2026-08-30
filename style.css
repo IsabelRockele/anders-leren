@@ -6958,6 +6958,19 @@ h1, h2, h3 {
   font-weight: 500;
 }
 
+.lk-taakgesch-thema small {
+  display: block;
+  margin-top: 3px;
+  color: #5f665f;
+  font-weight: 400;
+}
+
+@media (max-width: 760px) {
+  .lk-taakgesch-rij { flex-wrap: wrap; }
+  .lk-taakgesch-thema { min-width: 65%; }
+  .lk-taakgesch-status { margin-left: 70px; }
+}
+
 .lk-taakgesch-status {
   font-size: 12px;
   font-weight: 600;
@@ -7132,6 +7145,14 @@ h1, h2, h3 {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lk-taakrij-thema small {
+  flex-basis: 100%;
+  color: #6b7280;
+  font-weight: 400;
+  line-height: 1.25;
 }
 
 .lk-taakrij-status {

@@ -489,8 +489,9 @@ window.Voortgang = (function() {
   }
 
   // ------------------- Taak-systeem ------------------
-  // Eén actieve taak per kind. Voor het huidige geladen kind in taakCache.
-  // Voor een ander kind: gebruik haalTaakOpVoorKind/zetTaakVoorKind.
+  // Eén zichtbare taak per kind + een wachtrij met geplande taken.
+  // Zo blijft het kindscherm eenvoudig, terwijl meerdere leerkrachten taken
+  // kunnen klaarzetten zonder elkaars werk te overschrijven.
 
   // Bouw een leeg taak-object met defaults op basis van de taakObj.
   function _bouwTaak(taakObj) {
@@ -539,7 +540,13 @@ window.Voortgang = (function() {
       aantalPogingen: taakObj.aantalPogingen || { luisteren: 0, lezen: 0, schrijven: 0 },
       gestart: taakObj.gestart || Date.now(),
       klassikaalId: taakObj.klassikaalId || null,
-      rapportperiodeId: taakObj.rapportperiodeId || null
+      rapportperiodeId: taakObj.rapportperiodeId || null,
+      taakId: taakObj.taakId || ('taak-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)),
+      toegewezenOp: taakObj.toegewezenOp || Date.now(),
+      toegewezenDoorRol: taakObj.toegewezenDoorRol || 'leerkracht',
+      doel: taakObj.doel || '',
+      bronGroepNaam: taakObj.bronGroepNaam || '',
+      vrijHerhalenNaAfronding: taakObj.vrijHerhalenNaAfronding === true
     };
     // Initialiseer perWoord-data voor elk woord dat nog geen entry heeft
     taak.woordIds.forEach(id => {
@@ -707,23 +714,50 @@ window.Voortgang = (function() {
       foutWoordenLaatsteToets: [...(taakCache.foutWoordenLaatsteToets || [])],
       toetsResultaten: taakCache.toetsResultaten ? JSON.parse(JSON.stringify(taakCache.toetsResultaten)) : null,
       rapportperiodeId: taakCache.rapportperiodeId || null,
-      gestart: taakCache.gestart || null
+      gestart: taakCache.gestart || null,
+      taakId: taakCache.taakId || null,
+      toegewezenOp: taakCache.toegewezenOp || taakCache.gestart || null,
+      toegewezenDoorRol: taakCache.toegewezenDoorRol || 'leerkracht',
+      doel: taakCache.doel || '',
+      bronGroepNaam: taakCache.bronGroepNaam || '',
+      vrijHerhalenNaAfronding: taakCache.vrijHerhalenNaAfronding === true
     };
     taakgeschiedenisCache.push(archief);
     // Beperk geschiedenis tot laatste 50 taken om Firestore-grootte beheersbaar te houden
     if (taakgeschiedenisCache.length > 50) {
       taakgeschiedenisCache = taakgeschiedenisCache.slice(-50);
     }
-    taakCache = null;
+    let volgendeTaak = null;
+    let resterendeWachtrij = [];
+    let vrijeThemasNaAfronding = null;
+    if (db) {
+      try {
+        const snap = await db.collection('kinderen').doc(huidigKindCode).get();
+        const data = snap.exists ? snap.data() : {};
+        const wachtrij = Array.isArray(data.taakwachtrij) ? data.taakwachtrij : [];
+        volgendeTaak = wachtrij.length ? _bouwTaak(wachtrij[0]) : null;
+        resterendeWachtrij = wachtrij.slice(1);
+        if (taakCache.vrijHerhalenNaAfronding === true && taakCache.themaId) {
+          const huidigVrij = Array.isArray(data.thema_actief) ? data.thema_actief : [];
+          vrijeThemasNaAfronding = [...new Set([...huidigVrij, taakCache.themaId])];
+        }
+      } catch (e) {
+        console.warn('Wachtrij ophalen bij archiveren mislukt:', e);
+      }
+    }
+    taakCache = volgendeTaak;
     if (_previewModus) return; // preview: geen persistence
-    localStorage.setItem('andersleren_taak_' + huidigKindCode, 'null');
+    localStorage.setItem('andersleren_taak_' + huidigKindCode, JSON.stringify(taakCache));
     localStorage.setItem('andersleren_taakgeschiedenis_' + huidigKindCode, JSON.stringify(taakgeschiedenisCache));
     if (db) {
       try {
-        await db.collection('kinderen').doc(huidigKindCode).update({
-          taak: window.firebase.firestore.FieldValue.delete(),
-          taakgeschiedenis: taakgeschiedenisCache
-        });
+        const update = {
+          taakgeschiedenis: taakgeschiedenisCache,
+          taakwachtrij: resterendeWachtrij
+        };
+        update.taak = volgendeTaak || window.firebase.firestore.FieldValue.delete();
+        if (vrijeThemasNaAfronding) update.thema_actief = vrijeThemasNaAfronding;
+        await db.collection('kinderen').doc(huidigKindCode).update(update);
       } catch (e) {
         console.warn('Archiveren taak in Firestore mislukt:', e);
       }
@@ -745,6 +779,68 @@ window.Voortgang = (function() {
       console.warn('Ophalen taak mislukt:', e);
       return null;
     }
+  }
+
+  // Haal actieve én reeds geplande taken op voor het gedeelde leerkrachtoverzicht.
+  async function haalOpenTakenOpVoorKind(code) {
+    if (!db || !code) return { actief: null, gepland: [] };
+    try {
+      const doc = await db.collection('kinderen').doc(code).get();
+      if (!doc.exists) return { actief: null, gepland: [] };
+      const data = doc.data();
+      return {
+        actief: data.taak || null,
+        gepland: Array.isArray(data.taakwachtrij) ? data.taakwachtrij : []
+      };
+    } catch (e) {
+      console.warn('Open taken ophalen mislukt:', e);
+      return { actief: null, gepland: [] };
+    }
+  }
+
+  // Voeg toe zonder een bestaande actieve taak te vervangen. De eerste taak
+  // wordt actief; alle volgende taken komen in de wachtrij.
+  async function voegTaakToeVoorKind(code, taakObj) {
+    if (!db || !code) return { positie: 'onbekend', taak: null };
+    const nieuw = _bouwTaak(taakObj);
+    const ref = db.collection('kinderen').doc(code);
+    let positie = 'gepland';
+    await db.runTransaction(async transactie => {
+      const snap = await transactie.get(ref);
+      if (!snap.exists) throw new Error('Leerling niet gevonden.');
+      const data = snap.data();
+      const actief = data.taak;
+      const actiefGeldig = actief && actief.themaId && Array.isArray(actief.woordIds) && actief.woordIds.length > 0;
+      if (!actiefGeldig) {
+        positie = 'actief';
+        transactie.update(ref, { taak: nieuw });
+      } else {
+        const wachtrij = Array.isArray(data.taakwachtrij) ? [...data.taakwachtrij] : [];
+        wachtrij.push(nieuw);
+        transactie.update(ref, { taakwachtrij: wachtrij });
+      }
+    });
+    if (code === huidigKindCode && positie === 'actief') {
+      taakCache = nieuw;
+      localStorage.setItem('andersleren_taak_' + code, JSON.stringify(nieuw));
+    }
+    return { positie, taak: nieuw };
+  }
+
+  async function verwijderGeplandeTaakVoorKind(code, taakId, indexFallback) {
+    if (!db || !code) return [];
+    const ref = db.collection('kinderen').doc(code);
+    let nieuw = [];
+    await db.runTransaction(async transactie => {
+      const snap = await transactie.get(ref);
+      if (!snap.exists) throw new Error('Leerling niet gevonden.');
+      const wachtrij = Array.isArray(snap.data().taakwachtrij) ? [...snap.data().taakwachtrij] : [];
+      const index = taakId ? wachtrij.findIndex(t => t.taakId === taakId) : Number(indexFallback);
+      if (index >= 0 && index < wachtrij.length) wachtrij.splice(index, 1);
+      nieuw = wachtrij;
+      transactie.update(ref, { taakwachtrij: wachtrij });
+    });
+    return nieuw;
   }
 
   async function zetTaakVoorKind(code, taakObj) {
@@ -2136,8 +2232,11 @@ window.Voortgang = (function() {
     archiveerHuidigeTaak,
     getTaakgeschiedenis,
     haalTaakOpVoorKind,
+    haalOpenTakenOpVoorKind,
     haalTaakgeschiedenisOpVoorKind,
     zetTaakVoorKind,
+    voegTaakToeVoorKind,
+    verwijderGeplandeTaakVoorKind,
     zetTaakgeschiedenisVoorKind,
     // Spreektoetsen
     getSpreektoetsen,
