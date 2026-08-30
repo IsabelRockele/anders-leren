@@ -78,7 +78,7 @@ window.Voortgang = (function() {
 
   function init() {
     if (window.FIREBASE_INGESTELD && window.firebase) {
-      db = window.firebase.firestore();
+      db = window.db;
     }
   }
 

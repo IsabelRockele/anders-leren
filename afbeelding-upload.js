@@ -89,7 +89,7 @@ window.AfbeeldingUpload = (function() {
     if (!window.firebase || !window.firebase.storage) {
       throw new Error('Firebase Storage is niet geladen. Check leerkracht.html.');
     }
-    const storage = window.firebase.storage();
+    const storage = window.taalgroeiStorage || window.firebase.storage();
     const ref = storage.ref().child(padInStorage);
     const snapshot = await ref.put(blob, { contentType: 'image/jpeg' });
     return await snapshot.ref.getDownloadURL();
@@ -136,7 +136,7 @@ window.AfbeeldingUpload = (function() {
     if (!url || !url.startsWith('http')) return;
     if (!window.firebase || !window.firebase.storage) return;
     try {
-      const ref = window.firebase.storage().refFromURL(url);
+      const ref = (window.taalgroeiStorage || window.firebase.storage()).refFromURL(url);
       await ref.delete();
     } catch (e) {
       console.warn('Foto verwijderen mislukt (negeerbaar):', e);

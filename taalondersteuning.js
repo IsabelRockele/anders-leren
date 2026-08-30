@@ -19,7 +19,7 @@ window.Taalgroei = (function () {
   async function laad() {
     try {
       if (window.FIREBASE_INGESTELD && window.firebase) {
-        db=window.firebase.firestore();
+        db=window.db;
         const doc=await Promise.race([
           db.collection('instellingen').doc('taalondersteuning').get(),
           new Promise((_,mislukt)=>setTimeout(()=>mislukt(new Error('laden duurt te lang')),3000))
