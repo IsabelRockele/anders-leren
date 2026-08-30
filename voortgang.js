@@ -1223,13 +1223,34 @@ window.Voortgang = (function() {
       };
     }
 
+    const bronVelden = (naamOfData && typeof naamOfData === 'object') ? {
+      centraleKoppelHash: naamOfData.centraleKoppelHash || null,
+      centraleSchooljaar: naamOfData.centraleSchooljaar || null,
+      bron: naamOfData.bron || null
+    } : {};
+
     await db.collection('kinderen').doc(codeNorm).set({
       ...velden,
+      ...bronVelden,
       gemaakt: window.firebase.firestore.FieldValue.serverTimestamp(),
       voortgang: {},
       thema_actief: []
     });
     return codeNorm;
+  }
+
+  // Verbind een bestaande Taalgroei-leerling met een onomkeerbare koppelsleutel
+  // uit de centrale klaslijst. De echte centrale ID wordt hier niet opgeslagen.
+  async function koppelCentraleLeerling(code, gegevens) {
+    if (!db) throw new Error('Firebase niet ingesteld.');
+    if (!code || !gegevens || !gegevens.centraleKoppelHash) throw new Error('Leerling en koppelsleutel zijn verplicht.');
+    const k = String(gegevens.klas || '').trim();
+    await db.collection('kinderen').doc(code).update({
+      centraleKoppelHash: String(gegevens.centraleKoppelHash),
+      centraleSchooljaar: String(gegevens.centraleSchooljaar || ''),
+      bron: 'schoolportaal',
+      klas: k
+    });
   }
 
   async function verwijderKind(code) {
@@ -2086,6 +2107,7 @@ window.Voortgang = (function() {
     getCache,
     alleKinderen,
     maakKind,
+    koppelCentraleLeerling,
     verwijderKind,
     wijzigNaamVanKind,
     wijzigKindGegevens,

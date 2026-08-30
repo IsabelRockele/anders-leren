@@ -24,7 +24,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="style.css?v=20260830-3">
+  <link rel="stylesheet" href="style.css?v=20260830-4">
   <link rel="stylesheet" href="taalondersteuning.css?v=1">
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -190,10 +190,22 @@
         <p>Vul eerst je Firebase-config in <code>firebase-config.js</code> in. Daarna werkt dit paneel volledig.</p>
       </div>
 
+      <div class="lk-vak ckl-vak">
+        <div class="lk-vak-kop">
+          <div>
+            <span class="ckl-label">CENTRALE SCHOOLLIJST</span>
+            <h2>🏫 Klassen 2026-2027</h2>
+            <p>Kies hier alleen de kinderen die Taalgroei gebruiken. Hun klas en naam komen uit het schoolportaal; hun oefeningen en resultaten blijven in Taalgroei.</p>
+          </div>
+          <button class="lk-knop-mini" onclick="CentraleKlaslijsten.laad()">🔄 Klaslijsten vernieuwen</button>
+        </div>
+        <div id="centrale-klaslijsten-inhoud"><p class="ckl-status">De schoolaanmelding wordt gecontroleerd…</p></div>
+      </div>
+
       <div class="lk-vak">
-        <h2>➕ Nieuwe leerling</h2>
+        <h2>➕ Leerling handmatig toevoegen</h2>
         <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
-          Maak een code voor elk kind. De code is volledig anoniem voor de cloud — de naam is alleen voor jou.
+          Alleen gebruiken als een leerling nog niet in de centrale klaslijst staat. Voor leerlingen uit 2026-2027 gebruik je hierboven de schoollijst.
         </p>
         <div class="lk-form lk-form-grid">
           <input type="text" id="nieuw-voornaam"  placeholder="Voornaam"  autocomplete="off">
@@ -463,7 +475,7 @@
     <div class="lk-vak">
       <h2>🔒 Privacy &amp; AVG</h2>
       <p style="line-height:1.7; font-size:15px">
-        Alleen voortgangsdata (welk woord juist/fout) en de zelfgekozen code worden in de cloud opgeslagen. Namen blijven enkel op jouw paneel staan, niet bij de leerling-data. Geen e-mails, geen wachtwoorden, geen persoonlijke gegevens.
+        Taalgroei leest alleen de klaslijsten waarvoor het aangemelde schoolaccount toegang heeft. Alleen leerlingen die je zelf aanvinkt, worden gekoppeld. Hun naam en echte centrale leerling-ID blijven in de schoolomgeving; Taalgroei bewaart daarvoor alleen een onleesbare koppelsleutel en een willekeurige oefencode. Taken, oefeningen, evaluaties en resultaten worden in de afzonderlijke Taalgroei-gegevensomgeving bewaard. Wachtwoorden worden nooit door Taalgroei opgeslagen of via een link doorgegeven.
       </p>
     </div>
 
@@ -522,14 +534,15 @@
   // Gen2 Cloud Run URL — exact zoals genereerVraagstuk.
   window.RAPPORT_FEEDBACK_URL = 'https://rapportfeedback-xc54winygq-ew.a.run.app';
 </script>
-<script src="voortgang.js"></script>
+<script src="voortgang.js?v=20260830-1"></script>
 <script src="picto.js?v=20260830-2"></script>
 <script src="woordenbeheer.js"></script>
 <script src="afbeelding-upload.js"></script>
 <script src="pdf-engine.js?v=20260830-9"></script>
 <script src="rapport-engine.js"></script>
-<script src="leerkracht.js?v=20260830-7"></script>
-<script src="taalondersteuning.js?v=4"></script>
+<script src="leerkracht.js?v=20260830-8"></script>
+<script src="centrale-klaslijsten.js?v=20260830-1"></script>
+<script src="taalondersteuning.js?v=5"></script>
 
 </body>
 </html>

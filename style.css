@@ -8572,3 +8572,17 @@ h1, h2, h3 {
 .school-sessie-kaart{width:min(520px,100%);padding:34px;border-radius:24px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.28)}
 .school-sessie-kaart .school-sessie-icoon{font-size:48px}.school-sessie-kaart h1{margin:12px 0 10px;color:#173e36;font-size:26px}.school-sessie-kaart p{margin:0 auto 22px;max-width:430px;color:#52645f;line-height:1.6}.school-sessie-kaart a{display:inline-flex;padding:12px 20px;border-radius:13px;background:#147c67;color:#fff;text-decoration:none;font-weight:800}
 @media(max-width:760px){.school-sessie-status{display:none}}
+
+/* Centrale klaslijsten 2026-2027 */
+.ckl-vak{border:2px solid #b9ded3;background:linear-gradient(145deg,#f5fcf9,#fffdf8)}
+.ckl-vak .lk-vak-kop{align-items:flex-start;gap:18px}.ckl-vak .lk-vak-kop p{margin:5px 0 0;max-width:820px;color:#526761;line-height:1.5}
+.ckl-label{display:inline-block;margin-bottom:5px;color:#167762;font-size:11px;font-weight:900;letter-spacing:.09em}
+.ckl-status,.ckl-melding{margin:14px 0 0;padding:14px 16px;border-radius:13px;background:#eef7f4;color:#365d53}
+.ckl-melding.fout{background:#fff1ed;color:#8a3b35}
+.ckl-werkbalk,.ckl-onderbalk{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px;padding:12px 14px;border-radius:14px;background:#e8f5f0}
+.ckl-werkbalk>div:first-child{display:flex;flex-direction:column}.ckl-werkbalk span{margin-top:2px;color:#60756f;font-size:13px}.ckl-acties{display:flex;gap:7px}
+.ckl-klassen{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px}
+.ckl-klas{overflow:hidden;border:1px solid #cfe2dc;border-radius:15px;background:#fff}.ckl-klas h3{display:flex;justify-content:space-between;margin:0;padding:11px 14px;background:#dff1eb;color:#174e41;font-size:16px}.ckl-klas h3 span{display:grid;place-items:center;min-width:25px;height:25px;border-radius:13px;background:#fff;font-size:12px}
+.ckl-leerlingen{display:grid;gap:1px;padding:6px}.ckl-leerling{display:flex;align-items:center;gap:10px;padding:9px;border-radius:10px;cursor:pointer}.ckl-leerling:hover{background:#f4faf8}.ckl-leerling.gekoppeld{background:#f1faf5}.ckl-leerling input{width:18px;height:18px;accent-color:#16866f}.ckl-leerling span,.ckl-leerling small{display:block}.ckl-leerling strong{font-size:14px}.ckl-leerling small{margin-top:2px;color:#71807c;font-size:11px}.ckl-leerling.gekoppeld small{color:#238064;font-weight:700}
+.ckl-onderbalk{position:sticky;bottom:8px;z-index:4;box-shadow:0 8px 24px rgba(27,76,64,.14)}.ckl-onderbalk .primair{padding:10px 15px;background:#16866f;color:#fff}
+@media(max-width:700px){.ckl-werkbalk,.ckl-onderbalk,.ckl-vak .lk-vak-kop{align-items:stretch;flex-direction:column}.ckl-acties{flex-wrap:wrap}.ckl-onderbalk .primair{width:100%}}
