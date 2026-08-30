@@ -29,13 +29,15 @@ window.CentraleKlaslijsten = (function () {
     return String(raw.id || raw.leerlingId || `${klas}-${naamSleutel(volledigeNaam(raw))}-${index}`);
   }
   function volledigeNaam(raw) {
-    const voor = raw.first || raw.firstName || raw.voornaam || '';
+    const officieelVoor = raw.first || raw.firstName || raw.voornaam || '';
+    const voor = raw.roepnaam || raw.roepNaam || raw.callingName || officieelVoor;
     const achter = raw.last || raw.lastName || raw.achternaam || '';
     return [voor, achter].filter(Boolean).join(' ').trim() || String(raw.naam || raw.name || '').trim();
   }
   function normaliseerLeerling(raw, klas, index) {
     const naam = volledigeNaam(raw);
-    let voornaam = String(raw.first || raw.firstName || raw.voornaam || '').trim();
+    const officieleVoornaam = String(raw.first || raw.firstName || raw.voornaam || '').trim();
+    let voornaam = String(raw.roepnaam || raw.roepNaam || raw.callingName || officieleVoornaam).trim();
     let achternaam = String(raw.last || raw.lastName || raw.achternaam || '').trim();
     if (!voornaam && naam) {
       const delen = naam.split(/\s+/);
@@ -46,6 +48,7 @@ window.CentraleKlaslijsten = (function () {
       centraleLeerlingId: leerlingId(raw, klas, index),
       voornaam,
       achternaam,
+      officieleVoornaam,
       naam: naam || 'Naam ontbreekt',
       klas,
       start: raw.start || raw.startDatum || '',
@@ -67,6 +70,11 @@ window.CentraleKlaslijsten = (function () {
   }
   function vergelijkKlassen(a, b) {
     return String(a).localeCompare(String(b), 'nl', { numeric: true, sensitivity: 'base' });
+  }
+  function vergelijkLeerlingen(a, b) {
+    return String(a.achternaam || '').localeCompare(String(b.achternaam || ''), 'nl-BE', { sensitivity: 'base' })
+      || String(a.voornaam || '').localeCompare(String(b.voornaam || ''), 'nl-BE', { sensitivity: 'base' })
+      || String(a.naam || '').localeCompare(String(b.naam || ''), 'nl-BE', { sensitivity: 'base' });
   }
   function gekoppeldKind(student) {
     const centraal = (lkKinderen || []).find(k =>
@@ -141,7 +149,7 @@ window.CentraleKlaslijsten = (function () {
       <div class="ckl-klassen">${ids.map(klas => `
         <section class="ckl-klas">
           <h3>${veilig(klas)} <span>${klassen[klas].length}</span></h3>
-          <div class="ckl-leerlingen">${klassen[klas].sort((a,b)=>a.naam.localeCompare(b.naam,'nl')).map(student => {
+          <div class="ckl-leerlingen">${[...klassen[klas]].sort(vergelijkLeerlingen).map(student => {
             const bestaand = gekoppeldKind(student);
             const echtGekoppeld = bestaand && String(bestaand.centraleKoppelHash || '') === student.centraleKoppelHash;
             return `<label class="ckl-leerling ${echtGekoppeld ? 'gekoppeld' : ''}">

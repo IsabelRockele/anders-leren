@@ -300,6 +300,15 @@ function _lkSorteerKinderenAlfabet() {
   });
 }
 
+// Zelfde alfabetische regel voor lijsten die niet eerst per klas groeperen.
+function _lkVergelijkOpAchternaam(a, b) {
+  const achter = (a.achternaam || '').localeCompare(b.achternaam || '', 'nl-BE', { sensitivity: 'base' });
+  if (achter) return achter;
+  const voor = (a.voornaam || '').localeCompare(b.voornaam || '', 'nl-BE', { sensitivity: 'base' });
+  if (voor) return voor;
+  return lkVolledigeNaam(a).localeCompare(lkVolledigeNaam(b), 'nl-BE', { sensitivity: 'base' });
+}
+
 // Render kindertabs + content voor een specifieke tab ('taken'|'spreken'|'rapporten'|'puntenboek')
 function lkKindtabsRender(welkeTab) {
   // Als geen argument: render alle (gebruikt na laden van leerlingen)
@@ -1313,7 +1322,7 @@ function _lkDoorstroomLijstHtml() {
     const klasA = (a.klas || '').toLowerCase();
     const klasB = (b.klas || '').toLowerCase();
     if (klasA !== klasB) return klasA.localeCompare(klasB);
-    return (a.naam || '').localeCompare(b.naam || '');
+    return _lkVergelijkOpAchternaam(a, b);
   });
 
   return gesorteerd.map(k => {
@@ -2798,12 +2807,7 @@ function lkPrintLijst() {
   }
 
   // Sorteer op naam (kinderen zonder naam onderaan)
-  const gesorteerd = [...lkKinderen].sort((a, b) => {
-    if (!a.naam && !b.naam) return 0;
-    if (!a.naam) return 1;
-    if (!b.naam) return -1;
-    return a.naam.localeCompare(b.naam, 'nl');
-  });
+  const gesorteerd = [...lkKinderen].sort(_lkVergelijkOpAchternaam);
 
   const datum = new Date().toLocaleDateString('nl-BE', {
     day: 'numeric', month: 'long', year: 'numeric'
@@ -2876,12 +2880,7 @@ function lkPrintAlleQR() {
   }
 
   // Sorteer op naam
-  const gesorteerd = [...lkKinderen].sort((a, b) => {
-    if (!a.naam && !b.naam) return 0;
-    if (!a.naam) return 1;
-    if (!b.naam) return -1;
-    return a.naam.localeCompare(b.naam, 'nl');
-  });
+  const gesorteerd = [...lkKinderen].sort(_lkVergelijkOpAchternaam);
 
   // Genereer QR per kind in een tijdelijke verborgen div, en lees als data-URL
   const tijdelijk = document.createElement('div');
