@@ -1,4 +1,4 @@
-# 📘 Handleiding — Anders Leren
+# 📘 Handleiding — Taalgroei
 
 Een tool voor anderstalige nieuwkomers, gebouwd door Juf Zisa.
 
@@ -8,8 +8,8 @@ Een tool voor anderstalige nieuwkomers, gebouwd door Juf Zisa.
 
 ```
 anders-leren/
-├── index.html              ← Kind-app (login + leeromgeving)
-├── leerkracht.html         ← Jouw paneel (codes, QR, overzicht)
+├── index.html              ← Leerkracht-paneel (jouw startpagina)
+├── kind.html               ← Kind-app (login + leeromgeving, via QR)
 ├── style.css               ← Styling voor alles
 ├── firebase-config.js      ← ⚠️ HIER moet je je eigen Firebase-config invullen
 ├── firestore-rules.txt     ← Security rules (kopiëren naar Firebase Console)
@@ -94,11 +94,14 @@ Net zoals bij je andere tools:
 
 ## 👩‍🏫 Eerste gebruik
 
-1. Ga naar `https://jufzisa.github.io/anders-leren/leerkracht.html`
+De **basis-URL** `https://jufzisa.github.io/anders-leren/` opent het **leerkracht-paneel**. Wanneer een leerling een QR-code scant of een link met `?code=ZEBRA-1234` opent, springt de pagina automatisch door naar de kind-app — die ziet het leerkracht-paneel niet.
+
+1. Ga naar `https://jufzisa.github.io/anders-leren/`
 2. Klik **"Code genereren"** + voer een naam in (bv. "Mohammed") → **"Toevoegen"**
 3. Klik **"📱 QR"** bij die leerling om de QR-code te zien
 4. Print de QR mee naar huis OF geef de code mondeling/op een briefje
-5. Het kind tikt de code in op `https://jufzisa.github.io/anders-leren/`
+5. Het kind scant de QR (of typt de URL in met `?code=...`) → komt automatisch in de kind-app
+6. Wil jij zien hoe de kind-app eruit ziet voor een leerling? Klik **"👁️ Bekijk kind-app"** rechtsboven (lege login), of klik op het 👁️-knopje naast een specifieke leerling om als die leerling in te loggen.
 
 ---
 

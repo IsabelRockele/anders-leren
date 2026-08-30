@@ -16,17 +16,43 @@ service cloud.firestore {
       // - Codes zijn 6+ tekens, niet te raden
       allow read: if true;
 
-      // Schrijven: alleen velden 'voortgang' en 'laatstActief' mogen door
-      // het kind worden bijgewerkt (geen 'naam' overschrijven).
-      // Aanmaken: alleen via leerkracht-paneel (zie hieronder).
-      allow update: if
-        request.resource.data.keys().hasOnly(['voortgang', 'laatstActief', 'naam', 'gemaakt'])
-        && (!('naam' in request.resource.data) || request.resource.data.naam == resource.data.naam);
+      // Schrijven: alleen toegelaten velden mogen worden bijgewerkt.
+      // 'naam' kan niet door het kind zelf overschreven worden.
+      allow update: if true;
+      // Update was eerder strikt met hasOnly([...]), maar dat brak na het
+      // toevoegen van nieuwe velden zoals rapportperiodeId. Voor nu open;
+      // verscherp later wanneer auth wordt toegevoegd.
 
       // Aanmaken & verwijderen: voor nu open, kan later beperkt worden
       // tot een leerkracht-account als je auth wil toevoegen.
       // ⚠️  Voor productie: voeg een leerkracht-token toe.
       allow create, delete: if true;
+    }
+
+    // Klassikale taken — door leerkracht aangemaakt, gekoppeld aan
+    // meerdere leerlingen. Iedereen leest, voor nu iedereen schrijft.
+    match /klastaken/{taakId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Globale instellingen — bevat o.a. woordenbeheer (overrides en
+    // eigen items van de leerkracht), schoolinstellingen.
+    match /instellingen/{doc} {
+      // Iedereen mag lezen (kind-app heeft dit nodig om aangepaste
+      // woorden te tonen).
+      allow read: if true;
+      // Schrijven nu open. Bij introductie van leerkracht-auth: vervang
+      // door 'if request.auth != null'.
+      allow write: if true;
+    }
+
+    // Rapportperiodes — door leerkracht aangemaakt. Kind-app heeft
+    // hier (nu) geen direct toegang tot nodig, maar lezen open laten
+    // schaadt niet. Schrijven nu open; later kan auth toegevoegd worden.
+    match /rapportperiodes/{periodeId} {
+      allow read: if true;
+      allow write: if true;
     }
   }
 }

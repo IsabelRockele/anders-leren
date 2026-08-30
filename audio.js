@@ -7,6 +7,8 @@
 window.AudioEngine = (function() {
   let nlStem = null;
   let stemmenGeladen = false;
+  let laatsteTekst = '';
+  let laatsteKlik = 0;
 
   // Voorkeurslijst (in volgorde): natuurlijke vrouwenstemmen krijgen voorrang
   const PREMIUM_STEMMEN_NL = [
@@ -29,7 +31,11 @@ window.AudioEngine = (function() {
     const stemmen = window.speechSynthesis.getVoices();
     if (stemmen.length === 0) return null;
 
-    // 1) Premium stemmen op naam (beste kwaliteit)
+    // 1) Een lokale Nederlandse stem start op tablets veel sneller.
+    const lokaleNlStem = stemmen.find(s => s.lang.startsWith('nl') && s.localService);
+    if (lokaleNlStem) return lokaleNlStem;
+
+    // 2) Premium stemmen op naam (beste kwaliteit)
     for (const naam of PREMIUM_STEMMEN_NL) {
       const match = stemmen.find(s => s.name === naam || s.name.includes(naam));
       if (match) return match;
@@ -77,13 +83,17 @@ window.AudioEngine = (function() {
       console.warn('Spraak wordt niet ondersteund in deze browser.');
       return;
     }
-    window.speechSynthesis.cancel();
-
     // Stemmen kunnen pas later geladen zijn — probeer opnieuw als nodig
     if (!stemmenGeladen) laadStemmen();
 
     const teSpreken = voorbewerkTekst(tekst);
     if (!teSpreken) return;
+    const nu = Date.now();
+    if (teSpreken === laatsteTekst && nu - laatsteKlik < 450) return;
+    laatsteTekst = teSpreken;
+    laatsteKlik = nu;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
 
     const u = new SpeechSynthesisUtterance(teSpreken);
     u.lang = nlStem ? nlStem.lang : 'nl-NL';

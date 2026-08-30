@@ -506,7 +506,7 @@ function taakToonIntro(fase) {
   let welkomTerug = false;
   if (welkomEl) {
     if (_taakHernemen) {
-      welkomEl.textContent = `🦓 Welkom terug! We gaan verder bij ${cfg.titel.toLowerCase()}.`;
+      welkomEl.textContent = `🌱 Welkom terug! We gaan verder bij ${cfg.titel.toLowerCase()}.`;
       welkomEl.style.display = '';
       welkomTerug = true;
       // Reset zodat dit bericht maar 1× verschijnt
@@ -848,13 +848,14 @@ function taakRendererLeren() {
   const item = taakItems[taakLeerIndex];
   const taak = Voortgang.getTaak();
 
-  document.getElementById('taak-leer-beeld').innerHTML = Picto.html(item);
+  const taakToontZin = !!(taak && taak.zinscontext && item.zin && item.zin.trim());
+  document.getElementById('taak-leer-beeld').innerHTML = Picto.html(item, { zin: taakToontZin });
   document.getElementById('taak-leer-woord').textContent = item.tekst;
 
   // Zin tonen indien zinscontext aan en zin bestaat
   const zinEl = document.getElementById('taak-leer-zin');
   const zinKnop = document.getElementById('taak-leer-zin-knop');
-  const toonZin = !!(taak && taak.zinscontext && item.zin && item.zin.trim());
+  const toonZin = taakToontZin;
   if (zinEl) {
     zinEl.style.display = toonZin ? '' : 'none';
     zinEl.textContent = toonZin ? item.zin : '';
@@ -2722,10 +2723,51 @@ function toonSlimAlleskKlaar() {
 // =================================================================
 function rendererStart() {
   rendererTaakZone();
-  rendererSurvivalGrid();
-  rendererThemaGrid('woorden-grid', THEMAS_WOORDEN);
-  rendererThemaGrid('zinnen-grid', THEMAS_ZINNEN);
+  rendererThemaGrid('vrije-themas-grid', ALLE_THEMAS);
+  rendererZinnenHerhalen();
   rendererVoortgang();
+  kiesStartWeergave('themas');
+}
+
+function getGeoefendeZinnen() {
+  const zinnen = [];
+  ALLE_THEMAS.forEach(thema => {
+    if (Voortgang.statsThema(verrijkThema(thema)).gezien === 0) return;
+    getActieveItems(thema).forEach(item => {
+      const zin = (item.zin || (item.type === 'zinnen' ? item.tekst : '') || '').trim();
+      if (!zin) return;
+      zinnen.push({
+        ...item,
+        id: `${thema.id}-${item.id}`,
+        tekst: zin,
+        zin: '',
+        origineelThemaId: thema.id,
+        origineelItemId: item.id
+      });
+    });
+  });
+  return zinnen;
+}
+
+function rendererZinnenHerhalen() {
+  const grid = document.getElementById('vrije-themas-grid');
+  if (!grid) return;
+  const zinnen = getGeoefendeZinnen();
+  if (zinnen.length < 2) return;
+  const knop = document.createElement('button');
+  knop.className = 'thema-kaart zinnen-herhaalkaart';
+  knop.innerHTML = `<span class="thema-kaart-emoji">🔁</span><span class="thema-kaart-naam">Zinnen herhalen</span><div class="thema-kaart-stats"><span>Een mix uit mijn geoefende thema's</span></div>`;
+  knop.onclick = startZinnenMix;
+  grid.appendChild(knop);
+}
+
+function startZinnenMix() {
+  const items = getGeoefendeZinnen().sort(() => Math.random() - 0.5).slice(0, 12);
+  if (!items.length) return;
+  huidigThema = { id:'zinnen-mix', type:'zinnen', naam:'Zinnen herhalen', emoji:'🔁', kleur:'#26856e', items };
+  kijkenIndex = 0;
+  rendererKijken();
+  toonScherm('scherm-kijken');
 }
 
 function rendererSurvivalGrid() {
@@ -2785,6 +2827,14 @@ function kiesTab(tab) {
   document.querySelectorAll('.tab-inhoud').forEach(t => t.classList.remove('actief'));
   document.querySelector(`.tab-knop[data-tab="${tab}"]`).classList.add('actief');
   document.getElementById('tab-' + tab).classList.add('actief');
+}
+
+function kiesStartWeergave(weergave) {
+  const themas = document.getElementById('tab-themas');
+  const voortgang = document.getElementById('tab-voortgang');
+  if (!themas || !voortgang) return;
+  themas.classList.toggle('actief', weergave === 'themas');
+  voortgang.classList.toggle('actief', weergave === 'voortgang');
 }
 
 function rendererVoortgang() {
@@ -2853,6 +2903,19 @@ function kiesThema(thema) {
   document.getElementById('thema-emoji-groot').textContent = thema.emoji;
   document.getElementById('thema-naam').textContent = thema.naam;
 
+  // Een vertelplaat of visuele praatkaart hoort bij het thema zelf.
+  const visueleStap = document.getElementById('stap-vertelplaat');
+  const heeftVertelplaat = !!thema.visueleOefening;
+  visueleStap.style.display = heeftVertelplaat ? '' : 'none';
+  document.getElementById('toets-stap-nummer').textContent = heeftVertelplaat ? '5' : '4';
+  if (thema.visueleOefening === 'hulpzinnen') {
+    document.getElementById('stap-vertelplaat-titel').textContent = 'Zinnen die mij helpen';
+    document.getElementById('stap-vertelplaat-uitleg').textContent = 'Kies een plaatje, luister en zeg de zin na.';
+  } else {
+    document.getElementById('stap-vertelplaat-titel').textContent = 'Oefen met de vertelplaat';
+    document.getElementById('stap-vertelplaat-uitleg').textContent = 'Kijk, luister, zoek en bouw een korte zin.';
+  }
+
   // Stat-balk bovenaan thema
   const s = Voortgang.statsThema(verrijkThema(thema));
   document.getElementById('thema-statbalk').innerHTML = `
@@ -2867,7 +2930,7 @@ function kiesThema(thema) {
   `;
 
   // Bepaal welke stap visueel gemarkeerd wordt als suggestie
-  ['stap-1','stap-2','stap-3','stap-4'].forEach(id => {
+  ['stap-1','stap-2','stap-3','stap-vertelplaat','stap-4'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('begin-hier');
   });
@@ -2886,7 +2949,8 @@ function naarStart() {
 }
 
 function naarThema() {
-  if (huidigThema) kiesThema(huidigThema); // herrender met verse stats
+  if (huidigThema && huidigThema.id === 'zinnen-mix') naarStart();
+  else if (huidigThema) kiesThema(huidigThema); // herrender met verse stats
   else toonScherm('scherm-start');
 }
 
@@ -2936,7 +3000,7 @@ function rendererKijken() {
   const _itemsKijken = getActieveItems(huidigThema);
   if (_itemsKijken.length === 0) return;
   const item = _itemsKijken[kijkenIndex];
-  document.getElementById('kijken-beeld').innerHTML = Picto.html(item);
+  document.getElementById('kijken-beeld').innerHTML = Picto.html(item, { zin: huidigThema.type === 'zinnen' });
   document.getElementById('kijken-woord').textContent = item.tekst;
 
   // Toon zin als die er is
@@ -2951,7 +3015,7 @@ function rendererKijken() {
   document.getElementById('kijken-totaal').textContent = _itemsKijken.length;
 
   // Registreer gezien
-  Voortgang.registreerGezien(huidigThema.id, item.id);
+  Voortgang.registreerGezien(item.origineelThemaId || huidigThema.id, item.origineelItemId || item.id);
 
   spreekVeilig(item.tekst, 300);
 }
@@ -3474,7 +3538,11 @@ function verbindNieuweRonde() {
     el.className = 'verbind-item verbind-item-beeld';
     el.dataset.itemId = item.id;
     el.dataset.zijde = 'links';
-    el.innerHTML = Picto.html(item, { klasse: 'verbind-emoji' });
+    el.innerHTML = `${Picto.html(item, { klasse: 'verbind-emoji' })}
+      <button class="verbind-luisterhulp" type="button"
+        aria-label="Hoor het woord als hulp" title="Hoor het woord als hulp"
+        onpointerdown="event.stopPropagation()"
+        onclick="verbindHoor(event, '${item.id}')">🔊</button>`;
     voegVerbindEventsToe(el);
     links.appendChild(el);
   });
@@ -3516,12 +3584,6 @@ function verbindPointerDown(e) {
   _verbindSleepStart = el;
   _verbindSleepBezig = false; // wordt true zodra gebruiker beweegt
   _verbindSleepStartPos = { x: e.clientX, y: e.clientY };
-
-  // Spreek woord uit bij beeld
-  if (el.dataset.zijde === 'links') {
-    const item = huidigThema.items.find(it => it.id === el.dataset.itemId);
-    if (item) AudioEngine.spreek(item.tekst);
-  }
 
   // Luister verder op het hele document zodat sleep doorgaat ook buiten de element
   document.addEventListener('pointermove', verbindPointerMove);
@@ -3631,10 +3693,6 @@ function verbindKlik(e) {
     verbindActief = el;
     document.querySelectorAll('.verbind-item.actief').forEach(x => x.classList.remove('actief'));
     el.classList.add('actief');
-    if (el.dataset.zijde === 'links') {
-      const item = huidigThema.items.find(it => it.id === el.dataset.itemId);
-      if (item) AudioEngine.spreek(item.tekst);
-    }
     return;
   }
 
@@ -3642,15 +3700,18 @@ function verbindKlik(e) {
     verbindActief.classList.remove('actief');
     verbindActief = el;
     el.classList.add('actief');
-    if (el.dataset.zijde === 'links') {
-      const item = huidigThema.items.find(it => it.id === el.dataset.itemId);
-      if (item) AudioEngine.spreek(item.tekst);
-    }
     return;
   }
 
   verbindKoppel(verbindActief, el);
   verbindActief = null;
+}
+
+function verbindHoor(e, itemId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const item = huidigThema.items.find(it => it.id === itemId);
+  if (item) AudioEngine.spreek(item.tekst);
 }
 
 function verbindKoppel(elA, elB) {
@@ -3719,12 +3780,27 @@ let snelScore = 0;
 let snelTimerStart = 0;
 let snelTimerInterval = null;
 let snelGebruikt = [];
+let snelModus = null; // 'beeld-woord' of 'luister-beeld'
 
-function startSnelheid() {
+function startSnelheid(modus) {
   if (getActieveItems(huidigThema).length < 4) { alert("Te weinig woorden voor het snelheidsspel."); return; }
+  AudioEngine.stop();
+  if (!modus) {
+    snelModus = null;
+    if (snelTimerInterval) clearInterval(snelTimerInterval);
+    snelTimerInterval = null;
+    toonScherm('scherm-snelheid');
+    document.getElementById('snel-keuze').style.display = '';
+    document.getElementById('snel-spel').style.display = 'none';
+    document.getElementById('snel-eind').style.display = 'none';
+    return;
+  }
+  snelModus = modus;
   snelScore = 0;
   snelGebruikt = [];
   document.getElementById('snel-score').textContent = '0';
+  document.getElementById('snel-keuze').style.display = 'none';
+  document.getElementById('snel-spel').style.display = '';
   document.getElementById('snel-eind').style.display = 'none';
   document.getElementById('snel-vraag-doos').style.display = '';
   document.getElementById('snel-opties').style.display = '';
@@ -3767,17 +3843,42 @@ function volgendeSnelVraag() {
   const afleiders = schudArray(items.filter(it => it.id !== snelItem.id)).slice(0, 3);
   const opties = schudArray([snelItem, ...afleiders]);
 
-  document.getElementById('snel-beeld').innerHTML = Picto.html(snelItem);
+  const vraagTekst = document.getElementById('snel-vraag-tekst');
+  const beeld = document.getElementById('snel-beeld');
+  if (snelModus === 'luister-beeld') {
+    vraagTekst.textContent = 'Luister en kies zo snel mogelijk het juiste beeld.';
+    beeld.className = 'snel-luisterkaart';
+    beeld.innerHTML = `<strong>${snelItem.tekst}</strong><button type="button" onclick="hoorSnelWoord(event)" aria-label="Hoor het woord opnieuw">🔊</button>`;
+  } else {
+    vraagTekst.textContent = 'Welk woord hoort bij dit beeld?';
+    beeld.className = 'klikspel-beeld';
+    beeld.innerHTML = Picto.html(snelItem);
+  }
 
   const div = document.getElementById('snel-opties');
   div.innerHTML = '';
-  opties.forEach(opt => {
+  opties.forEach((opt, index) => {
     const k = document.createElement('button');
-    k.className = 'klik-optie-knop';
-    k.textContent = opt.tekst;
+    k.className = 'klik-optie-knop' + (snelModus === 'luister-beeld' ? ' snel-afbeelding-optie' : '');
+    if (snelModus === 'luister-beeld') {
+      k.setAttribute('aria-label', 'Kies afbeelding ' + (index + 1));
+      k.innerHTML = Picto.html(opt, { grootte: 88 });
+    } else {
+      k.textContent = opt.tekst;
+    }
     k.onclick = () => kiesSnelAntwoord(k, opt);
     div.appendChild(k);
   });
+  if (snelModus === 'luister-beeld') AudioEngine.spreek(snelItem.tekst);
+}
+
+function hoorSnelWoord(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  if (snelItem) AudioEngine.spreek(snelItem.tekst);
+}
+
+function herstartSnelheid() {
+  startSnelheid(snelModus || 'beeld-woord');
 }
 
 function kiesSnelAntwoord(knop, gekozen) {

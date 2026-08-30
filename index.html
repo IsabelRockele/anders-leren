@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Leerkracht-paneel · Anders Leren | Juf Zisa</title>
+  <title>Leerkracht-paneel · Taalgroei | Juf Zisa</title>
 
   <!-- ============================================================
        QR-DETECTIE — kind doorsturen naar kind-app
@@ -24,7 +24,8 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260830-2">
+  <link rel="stylesheet" href="taalondersteuning.css?v=1">
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -40,7 +41,7 @@
 
 <header class="lk-header">
   <button class="lk-menu-toggle" onclick="lkToggleMenu()" aria-label="Menu" title="Menu">☰</button>
-  <h1>👩‍🏫 Anders Leren · Leerkracht</h1>
+  <h1>🌱 Taalgroei · Leerkracht</h1>
   <button class="lk-kindapp-knop" onclick="lkBekijkKindApp()" title="Open de kind-app in een nieuw tabblad om te zien wat de leerlingen zien">
     👁️ Bekijk kind-app
   </button>
@@ -51,16 +52,26 @@
   <!-- ============ ZIJBALK met navigatie ============ -->
   <aside class="lk-zijbalk" id="lk-zijbalk">
     <nav class="lk-nav">
-      <button class="lk-tab actief" data-tab="welkom"     onclick="lkKiesTab('welkom')">     <span class="lk-nav-icoon">🏠</span> <span class="lk-nav-tekst">Welkom</span></button>
-      <button class="lk-tab"        data-tab="school"     onclick="lkKiesTab('school')">     <span class="lk-nav-icoon">🏫</span> <span class="lk-nav-tekst">Mijn school</span></button>
+      <div class="lk-nav-groep">START</div>
+      <button class="lk-tab actief" data-tab="welkom"     onclick="lkKiesTab('welkom')">     <span class="lk-nav-icoon">🧭</span> <span class="lk-nav-tekst">Start &amp; wegwijzer</span></button>
+
+      <div class="lk-nav-groep">1 · ORGANISEREN</div>
       <button class="lk-tab"        data-tab="kinderen"   onclick="lkKiesTab('kinderen')">   <span class="lk-nav-icoon">👥</span> <span class="lk-nav-tekst">Mijn klas</span></button>
-      <button class="lk-tab"        data-tab="woorden"    onclick="lkKiesTab('woorden')">    <span class="lk-nav-icoon">🏷️</span> <span class="lk-nav-tekst">Woorden</span></button>
-      <button class="lk-tab"        data-tab="werkbladen" onclick="lkKiesTab('werkbladen')"> <span class="lk-nav-icoon">📝</span> <span class="lk-nav-tekst">Werkbladen</span></button>
-      <button class="lk-tab"        data-tab="taken"      onclick="lkKiesTab('taken')">      <span class="lk-nav-icoon">📋</span> <span class="lk-nav-tekst">Taken</span></button>
+      <button class="lk-tab"        data-tab="taalgroei"  onclick="lkKiesTab('taalgroei')">  <span class="lk-nav-icoon">🌱</span> <span class="lk-nav-tekst">Taalgroepen</span></button>
+
+      <div class="lk-nav-groep">2 · AANBIEDEN</div>
+      <button class="lk-tab"        data-tab="taken"      onclick="lkKiesTab('taken')">      <span class="lk-nav-icoon">▶️</span> <span class="lk-nav-tekst">Online oefenen</span></button>
+      <button class="lk-tab"        data-tab="werkbladen" onclick="lkKiesTab('werkbladen')"> <span class="lk-nav-icoon">📝</span> <span class="lk-nav-tekst">Oefenen op papier</span></button>
+      <button class="lk-tab"        data-tab="woorden"    onclick="lkKiesTab('woorden')">    <span class="lk-nav-icoon">🗂️</span> <span class="lk-nav-tekst">Woordenbibliotheek</span></button>
+
+      <div class="lk-nav-groep">3 · OPVOLGEN</div>
+      <button class="lk-tab"        data-tab="overzicht"  onclick="lkKiesTab('overzicht')">  <span class="lk-nav-icoon">📊</span> <span class="lk-nav-tekst">Voortgang</span></button>
       <button class="lk-tab"        data-tab="spreken"    onclick="lkKiesTab('spreken')">    <span class="lk-nav-icoon">🗣️</span> <span class="lk-nav-tekst">Spreektoetsen</span></button>
       <button class="lk-tab"        data-tab="puntenboek" onclick="lkKiesTab('puntenboek')"> <span class="lk-nav-icoon">📓</span> <span class="lk-nav-tekst">Puntenboek</span></button>
       <button class="lk-tab"        data-tab="rapporten"  onclick="lkKiesTab('rapporten')">  <span class="lk-nav-icoon">📄</span> <span class="lk-nav-tekst">Rapporten</span></button>
-      <button class="lk-tab"        data-tab="overzicht"  onclick="lkKiesTab('overzicht')">  <span class="lk-nav-icoon">📊</span> <span class="lk-nav-tekst">Wie kan wat?</span></button>
+
+      <div class="lk-nav-groep">BEHEER</div>
+      <button class="lk-tab"        data-tab="school"     onclick="lkKiesTab('school')">     <span class="lk-nav-icoon">🏫</span> <span class="lk-nav-tekst">Mijn school</span></button>
       <button class="lk-tab"        data-tab="info"       onclick="lkKiesTab('info')">       <span class="lk-nav-icoon">ℹ️</span> <span class="lk-nav-tekst">Hulp</span></button>
     </nav>
     <div class="lk-zijbalk-voet">
@@ -100,9 +111,9 @@
     <!-- ============ TAB: WELKOM ============ -->
     <div id="lk-tab-welkom" class="lk-tab-inhoud actief">
       <div class="welkom-hero">
-        <span class="welkom-zebra">🦓</span>
-        <h2>Welkom <span id="welkom-leerkrachtnaam">!</span></h2>
-        <p class="welkom-onder">Hier beheer je je klas, kies je per leerling de woorden en maak je werkbladen.</p>
+        <img class="welkom-beeld" src="assets/taalgroei-welkom.png" alt="Taalgroei: een boek waaruit taal groeit">
+        <h2>Wat wil je vandaag doen<span id="welkom-leerkrachtnaam">?</span></h2>
+        <p class="welkom-onder">Volg de vier stappen hieronder. Je hoeft niet meer zelf te zoeken welke knop bij welke stap hoort.</p>
       </div>
 
       <div class="welkom-stats" id="welkom-stats">
@@ -110,59 +121,59 @@
       </div>
 
       <div class="welkom-stappen">
-        <h3>Hoe werkt het?</h3>
+        <h3>De vaste werkroute</h3>
         <div class="stappen-rij">
 
           <div class="stap-kaart">
             <div class="stap-nummer">1</div>
             <div class="stap-tekst">
-              <h4>👥 Voeg een leerling toe</h4>
-              <p>Maak een code aan in <strong>Mijn klas</strong>. Print de QR-code en geef ze mee naar huis. Zo logt het kind in zonder paswoord.</p>
-              <button class="stap-knop" onclick="lkKiesTab('kinderen')">Naar Mijn klas →</button>
+              <h4>👥 Kies voor wie je werkt</h4>
+              <p>Beheer leerlingen in <strong>Mijn klas</strong> en bundel kinderen die samen begeleiding krijgen in <strong>Taalgroepen</strong>.</p>
+              <div class="stap-acties"><button class="stap-knop" onclick="lkKiesTab('kinderen')">Mijn klas</button><button class="stap-knop" onclick="lkKiesTab('taalgroei')">Taalgroepen</button></div>
             </div>
           </div>
 
           <div class="stap-kaart">
             <div class="stap-nummer">2</div>
             <div class="stap-tekst">
-              <h4>🏷️ Kies wat de leerling oefent</h4>
-              <p>Klik bij een leerling op het 🏷️-knopje. Vink de thema's aan die het kind al kan, en binnen elk thema desgewenst per categorie of per woord.</p>
-              <p class="stap-tip">💡 Tip: een nieuwe leerling start standaard met <em>niets</em>. Begin met enkel het <em>🌱 Startpakket</em>.</p>
+              <h4>▶️ Zet online oefenen klaar</h4>
+              <p>Ga naar <strong>Online oefenen</strong>, kies een leerling, thema en woorden. Daarna kies je een aanbevolen oefenroute: eerst begrijpen, begrijpen + lezen, of herhalen + schrijven.</p>
+              <button class="stap-knop stap-knop-hoofd" onclick="lkKiesTab('taken')">Online oefening klaarzetten →</button>
             </div>
           </div>
 
           <div class="stap-kaart">
             <div class="stap-nummer">3</div>
             <div class="stap-tekst">
-              <h4>🏷️ Personaliseer woorden voor de hele klas</h4>
-              <p>In <strong>Woorden</strong> kan je het basispakket aanpassen voor jouw klas: tekst wijzigen, eigen foto's gebruiken, of nieuwe woorden toevoegen. Geldt voor alle leerlingen.</p>
-              <button class="stap-knop" onclick="lkKiesTab('woorden')">Naar Woorden →</button>
+              <h4>📝 Geef extra oefening op papier</h4>
+              <p>Kies in <strong>Oefenen op papier</strong> hetzelfde thema. De pictogrammen tonen wat het kind moet doen; knipmateriaal komt altijd op een apart blad.</p>
+              <button class="stap-knop" onclick="lkKiesTab('werkbladen')">Werkblad maken →</button>
             </div>
           </div>
 
           <div class="stap-kaart">
             <div class="stap-nummer">4</div>
             <div class="stap-tekst">
-              <h4>📊 Volg de voortgang</h4>
-              <p>Bij <strong>Wie kan wat?</strong> zie je in één oogopslag welke woorden elke leerling al kent (3 sterren) of nog moeilijk vindt.</p>
-              <button class="stap-knop" onclick="lkKiesTab('overzicht')">Naar overzicht →</button>
+              <h4>📊 Kijk wat de volgende stap is</h4>
+              <p>In <strong>Voortgang</strong> zie je wat al lukt en wat nog moeilijk is. Van daaruit kies je woorden voor herhaling, een spreektoets of rapportinformatie.</p>
+              <button class="stap-knop" onclick="lkKiesTab('overzicht')">Voortgang bekijken →</button>
             </div>
           </div>
 
-          <div class="stap-kaart">
-            <div class="stap-nummer">5</div>
+          <div class="stap-kaart stap-kaart-uitleg">
+            <div class="stap-nummer">?</div>
             <div class="stap-tekst">
-              <h4>📄 Maak werkbladen</h4>
-              <p>Genereer PDF-werkbladen per thema, met 10 verschillende oefenvormen. Inclusief oplossingssleutel.</p>
-              <button class="stap-knop" onclick="lkKiesTab('werkbladen')">Naar werkbladen →</button>
+              <h4>🗂️ Wanneer gebruik je de woordenbibliotheek?</h4>
+              <p>Alleen wanneer je woorden of afbeeldingen voor de hele klas wilt aanpassen. Je zet hier <strong>geen</strong> oefeningen voor een leerling klaar.</p>
+              <button class="stap-knop" onclick="lkKiesTab('woorden')">Woorden aanpassen</button>
             </div>
           </div>
 
           <div class="stap-kaart">
             <div class="stap-nummer">👁️</div>
             <div class="stap-tekst">
-              <h4>Wil je zien wat het kind ziet?</h4>
-              <p>Rechtsboven staat een knop <strong>"Bekijk kind-app"</strong>. Of klik op het 👁️-knopje naast een leerling om als die leerling in te loggen.</p>
+              <h4>Controleer altijd even de kindweergave</h4>
+              <p>Klik bij de leerling op 👁️. Zo zie je precies welke verplichte taak en welke vrije thema’s het kind online krijgt.</p>
             </div>
           </div>
 
@@ -219,13 +230,46 @@
     </div>
   </div>
 
+  <!-- ============ TAB: TAALGROEI ============ -->
+  <div id="lk-tab-taalgroei" class="lk-tab-inhoud">
+    <div class="lk-vak tg-intro">
+      <div>
+        <span class="tg-badge">Schooljaar <span id="tg-schooljaar"></span></span>
+        <h2>🌱 Taalondersteuning Nederlands</h2>
+        <p>Maak flexibele groepen over klassen en leerjaren heen. Bewaar per leerling de deelnameperiode, groei en bruikbare tekst voor rapport of oudercontact.</p>
+      </div>
+      <div class="tg-badge">Gefaseerde uitrol ondersteund</div>
+    </div>
+    <div class="lk-vak">
+      <h2 id="tg-form-titel">➕ Nieuwe taalondersteuningsgroep</h2>
+      <div class="tg-form-grid">
+        <label>Naam van de groep<input id="tg-naam" placeholder="Bv. Woordenschat L1–L2"></label>
+        <label>Traject<select id="tg-traject"><option value="voorinstructie">Voorinstructie</option><option value="remediëring" selected>Taalremediëring</option><option value="taalheldklas">Taalheldklas</option><option value="anders">Andere taalondersteuning</option></select></label>
+        <label>Begeleidende leerkracht<input id="tg-begeleider" placeholder="Bv. juf Sarah"></label>
+        <label>Uitrolstatus<select id="tg-status"><option value="piloot">Piloot</option><option value="actief">Actief</option><option value="afgesloten">Afgesloten</option></select></label>
+        <label>Startdatum<input id="tg-start" type="date"></label>
+        <label>Voorziene einddatum<input id="tg-einde" type="date"></label>
+        <label class="tg-breed">Focus van deze groep<textarea id="tg-doel" placeholder="Bv. actieve woordenschat uitbreiden en correcte eenvoudige zinnen leren vormen"></textarea></label>
+      </div>
+      <div class="tg-acties" style="margin-top:12px">
+        <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="Taalgroei.slaGroepOp()">💾 Groep bewaren</button>
+        <button id="tg-annuleer" class="lk-knop-mini" style="display:none" onclick="Taalgroei.wisForm()">Annuleren</button>
+      </div>
+    </div>
+    <div class="lk-vak">
+      <h2>👥 Groepen in dit schooljaar</h2>
+      <div id="tg-groepen" class="tg-groepen"><p class="tg-leeg">Bezig met laden…</p></div>
+    </div>
+  </div>
+
   <!-- ============ TAB: TAKEN ============ -->
   <div id="lk-tab-taken" class="lk-tab-inhoud">
     <div class="lk-vak">
-      <h2>📋 Taken</h2>
+      <h2>▶️ Online oefenen klaarzetten</h2>
       <p style="opacity:0.75; margin-top:-4px">
-        Per leerling kan je taken aanmaken en de geschiedenis raadplegen. Nieuwste taken staan bovenaan.
+        Kies eerst een leerling. Stel daarna één gerichte taak samen: thema, woorden, oefenroute en mini-toets. Het kind ziet deze taak bovenaan en moet ze eerst uitvoeren. Vrije thema’s blijven daarnaast beschikbaar voor herhaling.
       </p>
+      <div class="lk-route-tip"><strong>Vaste volgorde:</strong> 1. woorden kiezen &nbsp;→&nbsp; 2. aanbevolen oefenroute kiezen &nbsp;→&nbsp; 3. mini-toets kiezen &nbsp;→&nbsp; 4. bewaren en controleren via 👁️</div>
 
       <!-- Kindertabs bovenaan -->
       <div class="lk-kindtabs" id="lk-kindtabs-taken"></div>
@@ -302,10 +346,11 @@
   <!-- ============ TAB: WOORDEN ============ -->
   <div id="lk-tab-woorden" class="lk-tab-inhoud">
     <div class="lk-vak">
-      <h2>🏷️ Woorden in deze klas</h2>
+      <h2>🗂️ Woordenbibliotheek van de klas</h2>
       <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
         Bekijk de basislijst van Juf Zisa, pas woorden aan, vervang afbeeldingen door eigen foto's, of voeg eigen woorden toe.
-        Wijzigingen gelden voor al je leerlingen. De basislijst blijft intact en updates uit de basislijst krijg je automatisch.
+        Wijzigingen gelden voor al je leerlingen. <strong>Hier zet je geen taak klaar.</strong> Daarvoor gebruik je “Online oefenen”.
+        De basislijst blijft intact en updates uit de basislijst krijg je automatisch.
       </p>
 
       <div class="wb-thema-kiezer">
@@ -324,7 +369,7 @@
     <div class="lk-vak">
       <h2>📄 Werkblad maken</h2>
       <p style="margin-bottom:14px; opacity:0.7; font-size:14px">
-        Stel een werkblad samen voor één of meerdere thema's. Je kan per thema kiezen welk niveau en welke oefeningen je wil. Het werkblad wordt als PDF gedownload.
+        Stel een werkblad samen voor één of meerdere thema's. Gebruik bij voorkeur hetzelfde thema en dezelfde woorden als in de online taak. Je kan per thema kiezen welk niveau en welke oefeningen je wil. Het werkblad wordt als PDF gedownload.
       </p>
 
       <div class="werkblad-sectie">
@@ -404,12 +449,13 @@
   <!-- ============ TAB: INFO ============ -->
   <div id="lk-tab-info" class="lk-tab-inhoud">
     <div class="lk-vak">
-      <h2>ℹ️ Hoe werkt het?</h2>
+      <h2>ℹ️ De dagelijkse werkroute</h2>
       <ol style="line-height:1.8; padding-left:24px; font-size:15px">
-        <li><strong>Maak een code per leerling</strong> in tabblad "Mijn klas". Schrijf op papier op welk kind welke code heeft (de cloud kent geen namen).</li>
-        <li><strong>Geef het kind de code</strong> om in te tikken op tablet of computer in de klas.</li>
-        <li><strong>Print de QR-code</strong> en geef die mee naar huis. Ouders scannen → kind logt automatisch in op zijn/haar voortgang.</li>
-        <li><strong>Bekijk in "Wie kan wat?"</strong> wie welke woorden al kent (3 sterren = "gekend").</li>
+        <li><strong>Organiseer:</strong> voeg leerlingen toe in “Mijn klas” en maak indien nodig een taalondersteuningsgroep.</li>
+        <li><strong>Bied aan:</strong> kies in “Online oefenen” per leerling een thema, woorden en een aanbevolen oefenroute.</li>
+        <li><strong>Ondersteun:</strong> maak eventueel in “Oefenen op papier” een werkblad met hetzelfde thema.</li>
+        <li><strong>Controleer:</strong> bekijk via 👁️ wat het kind werkelijk ziet.</li>
+        <li><strong>Volg op:</strong> gebruik “Voortgang” om moeilijke woorden opnieuw aan te bieden en resultaten mee te nemen naar spreektoets, puntenboek of rapport.</li>
       </ol>
     </div>
 
@@ -450,10 +496,10 @@
 </div>
 
 <!-- Data scripts (voor overzicht thema's) -->
-<script src="themas/startpakket.js"></script>
-<script src="themas/woorden-klas.js"></script>
-<script src="themas/woorden-lichaam.js"></script>
-<script src="themas/woorden-eten.js"></script>
+<script src="themas/startpakket.js?v=20260830-7"></script>
+<script src="themas/woorden-klas.js?v=20260830-10"></script>
+  <script src="themas/woorden-lichaam.js?v=20260830-17"></script>
+<script src="themas/woorden-eten.js?v=20260830-19"></script>
 <script src="themas/woorden-familie.js"></script>
 <script src="themas/woorden-dieren.js"></script>
 <script src="themas/woorden-cijfers.js"></script>
@@ -461,7 +507,7 @@
 <script src="themas/woorden-vormen.js"></script>
 <script src="themas/woorden-doen.js"></script>
 <script src="themas/woorden-thuis.js"></script>
-<script src="themas/zinnen-school.js"></script>
+<script src="themas/zinnen-school.js?v=20260830-1"></script>
 <script src="themas/zinnen-beleefd.js"></script>
 <script src="themas/zinnen-gevoel.js"></script>
 <script src="themas/zinnen-hulp.js"></script>
@@ -475,12 +521,13 @@
   window.RAPPORT_FEEDBACK_URL = 'https://rapportfeedback-xc54winygq-ew.a.run.app';
 </script>
 <script src="voortgang.js"></script>
-<script src="picto.js"></script>
+<script src="picto.js?v=20260830-2"></script>
 <script src="woordenbeheer.js"></script>
 <script src="afbeelding-upload.js"></script>
-<script src="pdf-engine.js"></script>
+<script src="pdf-engine.js?v=20260830-9"></script>
 <script src="rapport-engine.js"></script>
-<script src="leerkracht.js"></script>
+<script src="leerkracht.js?v=20260830-7"></script>
+<script src="taalondersteuning.js?v=4"></script>
 
 </body>
 </html>

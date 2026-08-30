@@ -65,8 +65,9 @@ window.Picto = (function() {
 
   // Genereer HTML voor een item — img met fallback naar emoji.
   // Volgorde:
-  //   1. item.foto (URL, bv. uit Firebase Storage) → directe afbeelding
-  //   2. item.picto (relatief pad, bv. 'klas/juf.png') → uit basispakket
+  //   1. item.zinPicto wanneer opties.zin waar is → beeld van de hele zin
+  //   2. item.foto (URL, bv. uit Firebase Storage) → directe afbeelding
+  //   3. item.picto (relatief pad, bv. 'klas/juf.png') → uit basispakket
   //   3. item.beeld (emoji) → fallback
   function html(item, opties) {
     opties = opties || {};
@@ -74,14 +75,16 @@ window.Picto = (function() {
     const grootte = opties.grootte || null;
     const alt = opties.alt || item.kort || item.tekst || '';
 
-    // Geen foto, geen picto? Direct een emoji-span teruggeven.
-    if (!item.foto && !item.picto) {
+    const zinBron = opties.zin && item.zinPicto ? item.zinPicto : null;
+
+    // Geen zinsbeeld, foto of picto? Direct een emoji-span teruggeven.
+    if (!zinBron && !item.foto && !item.picto) {
       const styleAttr = grootte ? ` style="font-size:${grootte}px;line-height:1"` : '';
       return `<span class="picto-emoji ${klasse}"${styleAttr}>${_esc(item.beeld || '')}</span>`;
     }
 
-    // Bron bepalen: foto wint van picto
-    const src = item.foto ? _esc(item.foto) : ('picto/' + _esc(item.picto));
+    // Bron bepalen: expliciet zinsbeeld wint in zinscontext; daarna foto en picto.
+    const src = zinBron ? _esc(zinBron) : (item.foto ? _esc(item.foto) : ('picto/' + _esc(item.picto)));
 
     // Wel foto/picto-veld → img-tag. Bij fout zwemt onerror naar Picto.fallback,
     // die alle nodige data uit data-* attributen leest.

@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Anders Leren — Nederlands voor nieuwkomers | Juf Zisa</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Taalgroei — Nederlands oefenen | Juf Zisa</title>
+  <link rel="stylesheet" href="style.css?v=20260830-4">
+  <link rel="stylesheet" href="vertelplaat.css?v=20260830-2">
+  <link rel="stylesheet" href="vertelplaat-kind.css?v=20260830-4">
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -16,8 +18,8 @@
 <!-- ============ SCHERM: LADEN (default zichtbaar tijdens init) ============ -->
 <div id="scherm-laden" class="scherm actief">
   <div class="login-doos">
-    <div class="login-zebra">🦓</div>
-    <h1>Anders Leren</h1>
+    <img class="login-groei" src="assets/taalgroei-welkom.png" alt="Een boek waar taal uit groeit">
+    <h1>Taalgroei</h1>
     <p class="login-onder">Even laden…</p>
   </div>
 </div>
@@ -25,12 +27,12 @@
 <!-- ============ SCHERM: LOGIN ============ -->
 <div id="scherm-login" class="scherm">
   <div class="login-doos">
-    <div class="login-zebra">🦓</div>
-    <h1>Anders Leren</h1>
+    <img class="login-groei" src="assets/taalgroei-welkom.png" alt="Een boek waar taal uit groeit">
+    <h1>Taalgroei</h1>
     <p class="login-onder">Hallo! Tik je code in.</p>
 
     <div class="login-form">
-      <input type="text" id="login-code" placeholder="ZEBRA-1234"
+      <input type="text" id="login-code" placeholder="Jouw code"
              autocomplete="off" autocapitalize="characters" spellcheck="false">
       <button class="grote-knop" onclick="probeerLogin()">Begin →</button>
       <div id="login-fout" class="login-fout"></div>
@@ -46,15 +48,15 @@
 
   <main class="thema-keuze">
     <!-- ===== Welkom ===== -->
-    <div class="welkom-balk">
-      <span class="welkom-tekst">Hallo <span id="welkom-naam">!</span></span>
-      <span class="welkom-zebra">🦓</span>
+    <div class="welkom-balk kind-welkom">
+      <img class="kind-welkom-beeld" src="assets/taalgroei-welkom.png" alt="">
+      <span><small>Fijn dat je er bent</small><span class="welkom-tekst">Hallo <span id="welkom-naam">!</span></span></span>
     </div>
 
     <!-- ===== TAAK-ZONE — als er een taak is ===== -->
     <div id="taak-zone" class="taak-zone" style="display:none">
       <button class="taak-knop-groot" onclick="startTaak()">
-        <span class="taak-zebra">🦓</span>
+        <img class="taak-groei" src="assets/taalgroei-welkom.png" alt="">
         <div class="taak-tekst">
           <div class="taak-bovenkop">📋 Mijn taak</div>
           <div class="taak-thema" id="taak-thema-naam">🎒 Klas</div>
@@ -68,30 +70,16 @@
     </div>
 
     <!-- ===== ANDERE THEMA'S — vrij oefenen ===== -->
-    <div class="andere-scheiding">
-      <span class="andere-lijn"></span>
-      <span class="andere-label" id="vrij-label">🎮 Vrij oefenen</span>
-      <span class="andere-lijn"></span>
+    <div class="kind-kiesrij">
+      <div class="kind-kieskop"><span>1</span><div><h2>Kies een thema</h2><p>Je juf of meester koos deze thema's voor jou.</p></div></div>
+      <button class="mijn-groei-knop" onclick="kiesStartWeergave('voortgang')">⭐ Mijn groei</button>
     </div>
 
-    <div class="thema-tabs">
-      <button class="tab-knop actief" data-tab="woorden" onclick="kiesTab('woorden')">📚 Woorden</button>
-      <button class="tab-knop" data-tab="zinnen" onclick="kiesTab('zinnen')">💬 Zinnen</button>
-      <button class="tab-knop" data-tab="voortgang" onclick="kiesTab('voortgang')">⭐ Mijn voortgang</button>
-    </div>
-
-    <!-- Startpakket blijft optioneel zichtbaar in een aparte zone (gefilterd op thema_actief) -->
-    <div id="vrij-survival-zone" class="survival-zone" style="display:none">
-      <div id="survival-grid" class="survival-grid"></div>
-    </div>
-
-    <div id="tab-woorden" class="tab-inhoud actief">
-      <div id="woorden-grid" class="themas-grid"></div>
-    </div>
-    <div id="tab-zinnen" class="tab-inhoud">
-      <div id="zinnen-grid" class="themas-grid"></div>
+    <div id="tab-themas" class="tab-inhoud actief">
+      <div id="vrije-themas-grid" class="themas-grid vrije-themas-grid"></div>
     </div>
     <div id="tab-voortgang" class="tab-inhoud">
+      <button class="terug-naar-themas" onclick="kiesStartWeergave('themas')">← Terug naar mijn thema's</button>
       <div id="voortgang-overzicht"></div>
     </div>
   </main>
@@ -99,11 +87,70 @@
   <footer class="voet"><p>Een tool van <strong>Juf Zisa</strong> · jufzisa.be</p></footer>
 </div>
 
+<!-- ============ SCHERM: VERTELPLAAT EN ZINSBOUWER ============ -->
+<div id="scherm-vertelplaat" class="scherm">
+  <header class="thema-header">
+    <button class="terug-knop" onclick="Vertelplaat.sluit()">← Terug naar het thema</button>
+    <div class="thema-titel"><span>🖼️</span><h1 id="vp-scherm-titel">Kijken, luisteren en praten</h1></div>
+  </header>
+  <main class="vp-main">
+    <nav class="vp-stappen" aria-label="Oefenstappen">
+      <button class="vp-stapknop actief" data-fase="ontdek" onclick="Vertelplaat.kiesFase('ontdek')"><b>1</b><span>Woorden ontdekken</span></button>
+      <button class="vp-stapknop" data-fase="zoekwoord" onclick="Vertelplaat.kiesFase('zoekwoord')"><b>2</b><span>Luister en zoek</span></button>
+      <button class="vp-stapknop" data-fase="zoekzin" onclick="Vertelplaat.kiesFase('zoekzin')"><b>3</b><span>Begrijp de zin</span></button>
+      <button class="vp-stapknop" data-fase="bouw" onclick="Vertelplaat.kiesFase('bouw')"><b>4</b><span>Bouw een zin</span></button>
+    </nav>
+
+    <section id="vp-stap-ontdek" class="vp-stapvak actief">
+      <h2>Ontdek de woorden</h2><p>Klik op de rondjes. Luister en zeg het woord na.</p>
+    </section>
+    <section id="vp-stap-zoekwoord" class="vp-stapvak">
+      <h2>Welk beeld hoort bij het woord?</h2><p>Luister en klik het juiste beeld op de vertelplaat.</p>
+    </section>
+    <section id="vp-stap-zoekzin" class="vp-stapvak">
+      <h2>Wat hoor je?</h2><p>Luister naar de eenvoudige zin en zoek de juiste situatie.</p>
+    </section>
+    <section id="vp-stap-bouw" class="vp-stapvak">
+      <h2>Bouw zelf een korte zin</h2><p>De vertelplaat helpt je. Sleep daarna de woorden in de goede volgorde.</p>
+    </section>
+
+    <div id="vp-opdracht" class="vp-opdracht">
+      <div><strong id="vp-opdracht-titel"></strong><span id="vp-opdracht-tekst"></span></div>
+      <button onclick="Vertelplaat.hoorOpdracht()">🔊 Hoor opnieuw</button>
+      <div id="vp-opdracht-feedback" class="vp-feedback"></div>
+    </div>
+    <div class="vp-plaat-wrap">
+      <img class="vp-plaat" src="vertelplaten/in-de-klas.png" alt="Vertelplaat van een klas met leerlingen en een leerkracht">
+      <div id="vp-hotspots" class="vp-hotspots"></div>
+    </div>
+    <div id="vp-gevonden" class="vp-gevonden">
+      <h3 id="vp-gevonden-woord"></h3>
+      <button onclick="Vertelplaat.hoorGevonden()">🔊 Hoor het woord</button>
+    </div>
+
+    <section id="vp-bouwvak" class="vp-zinsbouwer">
+      <h2>Maak een eenvoudige zin</h2>
+      <div class="vp-legende"><span class="vp-wie">Wie? geel</span><span class="vp-doet">Doet? rood</span><span class="vp-waar">Waar? paars</span><span class="vp-wanneer">Wanneer? oranje</span><span class="vp-wat">Wat? bruin</span><span class="vp-hoe">Hoe? groen</span></div>
+      <p>De woorden staan door elkaar. Klik of sleep ze naar het zinsvak.</p>
+      <div id="vp-woordbank" class="vp-woordbank"></div>
+      <div id="vp-zin" class="vp-zin" ondragover="event.preventDefault()" ondrop="Vertelplaat.laatVallen(event)"></div>
+      <div class="knop-rij"><button onclick="Vertelplaat.nieuweBouwzin(true)">Opnieuw</button><button onclick="Vertelplaat.hoorGebouwdeZin()">🔊 Hoor mijn zin</button><button class="primair" onclick="Vertelplaat.controleer()">✓ Controleer</button><button onclick="Vertelplaat.nieuweBouwzin(false)">Volgende zin →</button></div>
+      <div id="vp-feedback" class="vp-feedback"></div>
+    </section>
+
+    <section class="vp-hulpsectie">
+      <h2>Zinnen die ik iedere dag nodig heb</h2>
+      <p>De afbeelding toont wanneer je de zin gebruikt. Klik op een kaart, luister en zeg de zin na.</p>
+      <div id="vp-hulpzinnen" class="vp-hulpzinnen"></div>
+    </section>
+  </main>
+</div>
+
 <!-- ============ SCHERM: SLIM LEREN ============ -->
 <div id="scherm-slim" class="scherm">
   <header class="modus-header">
     <button class="terug-knop" onclick="stopSlimLeren()">← Stop</button>
-    <h1>🦓 Slim leren</h1>
+    <h1>🌱 Slim oefenen</h1>
     <span class="teller">⭐ <span id="slim-streak">0</span></span>
   </header>
   <main class="slim-main">
@@ -159,7 +206,7 @@
 
       <button class="stap-kaart" id="stap-3" onclick="startModus('slim')">
         <div class="stap-nummer">3</div>
-        <div class="stap-icoon">🦓</div>
+        <div class="stap-icoon">👂</div>
         <div class="stap-tekst">
           <h3>Slim leren</h3>
           <p>Hoor het woord, klik het juiste beeld.</p>
@@ -167,8 +214,18 @@
         <div class="stap-pijl">→</div>
       </button>
 
-      <button class="stap-kaart toets" id="stap-4" onclick="startModus('toets')">
+      <button class="stap-kaart vertelplaat-stap" id="stap-vertelplaat" onclick="Vertelplaat.openVoorThema(huidigThema)" style="display:none">
         <div class="stap-nummer">4</div>
+        <div class="stap-icoon">🖼️</div>
+        <div class="stap-tekst">
+          <h3 id="stap-vertelplaat-titel">Oefen met de vertelplaat</h3>
+          <p id="stap-vertelplaat-uitleg">Kijk, luister, zoek en maak een zin.</p>
+        </div>
+        <div class="stap-pijl">→</div>
+      </button>
+
+      <button class="stap-kaart toets" id="stap-4" onclick="startModus('toets')">
+        <div class="stap-nummer" id="toets-stap-nummer">4</div>
         <div class="stap-icoon">⭐</div>
         <div class="stap-tekst">
           <h3>Toon wat je kan</h3>
@@ -331,7 +388,7 @@
     <span class="teller">Goed: <span id="verbind-goed">0</span>/<span id="verbind-totaal">0</span></span>
   </header>
   <main class="verbinden-main">
-    <p class="verbinden-uitleg">Sleep een lijn van een beeld naar het juiste woord — of klik beeld én woord.</p>
+    <p class="verbinden-uitleg">Verbind elk beeld met het juiste woord. Hulp nodig? Tik op de kleine luidspreker.</p>
     <div class="verbinden-veld" id="verbind-veld">
       <svg class="verbinden-svg" id="verbind-svg"></svg>
       <div class="verbinden-kolom verbinden-links" id="verbind-links"></div>
@@ -349,21 +406,31 @@
     <span class="teller">Score: <span id="snel-score">0</span></span>
   </header>
   <main class="klikspel-main">
-    <div class="snelheid-timer-balk">
-      <div class="snelheid-timer-vul" id="snel-timer-vul"></div>
-      <span class="snelheid-timer-tekst" id="snel-timer-tekst">30</span>
-    </div>
-    <div class="klikspel-vraag" id="snel-vraag-doos">
-      <p class="vraag-tekst">Welk woord hoort bij dit beeld?</p>
-      <div class="klikspel-beeld" id="snel-beeld">🎒</div>
-    </div>
-    <div class="klikspel-opties" id="snel-opties"></div>
-    <div class="snelheid-eind" id="snel-eind" style="display:none">
-      <h2 id="snel-eind-titel">⏰ Tijd om!</h2>
-      <p id="snel-eind-tekst">Score: <strong id="snel-eind-score">0</strong></p>
-      <button class="grote-knop" onclick="startSnelheid()">▶ Opnieuw</button>
-      <button class="grote-knop sec" onclick="stopSpel()">← Terug naar spellen</button>
-    </div>
+    <section class="snel-keuze" id="snel-keuze">
+      <h2>Hoe wil je oefenen?</h2>
+      <div class="snel-keuze-grid">
+        <button onclick="startSnelheid('beeld-woord')"><span>🖼️ → 🔤</span><strong>Van beeld naar woord</strong><small>Bekijk het beeld en tik het juiste woord aan.</small></button>
+        <button onclick="startSnelheid('luister-beeld')"><span>🔊 → 🖼️</span><strong>Van woord naar beeld</strong><small>Luister naar het woord en tik de juiste afbeelding aan.</small></button>
+      </div>
+    </section>
+    <section id="snel-spel" style="display:none">
+      <div class="snelheid-timer-balk">
+        <div class="snelheid-timer-vul" id="snel-timer-vul"></div>
+        <span class="snelheid-timer-tekst" id="snel-timer-tekst">30</span>
+      </div>
+      <div class="klikspel-vraag" id="snel-vraag-doos">
+        <p class="vraag-tekst" id="snel-vraag-tekst">Welk woord hoort bij dit beeld?</p>
+        <div class="klikspel-beeld" id="snel-beeld">🎒</div>
+      </div>
+      <div class="klikspel-opties" id="snel-opties"></div>
+      <div class="snelheid-eind" id="snel-eind" style="display:none">
+        <h2 id="snel-eind-titel">⏰ Tijd om!</h2>
+        <p id="snel-eind-tekst">Score: <strong id="snel-eind-score">0</strong></p>
+        <button class="grote-knop" onclick="herstartSnelheid()">▶ Nog een keer</button>
+        <button class="grote-knop sec" onclick="startSnelheid()">⇄ Andere versie</button>
+        <button class="grote-knop sec" onclick="stopSpel()">← Terug naar spellen</button>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -659,10 +726,10 @@
 </div>
 
 <!-- Scripts: data eerst -->
-<script src="themas/startpakket.js"></script>
-<script src="themas/woorden-klas.js"></script>
-<script src="themas/woorden-lichaam.js"></script>
-<script src="themas/woorden-eten.js"></script>
+<script src="themas/startpakket.js?v=20260830-11"></script>
+<script src="themas/woorden-klas.js?v=20260830-11"></script>
+  <script src="themas/woorden-lichaam.js?v=20260830-17"></script>
+<script src="themas/woorden-eten.js?v=20260830-19"></script>
 <script src="themas/woorden-familie.js"></script>
 <script src="themas/woorden-dieren.js"></script>
 <script src="themas/woorden-cijfers.js"></script>
@@ -670,7 +737,7 @@
 <script src="themas/woorden-vormen.js"></script>
 <script src="themas/woorden-doen.js"></script>
 <script src="themas/woorden-thuis.js"></script>
-<script src="themas/zinnen-school.js"></script>
+<script src="themas/zinnen-school.js?v=20260830-1"></script>
 <script src="themas/zinnen-beleefd.js"></script>
 <script src="themas/zinnen-gevoel.js"></script>
 <script src="themas/zinnen-hulp.js"></script>
@@ -678,12 +745,13 @@
 
 <!-- Engines -->
 <script src="firebase-config.js"></script>
-<script src="audio.js"></script>
+<script src="audio.js?v=20260830-4"></script>
 <script src="voortgang.js"></script>
 <script src="woordenbeheer.js"></script>
-<script src="picto.js"></script>
+<script src="picto.js?v=20260830-2"></script>
 <script src="auth.js"></script>
-<script src="app.js"></script>
+<script src="app.js?v=20260830-7"></script>
+<script src="vertelplaat.js?v=20260830-11"></script>
 
 </body>
 </html>

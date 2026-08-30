@@ -14,10 +14,10 @@ window.THEMA_ZINNEN_SCHOOL = {
     { id: 's-naam',       niveau: 'basis', tekst: 'Ik heet ...',                 kort: 'ik heet',       beeld: '👋', zin: 'Hallo, ik heet Sara.' },
 
     // ========== BASISVRAGEN IN DE KLAS ==========
-    { id: 's-toilet',     niveau: 'basis', tekst: 'Mag ik naar het toilet?',     kort: 'naar toilet',   beeld: '🚽', zin: 'Juf, mag ik naar het toilet?' },
-    { id: 's-drinken',    niveau: 'basis', tekst: 'Mag ik drinken?',             kort: 'drinken',       beeld: '🥤', zin: 'Juf, mag ik drinken?' },
+    { id: 's-toilet',     niveau: 'basis', tekst: 'Mag ik naar het toilet?',     kort: 'naar toilet',   beeld: '🚽', foto: 'assets/hulpzinnen/mag-ik-naar-het-toilet.png', zinPicto: 'assets/hulpzinnen/mag-ik-naar-het-toilet.png', zin: 'Juf, mag ik naar het toilet?' },
+    { id: 's-drinken',    niveau: 'basis', tekst: 'Mag ik drinken?',             kort: 'drinken',       beeld: '🥤', foto: 'assets/hulpzinnen/mag-ik-drinken.png', zinPicto: 'assets/hulpzinnen/mag-ik-drinken.png', zin: 'Juf, mag ik drinken?' },
     { id: 's-help',       niveau: 'basis', tekst: 'Kan je mij helpen?',          kort: 'helpen',        beeld: '🙋', zin: 'Juf, kan je mij helpen?' },
-    { id: 's-vraag',      niveau: 'basis', tekst: 'Ik heb een vraag.',           kort: 'vraag',         beeld: '❓', zin: 'Juf, ik heb een vraag.' },
+    { id: 's-vraag',      niveau: 'basis', tekst: 'Ik heb een vraag.',           kort: 'vraag',         beeld: '❓', foto: 'assets/hulpzinnen/ik-heb-een-vraag.png', zinPicto: 'assets/hulpzinnen/ik-heb-een-vraag.png', zin: 'Juf, ik heb een vraag.' },
     { id: 's-mag-zo',     niveau: 'basis', tekst: 'Mag ik dit zo doen?',         kort: 'zo doen',       beeld: '🤔', zin: 'Juf, mag ik dit zo doen?' },
     { id: 's-papier',     niveau: 'basis', tekst: 'Mag ik een blad papier?',     kort: 'papier',        beeld: '📄', zin: 'Juf, mag ik een blad papier?' },
     { id: 's-potlood',    niveau: 'basis', tekst: 'Mag ik een potlood lenen?',   kort: 'potlood lenen', beeld: '✏️', zin: 'Juf, mag ik een potlood lenen?' },
@@ -26,11 +26,11 @@ window.THEMA_ZINNEN_SCHOOL = {
     // ========== JA / NEE / KLAAR ==========
     { id: 's-ja',         niveau: 'basis', tekst: 'Ja.',                         kort: 'ja',            beeld: '👍', zin: 'Ja, dat klopt.' },
     { id: 's-nee',        niveau: 'basis', tekst: 'Nee.',                        kort: 'nee',           beeld: '👎', zin: 'Nee, dat is niet juist.' },
-    { id: 's-klaar',      niveau: 'basis', tekst: 'Ik ben klaar.',               kort: 'klaar',         beeld: '✅', zin: 'Juf, ik ben klaar.' },
+    { id: 's-klaar',      niveau: 'basis', tekst: 'Ik ben klaar.',               kort: 'klaar',         beeld: '✅', foto: 'assets/hulpzinnen/ik-ben-klaar.png', zinPicto: 'assets/hulpzinnen/ik-ben-klaar.png', zin: 'Juf, ik ben klaar.' },
     { id: 's-mijn-beurt', niveau: 'basis', tekst: 'Het is mijn beurt.',          kort: 'mijn beurt',    beeld: '☝️', zin: 'Juf, het is mijn beurt.' },
 
     // ========== NIET BEGRIJPEN / NIET WETEN ==========
-    { id: 's-niet',       niveau: 'basis', tekst: 'Ik begrijp het niet.',        kort: 'niet snap',     beeld: '🤔', zin: 'Juf, ik begrijp het niet.' },
+    { id: 's-niet',       niveau: 'basis', tekst: 'Ik begrijp het niet.',        kort: 'niet snap',     beeld: '🤔', foto: 'assets/hulpzinnen/ik-begrijp-het-niet.png', zinPicto: 'assets/hulpzinnen/ik-begrijp-het-niet.png', zin: 'Juf, ik begrijp het niet.' },
     { id: 's-weet-niet',  niveau: 'basis', tekst: 'Ik weet het niet.',           kort: 'weet niet',     beeld: '🤷', zin: 'Sorry juf, ik weet het niet.' },
     { id: 's-langzaam',   niveau: 'basis', tekst: 'Wil je langzamer praten?',    kort: 'langzaam',      beeld: '🐢', zin: 'Juf, wil je langzamer praten?' },
     { id: 's-nogmaals',   niveau: 'basis', tekst: 'Wil je het nog eens zeggen?', kort: 'nog eens',      beeld: '🔁', zin: 'Juf, wil je het nog eens zeggen?' },

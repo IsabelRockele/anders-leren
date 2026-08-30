@@ -40,7 +40,7 @@ window.THEMA_SURVIVAL_SPEELPLAATS = {
     { id: 'ss-geefbal',    niveau: 'uitbreiding', soort: 'zin-zeg', tekst: 'Geef de bal!',              kort: 'geef bal',   beeld: '⚽', zin: 'Hé, geef de bal!' },
     { id: 'ss-plassen',    niveau: 'uitbreiding', soort: 'zin-zeg', tekst: 'Ik moet plassen.',          kort: 'plassen',    beeld: '🚽', zin: 'Juf, ik moet plassen.' },
     { id: 'ss-honger',     niveau: 'uitbreiding', soort: 'zin-zeg', tekst: 'Ik heb honger.',            kort: 'honger',     beeld: '🍽️', zin: 'Ik heb honger.' },
-    { id: 'ss-dorst',      niveau: 'uitbreiding', soort: 'zin-zeg', tekst: 'Ik heb dorst.',             kort: 'dorst',      beeld: '💧', zin: 'Mag ik drinken? Ik heb dorst.' },
+    { id: 'ss-dorst',      niveau: 'uitbreiding', soort: 'zin-zeg', tekst: 'Ik heb dorst.',             kort: 'dorst',      beeld: '💧', foto: 'assets/zinsbeelden/ik-heb-dorst.png', zinPicto: 'assets/zinsbeelden/ik-heb-dorst.png', zin: 'Mag ik drinken? Ik heb dorst.' },
 
     // ========== VERDIEPING — sport & turnen ==========
     { id: 'ss-turnen',     niveau: 'verdieping', soort: 'woord', tekst: 'turnen',           kort: 'turnen',       beeld: '🤸', zin: 'Vandaag is er turnen.' },

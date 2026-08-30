@@ -236,6 +236,7 @@ function lkKiesTab(tab) {
   if (tab === 'woorden') wbInitTab();
   if (tab === 'werkbladen') initWerkbladTab();
   if (tab === 'school') lkSchoolLaden();
+  if (tab === 'taalgroei' && window.Taalgroei) Taalgroei.open();
   if (tab === 'taken') lkKindtabsRender('taken');
   if (tab === 'spreken') lkKindtabsRender('spreken');
   if (tab === 'rapporten') lkKindtabsRender('rapporten');
@@ -2618,7 +2619,7 @@ function lkPrintQR() {
     </style></head><body>
     <div class="doos">
       <div class="zebra">🦓</div>
-      <h1>Anders Leren</h1>
+      <h1>Taalgroei</h1>
       <p style="font-size:16px">Hallo! Scan deze code om thuis te oefenen.</p>
       <h2>${naam}</h2>
       <img src="${qrSrc}" alt="QR-code">
@@ -2763,7 +2764,7 @@ function lkPrintLijst() {
   });
 
   const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>Klaslijst Anders Leren</title>
+  w.document.write(`<!DOCTYPE html><html><head><title>Klaslijst Taalgroei</title>
     <style>
       @page { size: A4; margin: 18mm; }
       body { font-family: 'Quicksand', 'Helvetica', sans-serif; color: #2D2A32; }
@@ -2790,7 +2791,7 @@ function lkPrintLijst() {
     </style></head><body>
     <div class="kop">
       <div class="kop-links">
-        <h1>Klaslijst — Anders Leren</h1>
+        <h1>Klaslijst — Taalgroei</h1>
         <p>Codes voor inloggen op jufzisa.be/anders-leren</p>
       </div>
       <div class="kop-rechts">
@@ -2806,7 +2807,7 @@ function lkPrintLijst() {
       <thead><tr><th></th><th>Naam</th><th>Code</th><th>Opmerking / handtekening</th></tr></thead>
       <tbody>${rijen}</tbody>
     </table>
-    <div class="voet">${gesorteerd.length} leerling${gesorteerd.length === 1 ? '' : 'en'} · jufzisa.be · Anders Leren</div>
+    <div class="voet">${gesorteerd.length} leerling${gesorteerd.length === 1 ? '' : 'en'} · jufzisa.be · Taalgroei</div>
     <script>setTimeout(() => window.print(), 400);<\/script>
     </body></html>`);
   w.document.close();
@@ -2857,7 +2858,7 @@ function lkPrintAlleQR() {
     kaartjes += `
       <div class="kaartje">
         <div class="zebra">🦓</div>
-        <div class="titel">Anders Leren</div>
+        <div class="titel">Taalgroei</div>
         <div class="naam">${naam || '&nbsp;'}</div>
         <img src="${qrSrc}" alt="QR">
         <div class="code">${code}</div>
@@ -2867,7 +2868,7 @@ function lkPrintAlleQR() {
   });
 
   const w = window.open('', '_blank');
-  w.document.write(`<!DOCTYPE html><html><head><title>QR-blaadjes Anders Leren</title>
+  w.document.write(`<!DOCTYPE html><html><head><title>QR-blaadjes Taalgroei</title>
     <style>
       @page { size: A4; margin: 10mm; }
       body { font-family: 'Quicksand', 'Helvetica', sans-serif; color: #2D2A32; margin: 0; }
@@ -3562,6 +3563,30 @@ function rendererTaakModal(huidigeTaak) {
         <span class="lk-sectie-pijl">${sectie2Open ? '▾' : '▸'}</span>
       </button>
       <div class="lk-sectie-inhoud" ${sectie2Open ? '' : 'hidden'}>
+        <div class="lk-oefenroutes">
+          <div class="lk-oefenroutes-kop">
+            <strong>Kies eerst een passende oefenroute</strong>
+            <span>Je kan de keuzes daarna nog handmatig aanpassen.</span>
+          </div>
+          <div class="lk-oefenroute-grid">
+            <button type="button" class="lk-oefenroute" onclick="lkTaakKiesOefenroute('begrijpen')">
+              <span class="lk-oefenroute-fase">START</span>
+              <strong>👂 Eerst begrijpen</strong>
+              <small>Voor een nieuw thema of een kind dat nog weinig Nederlands spreekt. Eerst luisteren en het juiste beeld zoeken.</small>
+            </button>
+            <button type="button" class="lk-oefenroute aanbevolen" onclick="lkTaakKiesOefenroute('lezen')">
+              <span class="lk-oefenroute-fase">MEEST GEKOZEN</span>
+              <strong>👂 + 👁️ Begrijpen en lezen</strong>
+              <small>Voor woorden die al mondeling zijn aangeboden. Het kind koppelt klank, woord en beeld.</small>
+            </button>
+            <button type="button" class="lk-oefenroute" onclick="lkTaakKiesOefenroute('verankeren')">
+              <span class="lk-oefenroute-fase">VERDER</span>
+              <strong>${_modalIsZinnen ? '🔁 Herhalen en lezen' : '✍️ Herhalen en schrijven'}</strong>
+              <small>Voor gekende leerstof die verder moet worden ingeoefend en onthouden.</small>
+            </button>
+          </div>
+        </div>
+        <div class="lk-handmatig-kop">Handmatig verfijnen</div>
         <div class="lk-taak-veld">
           <label class="lk-taak-label">Vaardigheden</label>
           <div class="lk-taak-vaardigheden">
@@ -3755,6 +3780,34 @@ function lkTaakToggleVaardigheid(vaardigheid) {
     }
   } else {
     _taakModalVaardigheden.add(vaardigheid);
+  }
+  rendererTaakModal(null);
+}
+
+function lkTaakKiesOefenroute(route) {
+  const thema = _taakModalThemaId ? ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId) : null;
+  const isZinnen = thema && thema.type === 'zinnen';
+  if (route === 'begrijpen') {
+    _taakModalVaardigheden = new Set(['luisteren']);
+    _taakModalOefenvormenLuisteren = new Set(['klikspel']);
+    _taakModalOefenvormenLezen = new Set();
+    _taakModalOefenvormenSchrijven = new Set();
+    _taakModalToetsen = new Set(['luisteren']);
+    _taakModalZinscontext = true;
+  } else if (route === 'lezen') {
+    _taakModalVaardigheden = new Set(['luisteren', 'lezen']);
+    _taakModalOefenvormenLuisteren = new Set(['klikspel', 'verbinden']);
+    _taakModalOefenvormenLezen = new Set(['woord-beeld']);
+    _taakModalOefenvormenSchrijven = new Set();
+    _taakModalToetsen = new Set(['luisteren', 'lezen']);
+    _taakModalZinscontext = true;
+  } else {
+    _taakModalVaardigheden = new Set(isZinnen ? ['luisteren', 'lezen'] : ['luisteren', 'lezen', 'schrijven']);
+    _taakModalOefenvormenLuisteren = new Set(['klikspel', 'verbinden', 'verslepen']);
+    _taakModalOefenvormenLezen = new Set(['woord-beeld']);
+    _taakModalOefenvormenSchrijven = new Set(isZinnen ? [] : ['overtypen']);
+    _taakModalToetsen = new Set(isZinnen ? ['luisteren', 'lezen'] : ['luisteren', 'lezen', 'schrijven']);
+    _taakModalZinscontext = true;
   }
   rendererTaakModal(null);
 }
@@ -4354,7 +4407,7 @@ const WB_NIVEAU_BUNDELS = {
   basis: {
     naam: '🌱 Basis',
     hint: 'Eenvoudige oefeningen om woorden te herkennen.',
-    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'kaartjes', 'categoriseerBasis']
+    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'vertelplaatNummers', 'zinnenKnippen', 'kaartjes', 'categoriseerBasis']
   },
   uitbreiding: {
     naam: '🌿 Uitbreiding',
@@ -4370,7 +4423,7 @@ const WB_NIVEAU_BUNDELS = {
 
 const WB_NIVEAU_VOLGORDE = ['basis', 'uitbreiding', 'verdieping'];
 
-const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
 const WB_OEFENING_LABELS = {
   koppel: '👁️ → 🔗 Koppel beeld en woord',
@@ -4380,6 +4433,8 @@ const WB_OEFENING_LABELS = {
   zelfschrijven: '👁️ → ✏️ Schrijf zelf het woord',
   kiesschrijf: '👁️ → ✗ → ✏️ Kies en schrijf',
   knip: '✂️ → 📋 Knip en plak',
+  vertelplaatNummers: '🔢 Vertelplaat: zet het nummer in het rondje',
+  zinnenKnippen: '✂️ Knip woorden en bouw zinnen bij beelden',
   kleurkoppel: '👁️ → 🎨 Kleur dezelfde paren',
   woordzoeker: '👁️ → 🔍 Woordzoeker',
   kaartjes: '🃏 Woordkaartjes',
@@ -5069,6 +5124,18 @@ function rendererMixPaneel() {
   WB_NIVEAU_VOLGORDE.forEach(niveau => {
     const bundel = WB_NIVEAU_BUNDELS[niveau];
     let oefeningenInGroep = bundel.oefeningen.slice();
+    // Een vertelplaat hoort altijd bij één concreet thema, niet bij een mix.
+    oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'vertelplaatNummers');
+    werkbladMix.oefeningen.delete('vertelplaatNummers');
+    const heeftKorteZinnen = themas.some(t => (t.items || []).some(it => {
+      const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
+      const n=zin ? zin.split(/\s+/).length : 0;
+      return n>=2 && n<=4;
+    }));
+    if(!heeftKorteZinnen){
+      oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'zinnenKnippen');
+      werkbladMix.oefeningen.delete('zinnenKnippen');
+    }
     if (heeftZinnenThema) {
       oefeningenInGroep = oefeningenInGroep.filter(k => !nietVoorZinnen.includes(k));
     }
@@ -5250,6 +5317,23 @@ function rendererThemaPaneel(themaId) {
   WB_NIVEAU_VOLGORDE.forEach(niveau => {
     const bundel = WB_NIVEAU_BUNDELS[niveau];
     let oefeningenInGroep = bundel.oefeningen.slice();
+    if (cfg.categorieen.size < 3) {
+      oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'categoriseerVerdieping');
+      cfg.oefeningen.delete('categoriseerVerdieping');
+    }
+    if (!(thema.visueleOefening === 'vertelplaat-klas' || (thema.vertelplaat && thema.vertelplaat.beeld))) {
+      oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'vertelplaatNummers');
+      cfg.oefeningen.delete('vertelplaatNummers');
+    }
+    const heeftKorteZinnen = (thema.items || []).some(it => {
+      const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
+      const n=zin ? zin.split(/\s+/).length : 0;
+      return n>=2 && n<=4;
+    });
+    if(!heeftKorteZinnen){
+      oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'zinnenKnippen');
+      cfg.oefeningen.delete('zinnenKnippen');
+    }
     if (isZinnenThema) {
       oefeningenInGroep = oefeningenInGroep.filter(k => !nietVoorZinnen.includes(k));
     }
@@ -5335,6 +5419,9 @@ async function genereerWerkblad() {
       niveau: cfg.niveau,
       categorieen: Array.from(cfg.categorieen)
     };
+  });
+  themaConfigs.forEach(tc => {
+    if (tc.categorieen.length < 3) tc.oefeningen = tc.oefeningen.filter(k => k !== 'categoriseerVerdieping');
   });
 
   const totaalOef = themaConfigs.reduce((acc, tc) => acc + tc.oefeningen.length, 0);

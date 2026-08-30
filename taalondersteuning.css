@@ -1,0 +1,32 @@
+.tg-intro { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:18px; align-items:center; }
+.tg-badge { display:inline-flex; align-items:center; gap:7px; border-radius:999px; padding:6px 11px; background:#eef2ff; color:#3730a3; font-size:13px; font-weight:700; }
+.tg-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.tg-form-grid .tg-breed { grid-column:1 / -1; }
+.tg-form-grid label { display:grid; gap:6px; font-weight:700; font-size:14px; }
+.tg-form-grid input,.tg-form-grid select,.tg-form-grid textarea { width:100%; border:1px solid #cbd5e1; border-radius:10px; padding:10px 12px; background:#fff; color:#1f2937; font:inherit; }
+.tg-form-grid textarea { min-height:78px; resize:vertical; }
+.tg-groepen { display:grid; grid-template-columns:repeat(auto-fit,minmax(290px,1fr)); gap:14px; }
+.tg-groepkaart { border:1px solid #dbeafe; border-left:6px solid #2563eb; border-radius:14px; background:#fff; padding:16px; box-shadow:0 5px 16px rgba(15,23,42,.06); }
+.tg-groepkaart.piloot { border-left-color:#f59e0b; }
+.tg-groepkaart.afgesloten { border-left-color:#94a3b8; opacity:.82; }
+.tg-groepkop { display:flex; justify-content:space-between; gap:12px; align-items:start; }
+.tg-groepkop h3 { margin:0 0 4px; }
+.tg-meta { color:#64748b; font-size:13px; line-height:1.55; }
+.tg-doel { margin:12px 0; padding:10px 12px; border-radius:10px; background:#f8fafc; }
+.tg-deelnemers { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 14px; }
+.tg-kindchip { border-radius:999px; background:#e0f2fe; color:#075985; padding:5px 9px; font-size:12px; font-weight:700; }
+.tg-leeg { color:#64748b; font-style:italic; }
+.tg-acties { display:flex; gap:8px; flex-wrap:wrap; }
+.tg-selectie-klas { margin:14px 0; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden; }
+.tg-selectie-klas h4 { margin:0; padding:9px 12px; background:#f1f5f9; }
+.tg-selectie-lijst { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:8px; padding:12px; }
+.tg-selectie-kind { display:flex; align-items:center; gap:9px; padding:8px; border-radius:8px; background:#fff; }
+.tg-selectie-kind:hover { background:#eff6ff; }
+.tg-evaluatie { margin-top:16px; border-top:1px solid #e2e8f0; padding-top:14px; }
+.tg-evaluatie-raster { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.tg-evaluatie-raster label { display:grid; gap:5px; font-size:13px; font-weight:700; }
+.tg-evaluatie-raster select,.tg-evaluatie-raster textarea,.tg-evaluatie-raster input { width:100%; padding:9px; border:1px solid #cbd5e1; border-radius:9px; font:inherit; }
+.tg-evaluatie-raster .tg-breed { grid-column:1 / -1; }
+.tg-evaluatie-lijst { margin-top:12px; display:grid; gap:8px; }
+.tg-evaluatie-item { background:#f8fafc; border-radius:10px; padding:10px 12px; font-size:13px; line-height:1.55; }
+@media (max-width:700px) { .tg-intro,.tg-form-grid,.tg-evaluatie-raster { grid-template-columns:1fr; } .tg-form-grid .tg-breed,.tg-evaluatie-raster .tg-breed { grid-column:auto; } }

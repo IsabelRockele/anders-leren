@@ -95,6 +95,31 @@ window.PDFEngine = (function() {
   //  blijft picto-cache leeg en valt plaatsItemBeeld terug op emoji.
   // ---------------------------------------------------------------
   const _pictoCache = {}; // pad → dataURL (string) of null = niet beschikbaar
+  const _losseAfbeeldingCache = {};
+
+  function _losseAfbeeldingLaden(bron) {
+    return new Promise(resolve => {
+      if (bron in _losseAfbeeldingCache) return resolve(_losseAfbeeldingCache[bron]);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxBreedte = 1600;
+          const schaal = img.width > maxBreedte ? maxBreedte / img.width : 1;
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * schaal);
+          canvas.height = Math.round(img.height * schaal);
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          _losseAfbeeldingCache[bron] = canvas.toDataURL('image/jpeg', 0.9);
+        } catch (e) { _losseAfbeeldingCache[bron] = null; }
+        resolve(_losseAfbeeldingCache[bron]);
+      };
+      img.onerror = () => { _losseAfbeeldingCache[bron] = null; resolve(null); };
+      img.src = bron;
+    });
+  }
 
   function _pictoLaden(bron) {
     return new Promise(resolve => {
@@ -128,8 +153,9 @@ window.PDFEngine = (function() {
         _pictoCache[bron] = null;
         resolve(null);
       };
-      // Bron is ofwel een URL (begint met http) ofwel een relatief picto-pad
-      img.src = bron.startsWith('http') ? bron : ('picto/' + bron);
+      // Thema-picto's staan onder picto/. Volledige projectpaden (zoals
+      // assets/zinsbeelden/...) gebruiken we rechtstreeks.
+      img.src = (bron.startsWith('http') || bron.startsWith('assets/') || bron.startsWith('data:')) ? bron : ('picto/' + bron);
     });
   }
 
@@ -138,6 +164,7 @@ window.PDFEngine = (function() {
     const bronnen = new Set();
     items.forEach(it => {
       if (!it) return;
+      if (it.zinPicto) bronnen.add(it.zinPicto);
       if (it.foto) bronnen.add(it.foto);
       else if (it.picto) bronnen.add(it.picto);
     });
@@ -219,8 +246,17 @@ window.PDFEngine = (function() {
    * Returns y-positie waar inhoud kan beginnen.
    */
   function tekenPictoInstructie(doc, y, pictos, uitleg) {
-    const hoogte = 16;
     const startX = M;
+
+    // Bereken eerst hoeveel plaats de uitleg werkelijk nodig heeft. Lange
+    // opdrachten worden over meerdere regels verdeeld en blijven zo in het kader.
+    const voorlopigPictoX = startX + 32 + pictos.length * 16;
+    const tekstX = voorlopigPictoX + 4;
+    const tekstBreedte = Math.max(30, PB - M - tekstX - 4);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    const uitlegRegels = uitleg ? doc.splitTextToSize(uitleg, tekstBreedte) : [];
+    const hoogte = Math.max(16, 8 + uitlegRegels.length * 5);
 
     // Achtergrond zacht oranje
     doc.setFillColor(255, 244, 224);
@@ -258,8 +294,9 @@ window.PDFEngine = (function() {
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(45, 42, 50);
       // Start na de laatste picto + wat lucht
-      const tekstX = pictoX + 4;
-      doc.text(uitleg, tekstX, pictoY + 1.5);
+      const regelHoogte = 5;
+      const tekstY = y + (hoogte - uitlegRegels.length * regelHoogte) / 2 + 4;
+      doc.text(uitlegRegels, tekstX, tekstY, { lineHeightFactor: 1.12 });
       doc.setFont('helvetica', 'normal');
     }
 
@@ -269,7 +306,7 @@ window.PDFEngine = (function() {
   function tekenVoet(doc) {
     doc.setFontSize(8);
     doc.setTextColor(170, 170, 170);
-    doc.text('jufzisa.be · Anders Leren', PB / 2, PH - 8, { align: 'center' });
+    doc.text('jufzisa.be · Taalgroei', PB / 2, PH - 8, { align: 'center' });
   }
 
   // ---------------------------------------------------------------
@@ -533,7 +570,7 @@ window.PDFEngine = (function() {
   // ---------------------------------------------------------------
   function tekenOmcirkel(doc, thema, opgelost) {
     let y = tekenKop(doc, thema, opgelost ? 'Oplossing: kruis aan' : 'Oefening: kruis aan');
-    y = tekenPictoInstructie(doc, y, ['👁️', '✗']);
+    y = tekenPictoInstructie(doc, y, ['👁️', '✗'], 'Kijk naar het beeld. Kruis het juiste woord aan.');
 
     const items = schud(thema.items).slice(0, 6);
     const rH = 30;
@@ -778,60 +815,29 @@ window.PDFEngine = (function() {
 
   // ---------------------------------------------------------------
   //  OEFENING 8: Knipoefening
-  //  Boven: rij beelden om uit te knippen
-  //  Onder: dozen met woorden om beelden in te plakken
+  //  Pagina 1: dozen met woorden om beelden in te plakken
+  //  Pagina 2: afzonderlijk knipblad met de beelden
   //  Picto: ✂️ → ⭕ → 📋 (knip → zoek → plak)
   // ---------------------------------------------------------------
   function tekenKnipoefening(doc, thema, opgelost) {
     let y = tekenKop(doc, thema, opgelost ? 'Oplossing: knip en plak' : 'Oefening: knip en plak');
-    y = tekenPictoInstructie(doc, y, ['✂️', '🔗', '📋']);
+    y = tekenPictoInstructie(doc, y, opgelost ? ['👁️','✅'] : ['✂️', '🔗', '📋'], opgelost ? 'Bekijk waar elk beeld hoort.' : 'Knip de beelden op het aparte knipblad uit. Plak ze bij het juiste woord.');
 
     const items = schud(thema.items).slice(0, 6);
     const beeldenGeschud = schud(items);
 
-    // Sectie 1: Beelden om uit te knippen (bovenste deel)
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(232, 159, 15);
-    doc.text('1. KNIP DE BEELDEN UIT', M, y);
-    y += 5;
-
-    const beeldGrootte = 22;
-    const beeldGap = 6;
-    const beeldenPerRij = 6;
-    const totaleBreedte = beeldenPerRij * beeldGrootte + (beeldenPerRij - 1) * beeldGap;
-    const beeldenStartX = (PB - totaleBreedte) / 2;
-
-    beeldenGeschud.forEach((w, i) => {
-      const x = beeldenStartX + i * (beeldGrootte + beeldGap);
-      doc.setDrawColor(160, 160, 160);
-      doc.setLineWidth(0.3);
-      doc.setLineDashPattern([1.5, 1], 0);
-      doc.rect(x, y, beeldGrootte, beeldGrootte);
-      doc.setLineDashPattern([], 0);
-
-      plaatsItemBeeld(doc, w, x + beeldGrootte / 2, y + beeldGrootte / 2, beeldGrootte - 4);
-    });
-
-    y += beeldGrootte + 12;
-
-    doc.setDrawColor(180, 180, 180);
-    doc.setLineWidth(0.4);
-    doc.setLineDashPattern([2, 2], 0);
-    doc.line(M, y, PB - M, y);
-    doc.setLineDashPattern([], 0);
-
-    y += 8;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(232, 159, 15);
-    doc.text('2. PLAK BIJ HET JUISTE WOORD', M, y);
+    doc.text(opgelost ? 'DE JUISTE OPLOSSING' : 'PLAK BIJ HET JUISTE WOORD', M, y);
     y += 5;
 
     const dozenPerRij = 2;
     const doosBreed = (IB - 10) / dozenPerRij;
-    const doosHoog = 30;
+    // Het plakvak en het kaartje op het knipblad hebben exact dezelfde maat.
+    // 32 mm is groot genoeg voor jonge kinderen om veilig uit te knippen.
+    const plakGrootte = 32;
+    const doosHoog = 36;
 
     items.forEach((w, i) => {
       const kol = i % dozenPerRij;
@@ -844,31 +850,58 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 180, 100);
       doc.setLineWidth(0.4);
       doc.setLineDashPattern([1.5, 1], 0);
-      doc.roundedRect(x, yR, 26, doosHoog - 4, 2, 2, 'FD');
+      doc.roundedRect(x, yR, plakGrootte, plakGrootte, 2, 2, 'FD');
       doc.setLineDashPattern([], 0);
 
       if (opgelost) {
         // OPLOSSING: beeld groen omkaderd in het plakvak
-        plaatsItemBeeld(doc, w, x + 13, yR + (doosHoog - 4) / 2, 18);
+        plaatsItemBeeld(doc, w, x + plakGrootte / 2, yR + plakGrootte / 2, 24);
         doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
         doc.setLineWidth(0.6);
-        doc.roundedRect(x, yR, 26, doosHoog - 4, 2, 2);
+        doc.roundedRect(x, yR, plakGrootte, plakGrootte, 2, 2);
       } else {
         // Klein "plak hier"-teken in vak
         doc.setFontSize(7);
         doc.setTextColor(220, 180, 100);
-        doc.text('plak hier', x + 13, yR + (doosHoog - 4) / 2 + 1, { align: 'center' });
+        doc.text('plak hier', x + plakGrootte / 2, yR + plakGrootte / 2 + 1, { align: 'center' });
       }
 
       // Woord ernaast
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(45, 42, 50);
-      doc.text(w.tekst, x + 30, yR + doosHoog / 2);
+      doc.text(w.tekst, x + plakGrootte + 4, yR + doosHoog / 2);
       doc.setFont('helvetica', 'normal');
     });
 
     tekenVoet(doc);
+
+    // Het materiaal dat werkelijk uitgeknipt wordt, staat altijd op een
+    // afzonderlijke pagina. De opdrachtpagina blijft daardoor intact.
+    if (!opgelost) {
+      doc.addPage();
+      y = tekenKop(doc, thema, 'Knipblad: beelden');
+      y = tekenPictoInstructie(doc, y, ['✂️'], 'Knip de beelden uit langs de stippellijnen. Ga daarna terug naar het maakblad.');
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(232, 159, 15);
+      doc.text('KNIP DE BEELDEN UIT', M, y);
+      y += 7;
+
+      const beeldGrootte = plakGrootte;
+      const beeldGap = 10;
+      const beeldenPerRij = 3;
+      const totaleBreedte = beeldenPerRij * beeldGrootte + (beeldenPerRij - 1) * beeldGap;
+      const beeldenStartX = (PB - totaleBreedte) / 2;
+      beeldenGeschud.forEach((w, i) => {
+        const kol=i%beeldenPerRij, rij=Math.floor(i/beeldenPerRij);
+        const x=beeldenStartX+kol*(beeldGrootte+beeldGap), yy=y+rij*(beeldGrootte+beeldGap);
+        doc.setFillColor(255,255,255);doc.setDrawColor(130,130,130);doc.setLineWidth(.4);
+        doc.setLineDashPattern([1.5,1],0);doc.roundedRect(x,yy,beeldGrootte,beeldGrootte,2,2,'FD');doc.setLineDashPattern([],0);
+        plaatsItemBeeld(doc,w,x+beeldGrootte/2,yy+beeldGrootte/2,24);
+      });
+      tekenVoet(doc);
+    }
   }
 
   // ---------------------------------------------------------------
@@ -1310,7 +1343,7 @@ window.PDFEngine = (function() {
   // ---------------------------------------------------------------
   function tekenCategoriseerBasis(doc, thema, opgelost) {
     let y = tekenKop(doc, thema, opgelost ? 'Oplossing: welk hoort er niet bij?' : 'Oefening: welk hoort er niet bij?');
-    y = tekenPictoInstructie(doc, y, ['👁️', '✗']);
+    y = tekenPictoInstructie(doc, y, ['👁️', '✗'], 'Kijk naar de vier beelden. Kruis aan wat er niet bij hoort.');
 
     // Categorieën die minstens 3 items hebben → kunnen "3 uit dezelfde + 1 anders" leveren
     const bruikbaar = _bruikbareCategorieen(thema.items, 3);
@@ -1406,7 +1439,7 @@ window.PDFEngine = (function() {
   // ---------------------------------------------------------------
   function tekenCategoriseerUitbreiding(doc, thema, opgelost) {
     let y = tekenKop(doc, thema, opgelost ? 'Oplossing: kleur per groep' : 'Oefening: kleur per groep');
-    y = tekenPictoInstructie(doc, y, ['👁️', '🎨']);
+    y = tekenPictoInstructie(doc, y, ['👁️', '🎨'], 'Kijk naar de groepen. Kleur elk woord met de kleur van de juiste groep.');
     return _tekenSorteerKleur(doc, thema, opgelost, y, 2);
   }
 
@@ -1417,7 +1450,7 @@ window.PDFEngine = (function() {
   // ---------------------------------------------------------------
   function tekenCategoriseerVerdieping(doc, thema, opgelost) {
     let y = tekenKop(doc, thema, opgelost ? 'Oplossing: schrijf in juiste kolom' : 'Oefening: schrijf in juiste kolom');
-    y = tekenPictoInstructie(doc, y, ['👁️', '✏️']);
+    y = tekenPictoInstructie(doc, y, ['👁️', '✏️'], 'Kijk naar de woorden. Schrijf elk woord bij de juiste groep.');
     return _tekenSorteerSchrijven(doc, thema, opgelost, y, 3);
   }
 
@@ -1583,35 +1616,16 @@ window.PDFEngine = (function() {
     // ============== WOORDVOORRAAD BOVENAAN ==============
     const woordenGeschud = schud(alle);
 
-    // Eerst meten: hoeveel rijen heeft de woordvoorraad nodig?
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    const itemGap = 4;
-    const beeldGr = 8;
-    const beeldRuimte = 9; // beeld + kleine offset naar tekst
-    const lijnHoog = 8;
-    const padX = 6;
-    const startInhoud = M + padX;
-    const eindInhoud = M + IB - padX;
-
-    // Bereken posities zodat we vooraf de hoogte kennen
-    const posities = []; // {x, y, item, tekst, breedte}
-    let cursorX = startInhoud;
-    let huidigeRij = 0;
-    woordenGeschud.forEach((entry) => {
-      const tekstBr = doc.getTextWidth(entry.item.tekst);
-      const itemBr = beeldRuimte + tekstBr;
-      // Past het nog op deze regel?
-      if (cursorX + itemBr > eindInhoud && cursorX > startInhoud) {
-        huidigeRij++;
-        cursorX = startInhoud;
-      }
-      posities.push({ x: cursorX, rij: huidigeRij, item: entry.item, tekstX: cursorX + beeldRuimte });
-      cursorX += itemBr + itemGap + 4;
-    });
-    const aantalRijen = huidigeRij + 1;
-    const voorraadHoog = Math.max(22, 8 + aantalRijen * lijnHoog + 6);
-    doc.setFont('helvetica', 'normal');
+    // Vaste kaartjes in een ordelijk raster. Zo botsen lange zinnen niet meer
+    // tegen het volgende beeld en zijn alle afbeeldingen even groot.
+    const voorraadKolommen = 3;
+    const kaartGapX = 3;
+    const kaartGapY = 2.5;
+    const kaartW = (IB - 8 - (voorraadKolommen - 1) * kaartGapX) / voorraadKolommen;
+    const kaartH = 13;
+    const beeldGr = 9;
+    const aantalRijen = Math.ceil(woordenGeschud.length / voorraadKolommen);
+    const voorraadHoog = Math.max(24, 10 + aantalRijen * kaartH + Math.max(0, aantalRijen - 1) * kaartGapY + 5);
 
     doc.setFillColor(255, 252, 246);
     doc.setDrawColor(220, 180, 100);
@@ -1626,15 +1640,22 @@ window.PDFEngine = (function() {
     doc.setTextColor(232, 159, 15);
     doc.text('WOORDEN', M + 4, y + 5);
 
-    // Woorden tekenen op de berekende posities
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(45, 42, 50);
-    const eersteRijY = y + 13;
-    posities.forEach(p => {
-      const yItem = eersteRijY + p.rij * lijnHoog;
-      plaatsItemBeeld(doc, p.item, p.x + 4, yItem - 2, beeldGr);
-      doc.text(p.item.tekst, p.tekstX, yItem);
+    // Woorden tekenen: één beeld en één tekstblok per kaartje.
+    woordenGeschud.forEach((entry, i) => {
+      const kol = i % voorraadKolommen;
+      const rij = Math.floor(i / voorraadKolommen);
+      const x = M + 4 + kol * (kaartW + kaartGapX);
+      const yKaart = y + 9 + rij * (kaartH + kaartGapY);
+      doc.setFillColor(255,255,255);
+      doc.setDrawColor(228,218,198);
+      doc.setLineWidth(.35);
+      doc.roundedRect(x,yKaart,kaartW,kaartH,2,2,'FD');
+      plaatsItemBeeld(doc,entry.item,x+6,yKaart+kaartH/2,beeldGr);
+      let fs=10.5;
+      doc.setFont('helvetica','bold');
+      while(fs>7.5){doc.setFontSize(fs);if(doc.getTextWidth(entry.item.tekst)<=kaartW-16)break;fs-=.5;}
+      doc.setTextColor(45,42,50);
+      doc.text(entry.item.tekst,x+12,yKaart+kaartH/2+1.5);
     });
     doc.setFont('helvetica', 'normal');
 
@@ -1722,6 +1743,186 @@ window.PDFEngine = (function() {
   // De ctx-parameter wordt niet meer gebruikt voor categoriseer, maar blijft
   // beschikbaar voor toekomstige uitbreidingen.
 
+  // ---------------------------------------------------------------
+  //  VERTELPLAAT: nummers bij woorden zoeken
+  // ---------------------------------------------------------------
+  function tekenVertelplaatNummers(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: nummers op de vertelplaat' : 'Oefening: nummers op de vertelplaat');
+    y = tekenPictoInstructie(doc, y, ['👁️', '🔢', '✏️'], 'Zoek elk woord. Schrijf het nummer in het juiste rondje.');
+
+    const standaardPosities = {
+      juf:[37,28], bord:[50,20], klok:[70,13], deur:[80,23], kapstok:[92,22],
+      boekentas:[89,42], boek:[17,58], potlood:[37,88], schrift:[53,61],
+      schaar:[55,88], lijm:[62,88], vuilbak:[90,80]
+    };
+    const plaatConfig=thema.vertelplaat;
+    const posities=plaatConfig&&Array.isArray(plaatConfig.hotspots)
+      ? Object.fromEntries(plaatConfig.hotspots.filter(h=>!h.zin).map(h=>{
+          let id=h.itemId||String(h.id||'').replace(/^vp-/,'');
+          if(id==='vingers')id='vinger';
+          return [id,[h.x,h.y]];
+        }))
+      : standaardPosities;
+    const plaatPad=plaatConfig&&plaatConfig.beeld?plaatConfig.beeld:'vertelplaten/in-de-klas.png';
+    const werkbladItems=plaatConfig&&Array.isArray(plaatConfig.werkbladItems)?plaatConfig.werkbladItems:null;
+    const bruikbaar = thema.items.filter(it => posities[it.id]&&(!werkbladItems||werkbladItems.includes(it.id))).slice(0, 12);
+    if (bruikbaar.length < 4 || !_losseAfbeeldingCache[plaatPad]) {
+      doc.setFontSize(11); doc.setTextColor(100,100,100);
+      doc.text('Voor deze oefening zijn nog niet genoeg woorden aan de vertelplaat gekoppeld.', M, y + 12);
+      tekenVoet(doc); return;
+    }
+    const genummerd = schud(bruikbaar).map((item, i) => ({ item, nummer:i + 1 }));
+    const nummerPerId = Object.fromEntries(genummerd.map(x => [x.item.id, x.nummer]));
+    const plaatX=M, plaatY=y+3, plaatW=IB, plaatH=120;
+    doc.addImage(_losseAfbeeldingCache[plaatPad], 'PNG', plaatX, plaatY, plaatW, plaatH);
+
+    bruikbaar.forEach(item => {
+      const [px,py] = posities[item.id];
+      const cx=plaatX + plaatW * px / 100, cy=plaatY + plaatH * py / 100;
+      doc.setFillColor(255,255,255); doc.setDrawColor(25,116,98); doc.setLineWidth(1);
+      doc.circle(cx,cy,4.2,'FD');
+      if (opgelost) {
+        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(KLEUR_OPL_R,KLEUR_OPL_G,KLEUR_OPL_B);
+        doc.text(String(nummerPerId[item.id]),cx,cy+1.4,{align:'center'});
+      }
+    });
+
+    y=plaatY+plaatH+8;
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(45,42,50);
+    genummerd.forEach((entry,i) => {
+      const col=i%3, rij=Math.floor(i/3), x=M+col*60, yy=y+rij*8;
+      doc.text(`${entry.nummer}. ${entry.item.tekst}`,x,yy);
+    });
+    tekenVoet(doc);
+  }
+
+  function _zinVoorKnipitem(item) {
+    // Een knipzin bevat geen aanspreking zoals "Juf," of "Hallo,". Bij echte
+    // zinsitems is `tekst` de korte, bruikbare kernzin; `zin` is vaak alleen een
+    // langere voorbeeldzin voor spreken.
+    return (item.knipZin || (item.soort && item.soort.indexOf('zin') === 0 ? item.tekst : '') || item.zin || '').trim();
+  }
+
+  const _KLAS_ZINSKNIP = [
+    {id:'zk-neemt-boekentas',zin:'De jongen neemt zijn boekentas.',zinPicto:'assets/zinsbeelden/de-jongen-neemt-zijn-boekentas.png',zinsdelen:[{tekst:'De jongen',rol:'wie'},{tekst:'neemt',rol:'doet'},{tekst:'zijn boekentas',rol:'wat'}]},
+    {id:'zk-leest-boek',zin:'De jongen leest een boek.',zinPicto:'assets/zinsbeelden/de-jongen-leest-een-boek.png',zinsdelen:[{tekst:'De jongen',rol:'wie'},{tekst:'leest',rol:'doet'},{tekst:'een boek',rol:'wat'}]},
+    {id:'zk-hand-op',zin:'Het meisje steekt haar hand op.',zinPicto:'assets/zinsbeelden/het-meisje-steekt-haar-hand-op.png',zinsdelen:[{tekst:'Het meisje',rol:'wie'},{tekst:'steekt',rol:'doet'},{tekst:'haar hand op',rol:'wat'}]},
+    {id:'zk-juf-bord',zin:'De juf schrijft op het bord.',zinPicto:'assets/zinsbeelden/de-juf-schrijft-op-het-bord.png',zinsdelen:[{tekst:'De juf',rol:'wie'},{tekst:'schrijft',rol:'doet'},{tekst:'op het bord',rol:'waar'}]}
+  ];
+
+  function _zinsknipKandidaten(thema) {
+    if (thema && thema.visueleOefening === 'vertelplaat-klas') return _KLAS_ZINSKNIP.slice();
+    // Gebruik nooit meer automatisch een los woordpictogram voor een volledige
+    // zin. Andere thema's komen pas in aanmerking zodra ze een zinPicto hebben.
+    return (thema.items || []).map(it => (
+      thema && thema.type === 'zinnen' && it.tekst ? {...it, knipZin: it.knipZin || it.tekst} : it
+    )).filter(it => {
+      if (!it.zinPicto || !_zinVoorKnipitem(it)) return false;
+      // In een gemengd startthema horen losse woorden (hallo, mama, sorry ...)
+      // niet thuis in een oefening waarin kinderen een volledige zin bouwen.
+      if (thema && thema.type === 'gemengd' && !(it.soort || '').startsWith('zin')) return false;
+      // Vraagzinnen hebben een andere woordvolgorde en krijgen later een eigen
+      // vraagzinoefening; hier oefenen we heldere mededelende basiszinnen.
+      return !_zinVoorKnipitem(it).includes('?');
+    });
+  }
+
+  function _plaatsZinsbeeld(doc,item,x,y,grootte){
+    plaatsItemBeeld(doc,{...item,picto:item.zinPicto,foto:null},x,y,grootte);
+  }
+
+  function _tekstInKnipvak(doc, tekst, x, y, w, h, kleur) {
+    let grootte=11; doc.setFont('helvetica','bold');
+    while(grootte>7){doc.setFontSize(grootte);if(doc.getTextWidth(tekst)<=w-4)break;grootte-=0.5;}
+    doc.setTextColor(...kleur); doc.text(tekst,x+w/2,y+h/2+1.4,{align:'center'});
+  }
+
+  const _ZIS_KLEUREN = {
+    wie:     { vul:[224,189,24],  rand:[172,143,8],  tekst:[52,44,0] },
+    doet:    { vul:[226,68,68],   rand:[177,43,43],  tekst:[255,255,255] },
+    waar:    { vul:[131,82,197],  rand:[96,54,155],  tekst:[255,255,255] },
+    wanneer: { vul:[233,130,32],  rand:[188,91,12],  tekst:[255,255,255] },
+    wat:     { vul:[128,81,57],   rand:[91,54,36],   tekst:[255,255,255] },
+    hoe:     { vul:[51,153,76],   rand:[31,111,49],  tekst:[255,255,255] }
+  };
+
+  function _schoonZinswoord(woord) {
+    return String(woord || '').replace(/[.!?,;:]+$/g,'');
+  }
+
+  // Maakt zinsdelen zoals Zien is Snappen ze gebruikt: "De juf" blijft één
+  // geel kaartje, "op het bord" één paars kaartje, enzovoort.
+  function _zinsdelenVoorKnipitem(item) {
+    if (Array.isArray(item.zinsdelen) && item.zinsdelen.length) return item.zinsdelen;
+    const woorden=_zinVoorKnipitem(item).split(/\s+/).map(_schoonZinswoord).filter(Boolean);
+    if(!woorden.length)return [];
+    const laag=woorden.map(w=>w.toLowerCase());
+    const werkwoorden=new Set(['ben','bent','is','zijn','heb','heeft','hebben','heet','heten','snap','snapt','begrijp','begrijpt','weet','weten','mis','mist','voel','voelt','trap','trapt','ga','gaat','gaan','draag','draagt','dragen','zit','zitten','hang','hangt','hangen','drink','drinkt','drinken','eet','eten','speel','speelt','spelen','werk','werkt','werken','schrijf','schrijft','schrijven','lees','leest','lezen','kijk','kijkt','kijken','luister','luistert','luisteren','reken','rekent','rekenen','kleur','kleurt','kleuren','knip','knipt','knippen','plak','plakt','plakken','teken','tekent','tekenen','help','helpt','helpen','leg','legt','leggen','rinkelt','gom','gooit','gooi','markeer','schilder','schildert','schilderen','sta','staat','staan','kan','kunnen','mag','mogen','moet','nemen','neemt']);
+    const voorzetsels=new Set(['in','op','aan','naar','uit','met','bij','onder','boven','naast','achter','voor','tussen','tegen','van']);
+    const tijdwoorden=new Set(['nu','vandaag','morgen','gisteren','maandag','dinsdag','woensdag','donderdag','vrijdag','pauze','uur']);
+    const hoewoorden=new Set(['samen','stil','goed','snel','traag','scherp','rood','blauw','geel','groen','klaar','moe','bang','ziek','blij','boos','verdrietig','sterk','groot','klein','warm','koud','nat','droog','bruin','wit','roze']);
+    let ww=laag.findIndex(w=>werkwoorden.has(w));
+    if(ww<0)ww=Math.min(1,woorden.length-1);
+    const delen=[];
+    if(ww>0)delen.push({tekst:woorden.slice(0,ww).join(' '),rol:tijdwoorden.has(laag[0])?'wanneer':voorzetsels.has(laag[0])?'waar':'wie'});
+    let wwEinde=ww+1;
+    if(['kan','kunnen','mag','mogen','moet'].includes(laag[ww])&&werkwoorden.has(laag[ww+1]))wwEinde++;
+    delen.push({tekst:woorden.slice(ww,wwEinde).join(' '),rol:'doet'});
+    if(wwEinde<woorden.length){
+      const rest=woorden.slice(wwEinde),restLaag=laag.slice(wwEinde);
+      let rol='wat';
+      if(voorzetsels.has(restLaag[0]))rol=tijdwoorden.has(restLaag[1])?'wanneer':'waar';
+      else if(tijdwoorden.has(restLaag[0]))rol='wanneer';
+      else if(restLaag.every(w=>hoewoorden.has(w)||w==='en'))rol='hoe';
+      delen.push({tekst:rest.join(' '),rol});
+    }
+    return delen.filter(d=>d.tekst);
+  }
+
+  // Twee bladen: beelden met maatvaste plakvakken + losse woordkaartjes.
+  function tekenZinnenKnippen(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: bouw de zinnen' : 'Oefening: bouw de zinnen');
+    y = tekenPictoInstructie(doc, y, ['👁️','✂️','🔗'], 'Knip de woorden uit. Bouw bij elk beeld de goede zin.');
+    const kandidaten = schud(_zinsknipKandidaten(thema).filter(it => {
+      const n=_zinVoorKnipitem(it).split(/\s+/).filter(Boolean).length;
+      return n>=2;
+    })).slice(0,4);
+    if(kandidaten.length<2){
+      doc.setFontSize(11);doc.setTextColor(100,100,100);doc.text('Kies een thema met minstens twee korte zinnen.',M,y+12);tekenVoet(doc);return;
+    }
+    const boxW=32, boxH=13, gap=2, beeld=28, rijH=48;
+    kandidaten.forEach((item,i)=>{
+      const ry=y+3+i*rijH;
+      _plaatsZinsbeeld(doc,item,M+beeld/2,ry+beeld/2,beeld-3);
+      const tokens=_zinsdelenVoorKnipitem(item);
+      const startX=M+beeld+7;
+      tokens.forEach((deel,j)=>{
+        const x=startX+j*(boxW+gap);
+        const kleur=_ZIS_KLEUREN[deel.rol]||_ZIS_KLEUREN.wat;
+        doc.setFillColor(...kleur.vul.map(v=>Math.round(v+(255-v)*.82)));doc.setDrawColor(...kleur.rand);doc.setLineWidth(.55);
+        doc.setLineDashPattern([1.5,1],0);doc.roundedRect(x,ry+7,boxW,boxH,2,2,'FD');doc.setLineDashPattern([],0);
+        if(opgelost)_tekstInKnipvak(doc,deel.tekst,x,ry+7,boxW,boxH,kleur.rand);
+      });
+      doc.setDrawColor(225,220,210);doc.line(M,ry+rijH-5,PB-M,ry+rijH-5);
+    });
+    tekenVoet(doc);
+    if(opgelost)return;
+
+    doc.addPage();
+    y=tekenKop(doc,thema,'Knipblad: woorden voor de zinnen');
+    y=tekenPictoInstructie(doc,y,['✂️','📋'],'Knip elk gekleurd zinsdeel uit langs de stippellijn.');
+    const alleTokens=schud(kandidaten.flatMap(item=>_zinsdelenVoorKnipitem(item)));
+    const cols=5, startX=M+4, startY=y+10;
+    alleTokens.forEach((deel,i)=>{
+      const col=i%cols,rij=Math.floor(i/cols),x=startX+col*(boxW+3),yy=startY+rij*(boxH+5);
+      const kleur=_ZIS_KLEUREN[deel.rol]||_ZIS_KLEUREN.wat;
+      doc.setFillColor(...kleur.vul);doc.setDrawColor(...kleur.rand);doc.setLineWidth(.5);
+      doc.setLineDashPattern([1.5,1],0);doc.roundedRect(x,yy,boxW,boxH,1.5,1.5,'FD');doc.setLineDashPattern([],0);
+      _tekstInKnipvak(doc,deel.tekst,x,yy,boxW,boxH,kleur.tekst);
+    });
+    tekenVoet(doc);
+  }
+
   //  HOOFDFUNCTIE
   //  themaConfigs: array van { thema, oefeningen[], niveau }
   //  opties.verdeling: 'mengen' (alle items door elkaar — alleen zinvol als alle thema's dezelfde oefeningen hebben)
@@ -1735,6 +1936,8 @@ window.PDFEngine = (function() {
     zelfschrijven: tekenZelfSchrijven,
     kiesschrijf: tekenKiesEnSchrijf,
     knip: tekenKnipoefening,
+    vertelplaatNummers: tekenVertelplaatNummers,
+    zinnenKnippen: tekenZinnenKnippen,
     kleurkoppel: tekenKleurKoppel,
     woordzoeker: tekenWoordzoeker,
     kaartjes: tekenWoordkaartjes,
@@ -1792,10 +1995,16 @@ window.PDFEngine = (function() {
     // Pre-fetch alle pictos die voorkomen in de te-tekenen items
     const allItems = [];
     themaConfigs.forEach(tc => tc.thema.items.forEach(it => allItems.push(it)));
+    themaConfigs.forEach(tc => {
+      if (tc.oefeningen.includes('zinnenKnippen')) _zinsknipKandidaten(tc.thema).forEach(it => allItems.push(it));
+    });
     try {
       await prefetchPictos(allItems);
     } catch (e) {
       console.warn('Prefetch pictos faalde — ga verder met emoji-fallback', e);
+    }
+    for (const tc of themaConfigs.filter(tc => tc.oefeningen.includes('vertelplaatNummers'))) {
+      await _losseAfbeeldingLaden(tc.thema.vertelplaat&&tc.thema.vertelplaat.beeld?tc.thema.vertelplaat.beeld:'vertelplaten/in-de-klas.png');
     }
 
     // Bepaal of we per thema of gemengd werken
@@ -1812,7 +2021,7 @@ window.PDFEngine = (function() {
 
     let eerste = true;
     const add = () => { if (!eerste) doc.addPage(); eerste = false; };
-    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
     if (isMengen) {
       const allItems = [];

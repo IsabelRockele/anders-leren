@@ -1,0 +1,80 @@
+.vp-stappen {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 8px 0 18px;
+}
+.vp-stapknop {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px;
+  border: 2px solid #d9e8e2;
+  border-radius: 15px;
+  background: #fff;
+  color: #36554d;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+.vp-stapknop b { display:grid; place-items:center; min-width:32px; height:32px; border-radius:50%; background:#e4f3ee; color:#17634f; }
+.vp-stapknop.actief { border-color:#26856e; background:#e9f8f2; color:#134c3e; }
+.vp-stapknop.actief b { background:#26856e; color:#fff; }
+.vp-stapvak { display:none; padding:14px 18px; margin-bottom:12px; border-radius:15px; background:#fff7df; border-left:6px solid #f1b93b; }
+.vp-stapvak.actief { display:block; }
+.vp-stapvak h2 { margin:0 0 3px; font-size:22px; }
+.vp-stapvak p { margin:0; color:#5f665f; }
+.vp-opdracht { display:grid; grid-template-columns:1fr auto; gap:5px 12px; align-items:center; margin:0 0 14px; padding:16px 18px; border-radius:16px; background:#e9f8f2; border:2px solid #9bd3c1; }
+.vp-opdracht strong { display:block; font-size:14px; color:#527067; }
+.vp-opdracht span { display:block; font-size:clamp(22px,3vw,34px); line-height:1.15; font-weight:800; color:#153f35; }
+.vp-opdracht button { grid-column:2; grid-row:1; width:62px; height:62px; border:0; border-radius:50%; padding:0; background:#247b67; color:#fff; font:inherit; font-size:0; font-weight:700; cursor:pointer; box-shadow:0 5px 14px rgba(36,123,103,.28); }
+.vp-opdracht button::before { content:'🔊'; font-size:28px; }
+.vp-opdracht .vp-feedback { grid-column:1/-1; margin:0; }
+.vp-opdracht.vp-nieuw { animation:vp-opdracht-flits .72s ease-out; }
+.vp-opdracht.vp-ronde-klaar { background:#e8f8ed; border-color:#62b77b; }
+.vp-opdracht.vp-ronde-klaar button { display:none; }
+@keyframes vp-opdracht-flits { 0%,35%{transform:scale(1.025);background:#fff0a8;box-shadow:0 0 0 8px rgba(246,190,44,.2)} 100%{transform:scale(1);background:#e9f8f2;box-shadow:none} }
+.vp-zoekpunt { background:#247b67; }
+.vp-hotspot.vp-juist { background:#1f9d62; border-color:#eafff4; transform:translate(-50%,-50%) scale(1.25); }
+.vp-hotspot.vp-fout { background:#df5b57; animation:vp-schud .35s ease; }
+.vp-hotspot.vp-hint { background:#f5a623; animation:vp-hint 1s ease-in-out infinite; }
+@keyframes vp-schud { 25%{margin-left:-8px} 75%{margin-left:8px} }
+@keyframes vp-hint { 50%{transform:translate(-50%,-50%) scale(1.45);box-shadow:0 0 0 12px rgba(245,166,35,.25)} }
+.vp-hulpsectie { margin-top:24px; padding:22px; border-radius:22px; background:linear-gradient(135deg,#eef9f5,#fff9e8); border:2px solid #b9e0d3; }
+.vp-hulpsectie h2 { margin:0 0 4px; color:#174f42; }
+.vp-hulpsectie>p { margin:0 0 18px; color:#536b64; }
+.vp-hulpzinnen { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:14px; }
+.vp-hulpkaart { display:grid; grid-template-columns:78px 1fr auto; align-items:center; gap:13px; min-height:112px; padding:13px; border:2px solid #dce9e4; border-radius:18px; background:#fff; text-align:left; font:inherit; cursor:pointer; box-shadow:0 4px 12px rgba(46,82,71,.07); }
+.vp-hulpkaart:hover { border-color:#54ad94; transform:translateY(-2px); }
+.vp-hulpkaart img { width:76px; height:76px; object-fit:contain; border-radius:12px; background:#f6faf8; }
+.vp-hulpkaart strong { display:block; font-size:18px; color:#183f37; }
+.vp-hulpkaart small { display:block; margin-top:5px; color:#63756f; line-height:1.3; }
+.vp-hulpkaart b { font-size:23px; }
+.vp-plaat-wrap { width:fit-content; max-width:100%; margin:0 auto; }
+.vp-plaat { width:auto; max-width:100%; max-height:calc(100vh - 285px); }
+.vp-zinsbouwer .knop-rij { display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+.vp-zinsbouwer .knop-rij button { min-height:46px; border:2px solid #cbded7; border-radius:14px; padding:9px 15px; background:#fff; color:#264f45; font:inherit; font-weight:700; cursor:pointer; }
+.vp-zinsbouwer .knop-rij button:hover { background:#edf8f4; border-color:#58a58f; }
+.vp-zinsbouwer .knop-rij button.primair { background:#247b67; border-color:#247b67; color:#fff; }
+.vp-bouw-actief .vp-main { display:grid; grid-template-columns:minmax(300px,38%) minmax(0,62%); gap:12px 18px; max-width:1380px; }
+.vp-bouw-actief .vp-stappen,.vp-bouw-actief .vp-stapvak { grid-column:1/-1; }
+.vp-bouw-actief .vp-plaat-wrap { grid-column:1; margin:0; align-self:start; }
+.vp-bouw-actief .vp-plaat { max-height:calc(100vh - 260px); }
+.vp-bouw-actief #vp-bouwvak { grid-column:2; margin:0; align-self:start; padding:16px; }
+.vp-bouw-actief #vp-bouwvak h2 { margin-top:0; }
+.zinnen-herhaalkaart { border-color:#72b9a5 !important; background:linear-gradient(145deg,#eefaf6,#fff8df) !important; }
+@media(max-width:700px) {
+  .vp-stappen { grid-template-columns:repeat(2,1fr); }
+  .vp-stapknop { font-size:13px; }
+  .vp-hulpzinnen { grid-template-columns:1fr; }
+  .vp-opdracht { grid-template-columns:1fr; }
+  .vp-opdracht button { grid-column:1; grid-row:auto; }
+  .vp-hulpsectie { padding:14px; }
+}
+@media(max-width:900px) and (orientation:portrait) {
+  .vp-bouw-actief .vp-main { display:block; }
+  .vp-bouw-actief .vp-plaat-wrap { width:44%; float:left; margin:0 14px 8px 0; }
+  .vp-bouw-actief .vp-plaat { max-height:260px; }
+  .vp-bouw-actief #vp-bouwvak { margin-top:0; }
+}
