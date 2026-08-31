@@ -22,7 +22,7 @@ function lkBekijkKindApp(code) {
 
 // Preview-modus: open de kind-app in een grote popup binnen het leerkracht-scherm.
 // Voortgang wordt NIET aangetast (preview=1 schakelt schrijfacties uit).
-function lkPreviewTaak(code, naam) {
+function lkPreviewTaak(code, naam, conceptSleutel) {
   // CSS voor preview-popup eenmalig injecteren
   if (!document.getElementById('lk-preview-style')) {
     const style = document.createElement('style');
@@ -79,7 +79,8 @@ function lkPreviewTaak(code, naam) {
   }
 
   // Bouw URL met code + preview-flag
-  const url = lkKindAppUrl(code) + '&preview=1';
+  const conceptDeel = conceptSleutel ? `&previewConcept=${encodeURIComponent(conceptSleutel)}` : '';
+  const url = lkKindAppUrl(code) + '&preview=1' + conceptDeel;
   const naamWeergave = naam || code;
 
   // Verwijder bestaande popup als die er nog is
@@ -108,6 +109,53 @@ function lkPreviewTaak(code, naam) {
     </div>
   `;
   document.body.appendChild(bg);
+}
+
+// Test de keuzes die nu in het taakvenster staan, zonder de taak te bewaren.
+// Het concept blijft uitsluitend in dit browsertabblad en wordt in preview-modus
+// in het kindscherm geladen. Firebase en de echte leerlingtaak wijzigen niet.
+function lkTestHuidigeTaakkeuzes() {
+  if (!_taakModalThemaId || _taakModalWoordIds.size === 0) {
+    alert('Kies eerst een thema en minstens één woord.');
+    return;
+  }
+  if (_taakModalVaardigheden.size === 0) {
+    alert('Vink eerst minstens één vaardigheid aan.');
+    return;
+  }
+
+  const code = _taakModalKindCode || _taakModalDoelCodes[0];
+  if (!code) {
+    alert('Kies eerst een leerling om de testweergave te openen.');
+    return;
+  }
+
+  const concept = {
+    themaId: _taakModalThemaId,
+    woordIds: [..._taakModalWoordIds],
+    vaardigheden: [..._taakModalVaardigheden],
+    oefenvormen_luisteren: [..._taakModalOefenvormenLuisteren],
+    oefenvormen_lezen: [..._taakModalOefenvormenLezen],
+    oefenvormen_schrijven: [..._taakModalOefenvormenSchrijven],
+    toetsen: [..._taakModalToetsen],
+    zinscontext: _taakModalZinscontext,
+    huidigeFase: 'leren',
+    status: 'bezig',
+    foutWoordenLaatsteToets: [],
+    aantalPogingen: { luisteren: 0, lezen: 0, schrijven: 0 },
+    gestart: Date.now(),
+    toegewezenOp: Date.now(),
+    toegewezenDoorRol: 'preview',
+    doel: _taakModalDoel.trim(),
+    bronGroepNaam: _taakModalGroepsnaam || '',
+    vrijHerhalenNaAfronding: _taakModalVrijHerhalen
+  };
+
+  const sleutel = 'taalgroei-preview-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  sessionStorage.setItem(sleutel, JSON.stringify(concept));
+  const kind = lkKinderen.find(k => k.code === code);
+  const naam = kind ? lkVolledigeNaam(kind) : code;
+  lkPreviewTaak(code, naam, sleutel);
 }
 
 // Roep de skip-functie aan in de iframe (kind-app).
@@ -3823,6 +3871,7 @@ function rendererTaakModal(huidigeTaak) {
       <div class="lk-cat-modal-knoppen">
         <span></span>
         <button class="lk-knop-mini" onclick="lkSluitTaakModal()">Annuleren</button>
+        <button class="lk-knop-mini" onclick="lkTestHuidigeTaakkeuzes()" title="Doorloop deze keuzes zonder ze te bewaren">👁️ Test deze fases</button>
           <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarTaak()">➕ Taak klaarzetten</button>
       </div>
     </div>

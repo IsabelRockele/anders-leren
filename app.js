@@ -2427,6 +2427,23 @@ async function naDuoLogin() {
   // Voortgang laden uit Firestore
   await Voortgang.laad(Auth.getCode());
 
+  // Een leerkracht kan een nog niet bewaarde taak rechtstreeks vanuit het
+  // taakvenster testen. Het concept staat alleen in sessionStorage en wordt
+  // door de reeds actieve preview-modus uitsluitend in het geheugen gezet.
+  const previewParams = new URLSearchParams(window.location.search);
+  const previewConceptSleutel = previewParams.get('previewConcept');
+  if (previewConceptSleutel && Voortgang.isPreviewModus && Voortgang.isPreviewModus()) {
+    try {
+      const conceptJson = sessionStorage.getItem(previewConceptSleutel);
+      if (conceptJson) {
+        await Voortgang.zetTaak(JSON.parse(conceptJson));
+        sessionStorage.removeItem(previewConceptSleutel);
+      }
+    } catch (e) {
+      console.warn('Het taakconcept kon niet in de preview worden geladen:', e);
+    }
+  }
+
   // Welkomtekst
   const naam = Auth.getNaam();
   const welk = document.getElementById('welkom-naam');
