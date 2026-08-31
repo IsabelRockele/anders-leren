@@ -9,6 +9,8 @@ window.AudioEngine = (function() {
   let stemmenGeladen = false;
   let laatsteTekst = '';
   let laatsteKlik = 0;
+  let spreekTimer = null;
+  let spreekVolgnummer = 0;
 
   // Voorkeurslijst (in volgorde): natuurlijke vrouwenstemmen krijgen voorrang
   const PREMIUM_STEMMEN_NL = [
@@ -93,7 +95,8 @@ window.AudioEngine = (function() {
     laatsteTekst = teSpreken;
     laatsteKlik = nu;
     window.speechSynthesis.cancel();
-    window.speechSynthesis.resume();
+    if (spreekTimer) clearTimeout(spreekTimer);
+    const mijnVolgnummer = ++spreekVolgnummer;
 
     const u = new SpeechSynthesisUtterance(teSpreken);
     u.lang = nlStem ? nlStem.lang : 'nl-NL';
@@ -105,10 +108,17 @@ window.AudioEngine = (function() {
     if (opties.opStart) u.onstart = opties.opStart;
     if (opties.opEinde) u.onend = opties.opEinde;
 
-    window.speechSynthesis.speak(u);
+    spreekTimer = setTimeout(() => {
+      if (mijnVolgnummer !== spreekVolgnummer) return;
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(u);
+      spreekTimer = null;
+    }, 35);
   }
 
   function stop() {
+    spreekVolgnummer++;
+    if (spreekTimer) { clearTimeout(spreekTimer); spreekTimer = null; }
     if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }

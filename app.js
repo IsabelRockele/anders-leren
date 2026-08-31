@@ -1227,15 +1227,37 @@ function taakStartLuisterenToets() {
   toonScherm('scherm-taak-toets');
 }
 
+// Gebruik eerst afleiders uit de gekozen taak. Alleen bij minder dan vier
+// taakwoorden vullen we aan met beelden uit hetzelfde thema.
+function _taakToetsBeeldOpties(item) {
+  const kandidaten = [];
+  const gezien = new Set([item.id]);
+  [...taakItems, ...verrijkThema(huidigThema).items].forEach(opt => {
+    if (!opt || gezien.has(opt.id) || _zijnVisueelVerwarrend(item, opt)) return;
+    gezien.add(opt.id);
+    kandidaten.push(opt);
+  });
+  return [item, ...kandidaten.sort(() => Math.random() - .5).slice(0, 3)]
+    .sort(() => Math.random() - .5);
+}
+
+// Sommige verwantschappen zijn op een los portret niet eerlijk uit elkaar te
+// houden (bv. broer/neef). Zet zulke beelden nooit samen in een beeldvraag.
+function _zijnVisueelVerwarrend(a, b) {
+  if (!a || !b) return false;
+  return (Array.isArray(a.visueelVerwarrendMet) && a.visueelVerwarrendMet.includes(b.id)) ||
+         (Array.isArray(b.visueelVerwarrendMet) && b.visueelVerwarrendMet.includes(a.id));
+}
+
 function taakRendererToets() {
   const item = taakToetsLijst[taakToetsIdx];
   if (!item) return;
   document.getElementById('taak-toets-huidig').textContent = taakToetsIdx + 1;
 
-  // SPIEGEL versie: groot WOORD bovenaan in plaats van beeld
+  // Luistertoets: toon het geschreven woord niet.
   const beeldEl = document.getElementById('taak-toets-beeld');
   if (beeldEl) {
-    beeldEl.innerHTML = `<div class="taak-toets-woord-groot">${item.tekst}</div>`;
+    beeldEl.innerHTML = '<div class="taak-toets-luisterteken"><span>👂</span><strong>Luister en kies het juiste beeld</strong></div>';
   }
 
   // Voortgangsbalk
@@ -1244,15 +1266,7 @@ function taakRendererToets() {
   if (balk) balk.style.width = pct + '%';
 
   // 4 opties als BEELDEN (niet als woordknoppen): het juiste + 3 afleiders
-  const verrijkt = verrijkThema(huidigThema);
-  const beschikbAfl = verrijkt.items.filter(x => x.id !== item.id);
-  const afl = [];
-  while (afl.length < 3 && beschikbAfl.length > 0) {
-    const idx = Math.floor(Math.random() * beschikbAfl.length);
-    afl.push(beschikbAfl[idx]);
-    beschikbAfl.splice(idx, 1);
-  }
-  const opties = [item, ...afl].sort(() => Math.random() - 0.5);
+  const opties = _taakToetsBeeldOpties(item);
 
   const div = document.getElementById('taak-toets-opties');
   div.innerHTML = '';
@@ -1266,7 +1280,9 @@ function taakRendererToets() {
     div.appendChild(k);
   });
 
-  // Geen automatische audio. Kind klikt zelf op hoorknop om woord te horen.
+  setTimeout(() => {
+    if (taakModus && taakToetsLijst[taakToetsIdx] === item) taakToetsHoor();
+  }, 180);
 }
 
 function taakToetsHoor() {
@@ -1278,18 +1294,13 @@ async function taakKiesToetsAntwoord(knop, gekozen, juistItem) {
   document.querySelectorAll('#taak-toets-opties .taak-toets-beeld-knop').forEach(k => k.disabled = true);
 
   if (gekozen.id === juistItem.id) {
-    knop.classList.add('juist');
     taakToetsJuist++;
     Voortgang.registreerJuist(huidigThema.id, juistItem.id);
   } else {
-    knop.classList.add('fout');
-    // Toon ook het juiste antwoord
-    document.querySelectorAll('#taak-toets-opties .taak-toets-beeld-knop').forEach(k => {
-      if (k.dataset.id === juistItem.id) k.classList.add('juist');
-    });
     if (taakToetsFoutIds.indexOf(juistItem.id) === -1) taakToetsFoutIds.push(juistItem.id);
     Voortgang.registreerFout(huidigThema.id, juistItem.id);
   }
+  knop.classList.add('gekozen');
 
   setTimeout(() => {
     if (!taakModus) return;
@@ -1299,7 +1310,7 @@ async function taakKiesToetsAntwoord(knop, gekozen, juistItem) {
     } else {
       taakRendererToets();
     }
-  }, 1400);
+  }, 650);
 }
 
 // =================================================================
@@ -1337,6 +1348,21 @@ function _verbindenGroepjes(items, maxPerGroep) {
   return groepjes;
 }
 
+function _verbindenVeiligeGroepjes(items, maxPerGroep) {
+  const groepen = [];
+  items.forEach(item => {
+    let groep = groepen.find(g =>
+      g.length < maxPerGroep && !g.some(ander => _zijnVisueelVerwarrend(item, ander))
+    );
+    if (!groep) {
+      groep = [];
+      groepen.push(groep);
+    }
+    groep.push(item);
+  });
+  return groepen;
+}
+
 function taakStartLuisterenVerbinden() {
   const taak = Voortgang.getTaak();
   if (!taak) return;
@@ -1362,7 +1388,7 @@ function taakStartLuisterenVerbinden() {
   // Verdeel in groepjes (max 5 per scherm) en zet als queue
   // Schud eerst zodat de groepjes elke ronde anders zijn
   const geschud = [...kandidaten].sort(() => Math.random() - 0.5);
-  _verbindenGroepjesQueue = _verbindenGroepjes(geschud, 5);
+  _verbindenGroepjesQueue = _verbindenVeiligeGroepjes(geschud, 5);
   _toonVolgendVerbindenGroepje();
 }
 
@@ -1420,7 +1446,7 @@ function taakRendererVerbinden() {
     b.className = 'verbinden-kaart verbinden-beeld';
     b.dataset.beeldId = it.id;
     b.innerHTML = `<span class="verbinden-knoppunt"></span>
-                   <span class="verbinden-pic">${Picto.html(it, { grootte: 48 })}</span>`;
+                   <span class="verbinden-pic">${Picto.html(it, { grootte: 88 })}</span>`;
     b.onclick = () => taakVerbindenKlikBeeld(it.id);
     beeldKol.appendChild(b);
   });
@@ -1810,7 +1836,9 @@ function taakRendererLezenOefenen() {
 
   // Bouw 4 BEELD-knoppen: het juiste + 3 afleiders
   const verrijkt = verrijkThema(huidigThema);
-  const beschikbAfl = verrijkt.items.filter(x => x.id !== taakOefItem.id);
+  const beschikbAfl = verrijkt.items.filter(x =>
+    x.id !== taakOefItem.id && !_zijnVisueelVerwarrend(taakOefItem, x)
+  );
   const afl = [];
   while (afl.length < 3 && beschikbAfl.length > 0) {
     const idx = Math.floor(Math.random() * beschikbAfl.length);
@@ -1882,16 +1910,7 @@ function taakRendererLezenToets() {
   const balk = document.getElementById('taak-lezen-toets-balk');
   if (balk) balk.style.width = pct + '%';
 
-  // 4 beeld-opties
-  const verrijkt = verrijkThema(huidigThema);
-  const beschikbAfl = verrijkt.items.filter(x => x.id !== item.id);
-  const afl = [];
-  while (afl.length < 3 && beschikbAfl.length > 0) {
-    const idx = Math.floor(Math.random() * beschikbAfl.length);
-    afl.push(beschikbAfl[idx]);
-    beschikbAfl.splice(idx, 1);
-  }
-  const opties = [item, ...afl].sort(() => Math.random() - 0.5);
+  const opties = _taakToetsBeeldOpties(item);
 
   const div = document.getElementById('taak-lezen-toets-opties');
   if (!div) return;
@@ -1910,17 +1929,13 @@ async function taakKiesLezenToetsAntwoord(knop, gekozen, juistItem) {
   document.querySelectorAll('#taak-lezen-toets-opties .taak-toets-beeld-knop').forEach(k => k.disabled = true);
 
   if (gekozen.id === juistItem.id) {
-    knop.classList.add('juist');
     taakToetsJuist++;
     Voortgang.registreerJuist(huidigThema.id, juistItem.id);
   } else {
-    knop.classList.add('fout');
-    document.querySelectorAll('#taak-lezen-toets-opties .taak-toets-beeld-knop').forEach(k => {
-      if (k.dataset.id === juistItem.id) k.classList.add('juist');
-    });
     if (taakToetsFoutIds.indexOf(juistItem.id) === -1) taakToetsFoutIds.push(juistItem.id);
     Voortgang.registreerFout(huidigThema.id, juistItem.id);
   }
+  knop.classList.add('gekozen');
 
   setTimeout(() => {
     if (!taakModus) return;
@@ -1930,7 +1945,7 @@ async function taakKiesLezenToetsAntwoord(knop, gekozen, juistItem) {
     } else {
       taakRendererLezenToets();
     }
-  }, 1400);
+  }, 650);
 }
 
 // =================================================================
@@ -1993,7 +2008,7 @@ function taakRendererSchrijvenOefenen() {
   if (inputEl) {
     inputEl.value = '';
     inputEl.disabled = false;
-    inputEl.classList.remove('juist', 'fout');
+  inputEl.classList.remove('juist', 'fout', 'ingediend');
   }
   if (fbEl) fbEl.innerHTML = '';
 
@@ -2135,7 +2150,7 @@ function taakRendererSchrijvenToets() {
   if (inputEl) {
     inputEl.value = '';
     inputEl.disabled = false;
-    inputEl.classList.remove('juist', 'fout');
+    inputEl.classList.remove('juist', 'fout', 'ingediend');
     setTimeout(() => inputEl.focus(), 50);
   }
   if (fbEl) fbEl.innerHTML = '';
@@ -2159,19 +2174,14 @@ async function taakSchrijvenToetsSubmit() {
   inputEl.disabled = true;
 
   if (getypt === juist) {
-    inputEl.classList.add('juist');
     taakToetsJuist++;
-    if (fbEl) fbEl.innerHTML = '<span class="schrijven-fb-juist">✓</span>';
     Voortgang.registreerJuist(huidigThema.id, item.id);
   } else {
-    inputEl.classList.add('fout');
-    if (fbEl) {
-      fbEl.innerHTML = `<span class="schrijven-fb-fout">Het juiste woord is:</span>
-                        <span class="schrijven-fb-juist-woord">${item.tekst}</span>`;
-    }
     if (taakToetsFoutIds.indexOf(item.id) === -1) taakToetsFoutIds.push(item.id);
     Voortgang.registreerFout(huidigThema.id, item.id);
   }
+  inputEl.classList.add('ingediend');
+  if (fbEl) fbEl.textContent = 'Antwoord bewaard';
 
   setTimeout(() => {
     if (!taakModus) return;
@@ -2181,7 +2191,7 @@ async function taakSchrijvenToetsSubmit() {
     } else {
       taakRendererSchrijvenToets();
     }
-  }, 1700);
+  }, 800);
 }
 
 async function taakEindigToets(vaardigheid) {

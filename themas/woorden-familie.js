@@ -24,6 +24,13 @@
     picto:`familie/${id}.png`, zinPicto:`picto/familie/${id}.png`, zin,
     zinsdelen:delen.map(([tekst,rol])=>({tekst,rol}))
   }));
+  const visueleTweelingen = {
+    broer:['neef'], neef:['broer'],
+    zus:['nicht'], nicht:['zus']
+  };
+  items.forEach(item => {
+    if (visueleTweelingen[item.id]) item.visueelVerwarrendMet = visueleTweelingen[item.id];
+  });
 
   window.THEMA_WOORDEN_FAMILIE = {
     id:'w-familie',type:'woorden',naam:'Familie & gevoelens',emoji:'👨‍👩‍👧',kleur:'#9D4EDD',

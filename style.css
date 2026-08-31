@@ -4957,6 +4957,25 @@ h1, h2, h3 {
   cursor: default;
 }
 
+.taak-toets-beeld-knop.gekozen {
+  border-color: #5D9CDB;
+  background: #F0F7FE;
+  transform: none;
+}
+
+.taak-toets-luisterteken {
+  min-height: 116px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #174F63;
+  font: 600 22px/1.25 'Fredoka', sans-serif;
+}
+
+.taak-toets-luisterteken span { font-size: 52px; }
+
 .taak-toets-beeld-knop.juist {
   border-color: #4CAF50;
   background: #E8F5E9;
@@ -5076,7 +5095,7 @@ h1, h2, h3 {
   transition: all 0.15s;
   display: flex;
   align-items: center;
-  min-height: 60px;
+  min-height: 96px;
   text-align: left;
 }
 
@@ -5116,8 +5135,8 @@ h1, h2, h3 {
   flex: 1;
 }
 
-.verbinden-pic .picto-emoji { font-size: 48px; }
-.verbinden-pic .picto-img   { height: 48px; width: auto; }
+.verbinden-pic .picto-emoji { font-size: 82px; }
+.verbinden-pic .picto-img   { height: 82px; width: auto; max-width: 120px; object-fit: contain; }
 
 /* Knoppunten waar lijnen aan vastzitten */
 .verbinden-knoppunt {
@@ -5149,9 +5168,9 @@ h1, h2, h3 {
 
 @media (max-width: 600px) {
   .verbinden-kolommen { gap: 30px; }
-  .verbinden-kaart { font-size: 14px; padding: 10px 12px; min-height: 52px; }
-  .verbinden-pic .picto-emoji { font-size: 36px; }
-  .verbinden-pic .picto-img   { height: 36px; }
+  .verbinden-kaart { font-size: 14px; padding: 8px 10px; min-height: 74px; }
+  .verbinden-pic .picto-emoji { font-size: 62px; }
+  .verbinden-pic .picto-img   { height: 62px; max-width: 90px; }
 }
 
 /* =================================================================
@@ -5767,6 +5786,11 @@ h1, h2, h3 {
   border-color: #E57373;
   background: #FFEBEE;
   color: #B71C1C;
+}
+
+.taak-schrijven-input.ingediend {
+  border-color: #5D9CDB;
+  background: #F0F7FE;
 }
 
 .taak-schrijven-feedback {
