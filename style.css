@@ -5316,10 +5316,26 @@ h1, h2, h3 {
 
 
 .taak-intro-main {
-  max-width: 600px;
+  max-width: 920px;
+  min-height: calc(100vh - 82px);
   margin: 0 auto;
-  padding: 20px;
+  padding: 12px 20px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.taak-intro-uitlegblok {
+  display: grid;
+  grid-template-columns: 82px minmax(0,1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  border-radius: 18px;
+  background: #fff8e8;
+  border: 2px solid #f3d898;
+  text-align: left;
 }
 
 .taak-intro-welkom {
@@ -5342,43 +5358,50 @@ h1, h2, h3 {
 }
 
 .taak-intro-icoon {
-  font-size: 80px;
+  font-size: 66px;
   line-height: 1;
-  margin: 12px 0 6px;
+  margin: 0;
+  text-align: center;
 }
 
 .taak-intro-titel {
   font-family: 'Fredoka', sans-serif;
   font-size: 28px;
   color: #2D2A32;
-  margin: 0 0 8px;
+  margin: 0 0 3px;
 }
 
 .taak-intro-uitleg {
   font-family: 'Fredoka', sans-serif;
   font-size: 18px;
   color: #5F5E5A;
-  margin: 0 auto 16px;
-  max-width: 480px;
-  line-height: 1.4;
+  margin: 0;
+  max-width: none;
+  line-height: 1.3;
 }
 
 .taak-intro-audio {
-  margin-bottom: 20px;
+  margin: 0;
 }
 
+.taak-intro-audio .audio-knop { min-height:52px; padding:10px 16px; white-space:nowrap; }
+
 .taak-intro-demo {
-  margin: 16px auto;
-  max-width: 480px;
+  margin: 10px auto 8px;
+  max-width: 840px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .taak-intro-actie {
-  margin: 20px 0 16px;
+  margin: 4px 0 2px;
 }
 
 .taak-intro-start {
-  font-size: 22px;
-  padding: 16px 32px;
+  font-size: 20px;
+  padding: 12px 32px;
+  min-height: 52px;
 }
 
 /* Demo-blok styling */
@@ -5390,6 +5413,23 @@ h1, h2, h3 {
   position: relative;
   overflow: hidden;
 }
+
+.demo-klikspel {
+  display: grid;
+  grid-template-columns: minmax(170px,.7fr) minmax(320px,1.3fr);
+  grid-template-rows: auto 1fr auto;
+  column-gap: 26px;
+  align-items: center;
+  min-height: 290px;
+}
+.demo-klikspel .demo-label { grid-column:1/-1; }
+.demo-klikspel .demo-luister-beeld { grid-column:1; grid-row:2/4; }
+.demo-klikspel .demo-luister-opties { grid-column:2; grid-row:2; max-width:none; width:100%; gap:10px; }
+.demo-klikspel .demo-pijl { grid-column:2; grid-row:3; }
+.demo-klikspel .demo-luister-beeld .picto-img { height:145px; max-width:190px; object-fit:contain; }
+.demo-klikspel .demo-luister-beeld .picto-emoji { font-size:125px; }
+.demo-klikspel .demo-knop { min-height:56px; display:grid; place-items:center; font-size:18px; padding:9px 12px; }
+.demo-klikspel .demo-vinger { left:auto; right:24%; bottom:42px; }
 
 .demo-label {
   font-family: 'Fredoka', sans-serif;
@@ -8657,3 +8697,63 @@ h1, h2, h3 {
 .ckl-leerlingen{display:grid;gap:1px;padding:6px}.ckl-leerling{display:flex;align-items:center;gap:10px;padding:9px;border-radius:10px;cursor:pointer}.ckl-leerling:hover{background:#f4faf8}.ckl-leerling.gekoppeld{background:#f1faf5}.ckl-leerling input{width:18px;height:18px;accent-color:#16866f}.ckl-leerling span,.ckl-leerling small{display:block}.ckl-leerling strong{font-size:14px}.ckl-leerling small{margin-top:2px;color:#71807c;font-size:11px}.ckl-leerling.gekoppeld small{color:#238064;font-weight:700}
 .ckl-onderbalk{position:sticky;bottom:8px;z-index:4;box-shadow:0 8px 24px rgba(27,76,64,.14)}.ckl-onderbalk .primair{padding:10px 15px;background:#16866f;color:#fff}
 @media(max-width:700px){.ckl-werkbalk,.ckl-onderbalk,.ckl-vak .lk-vak-kop{align-items:stretch;flex-direction:column}.ckl-acties{flex-wrap:wrap}.ckl-onderbalk .primair{width:100%}}
+
+/* TAAKSCHERMEN OP IPAD/LAPTOP — alles zichtbaar zonder scrollen */
+@media (min-width:700px) and (max-height:900px) {
+  [id^="scherm-taak-"] > .modus-header{min-height:62px;padding:10px 24px}
+  [id^="scherm-taak-"] > .modus-header h1{font-size:26px}
+  [id^="scherm-taak-"] > .modus-header .terug-knop{padding:10px 16px}
+  [id^="scherm-taak-"] .oefen-main,#scherm-taak-leren .kijken-main{box-sizing:border-box;height:calc(100vh - 66px);overflow:hidden;padding:7px 16px 10px}
+  [id^="scherm-taak-"] .taak-ronde-rij{margin:0 0 4px}
+  [id^="scherm-taak-"] .taak-oef-balk-wrap{margin:3px auto 8px;height:9px}
+
+  #scherm-taak-oefenen .oefen-main,#scherm-taak-toets .oefen-main{max-width:1050px;display:grid;grid-template-columns:minmax(280px,.85fr) minmax(390px,1.15fr);grid-template-rows:auto auto minmax(0,1fr) auto;column-gap:18px}
+  #scherm-taak-oefenen .taak-ronde-rij{grid-column:1/-1;grid-row:1}
+  #scherm-taak-oefenen .taak-oef-balk-wrap,#scherm-taak-toets .taak-oef-balk-wrap{grid-column:1/-1;grid-row:2;width:72%}
+  #scherm-taak-oefenen .kaart-groot,#scherm-taak-toets .kaart-groot{grid-column:1;grid-row:3;margin:0;padding:12px;min-height:0;display:grid;place-items:center}
+  #scherm-taak-oefenen .audio-knoppen,#scherm-taak-toets .audio-knoppen{grid-column:1;grid-row:4;margin:8px 0 0}
+  #scherm-taak-oefenen .optie-rij,#scherm-taak-toets .taak-toets-beeld-rij{grid-column:2;grid-row:3/5;align-self:center;width:100%;max-width:none;margin:0;gap:12px}
+  #scherm-taak-oefenen .kaart-beeld .picto-img,#scherm-taak-toets .kaart-beeld .picto-img{height:clamp(145px,28vh,230px);max-width:92%;object-fit:contain}
+  #scherm-taak-oefenen .optie-knop{min-height:76px;padding:12px;font-size:20px}
+  #scherm-taak-toets .taak-toets-beeld-knop{min-height:125px;padding:10px}
+  #scherm-taak-toets .taak-toets-beeld-knop .picto-img{height:100px}
+  #scherm-taak-oefenen .audio-knop.groot,#scherm-taak-toets .audio-knop.groot{padding:11px 18px;min-height:54px}
+
+  #scherm-taak-lezen-oef .oefen-main,#scherm-taak-lezen-toets .oefen-main{max-width:900px}
+  #scherm-taak-lezen-oef .kaart-groot,#scherm-taak-lezen-toets .kaart-groot{padding:5px 12px;margin:0 auto 5px}
+  #scherm-taak-lezen-oef .taak-toets-woord-groot,#scherm-taak-lezen-toets .taak-toets-woord-groot{padding:8px;font-size:38px}
+  #scherm-taak-lezen-oef .taak-oef-vraag{margin:3px 0 5px}
+  #scherm-taak-lezen-oef .taak-toets-beeld-rij,#scherm-taak-lezen-toets .taak-toets-beeld-rij{margin-top:5px;max-width:760px;gap:9px}
+  #scherm-taak-lezen-oef .taak-toets-beeld-knop,#scherm-taak-lezen-toets .taak-toets-beeld-knop{min-height:145px;padding:8px}
+  #scherm-taak-lezen-oef .taak-toets-beeld-knop .picto-img,#scherm-taak-lezen-toets .taak-toets-beeld-knop .picto-img{height:118px}
+
+  #scherm-taak-schrijven-oef .oefen-main,#scherm-taak-schrijven-toets .oefen-main{max-width:1000px;display:grid;grid-template-columns:minmax(300px,.9fr) minmax(380px,1.1fr);grid-template-rows:auto auto minmax(0,1fr) auto auto;column-gap:20px}
+  #scherm-taak-schrijven-oef .taak-ronde-rij{grid-column:1/-1}
+  #scherm-taak-schrijven-oef .taak-oef-balk-wrap,#scherm-taak-schrijven-toets .taak-oef-balk-wrap{grid-column:1/-1;width:72%}
+  #scherm-taak-schrijven-oef .kaart-groot,#scherm-taak-schrijven-toets .kaart-groot{grid-column:1;grid-row:3/6;margin:0;padding:12px;display:grid;place-items:center}
+  #scherm-taak-schrijven-oef .kaart-beeld .picto-img,#scherm-taak-schrijven-toets .kaart-beeld .picto-img{height:clamp(150px,30vh,235px)}
+  #scherm-taak-schrijven-oef .taak-schrijven-knoppen,#scherm-taak-schrijven-toets .audio-knoppen{grid-column:2;grid-row:3;align-self:end}
+  #scherm-taak-schrijven-oef .taak-schrijven-input-rij,#scherm-taak-schrijven-toets .taak-schrijven-input-rij{grid-column:2;grid-row:4;align-self:start;width:100%;max-width:none}
+  #scherm-taak-schrijven-oef .taak-schrijven-feedback,#scherm-taak-schrijven-toets .taak-schrijven-feedback{grid-column:2;grid-row:5}
+
+  #scherm-taak-leren .kijken-main{max-width:860px}
+  #scherm-taak-leren .kaart-groot{padding:14px 20px;margin-bottom:9px}
+  #scherm-taak-leren .kaart-beeld .picto-img{height:clamp(145px,26vh,220px)}
+  #scherm-taak-leren .kaart-woord{font-size:34px;margin-bottom:6px}
+  #scherm-taak-leren .audio-knoppen{margin-bottom:9px}
+  #scherm-taak-verbinden .verbinden-wrap{margin:2px auto 5px;padding:7px}
+  #scherm-taak-verbinden .verbinden-kaart{min-height:66px;padding:6px 10px}
+  #scherm-taak-verbinden .verbinden-pic .picto-img{height:55px;max-width:82px}
+  #scherm-taak-verslepen .verslepen-rij{margin:5px auto}
+  #scherm-taak-verslepen .verslepen-beeld .picto-img{height:clamp(110px,20vh,165px)}
+  #scherm-taak-verslepen .audio-knoppen{margin-bottom:7px}
+
+  .taak-intro-main{padding:8px 16px;min-height:calc(100vh - 66px)}
+  .taak-intro-uitlegblok{grid-template-columns:60px minmax(0,1fr) auto;gap:10px;padding:6px 10px}
+  .taak-intro-icoon{font-size:50px}.taak-intro-titel{font-size:23px}.taak-intro-uitleg{font-size:16px}
+  .taak-intro-audio .audio-knop{min-height:44px;padding:7px 12px}
+  .taak-intro-demo{margin:6px auto}.demo-klikspel{min-height:255px;padding:10px 14px}
+  .demo-klikspel .demo-luister-beeld .picto-img{height:120px}.demo-klikspel .demo-luister-beeld .picto-emoji{font-size:105px}
+  .demo-klikspel .demo-knop{min-height:48px;font-size:16px}
+  .taak-intro-start{min-height:46px;padding:9px 28px;font-size:18px}
+}

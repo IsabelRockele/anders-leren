@@ -632,7 +632,7 @@ function _bouwDemoLuisterenOef(container) {
   const geordend = [opties[1], opties[0], opties[2], opties[3]];
 
   let html = `
-    <div class="demo-blok">
+    <div class="demo-blok demo-klikspel">
       <div class="demo-label">Voorbeeld — klikspel:</div>
       <div class="demo-luister-beeld">${Picto.html(item, { grootte: 64 })}</div>
       <div class="demo-luister-opties">

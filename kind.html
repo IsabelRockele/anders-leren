@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Taalgroei — Nederlands oefenen | Juf Zisa</title>
-  <link rel="stylesheet" href="style.css?v=20260831-6">
+  <link rel="stylesheet" href="style.css?v=20260831-7">
   <link rel="stylesheet" href="vertelplaat.css?v=20260830-2">
 <link rel="stylesheet" href="vertelplaat-kind.css?v=20260831-8">
 
@@ -468,13 +468,17 @@
   </header>
   <main class="taak-intro-main">
     <div class="taak-intro-welkom" id="taak-intro-welkom" style="display:none"></div>
-    <div class="taak-intro-icoon" id="taak-intro-icoon">👂</div>
-    <h2 class="taak-intro-titel" id="taak-intro-titel">Nu gaan we luisteren</h2>
-    <p class="taak-intro-uitleg" id="taak-intro-uitleg">Hoor het woord. Klik op het juiste woord.</p>
-    <div class="taak-intro-audio">
-      <button class="audio-knop hoor" onclick="taakIntroHoorUitleg()">
-        <span class="audio-icoon">🔊</span><span>Hoor de uitleg</span>
-      </button>
+    <div class="taak-intro-uitlegblok">
+      <div class="taak-intro-icoon" id="taak-intro-icoon">👂</div>
+      <div class="taak-intro-tekstblok">
+        <h2 class="taak-intro-titel" id="taak-intro-titel">Nu gaan we luisteren</h2>
+        <p class="taak-intro-uitleg" id="taak-intro-uitleg">Hoor het woord. Klik op het juiste woord.</p>
+      </div>
+      <div class="taak-intro-audio">
+        <button class="audio-knop hoor" onclick="taakIntroHoorUitleg()">
+          <span class="audio-icoon">🔊</span><span>Hoor uitleg</span>
+        </button>
+      </div>
     </div>
     <div class="taak-intro-demo" id="taak-intro-demo">
       <!-- Demo-blok wordt hier dynamisch gevuld door taakIntroBouwDemo() -->
