@@ -1805,6 +1805,59 @@ window.PDFEngine = (function() {
     tekenVoet(doc);
   }
 
+  // ---------------------------------------------------------------
+  //  FAMILIEBOOM: relaties begrijpen vanuit "ik"
+  // ---------------------------------------------------------------
+  function tekenFamilieboom(doc, thema, opgelost) {
+    let y = tekenKop(doc, thema, opgelost ? 'Oplossing: wie is wie in de familie?' : 'Oefening: wie is wie in de familie?');
+    y = tekenPictoInstructie(doc, y, ['👁️', '🌳', '✏️'], 'Volg de lijnen. Schrijf het juiste familiewoord onder elke persoon.');
+    const vind = id => (thema.items || []).find(it => it.id === id) || {id,tekst:'de '+id,picto:'familie/'+id+'.png'};
+    const targetIds = ['broer','zus','nonkel','tante','neef','nicht'];
+    const pos = {
+      opa:[88,77], oma:[122,77],
+      papa:[48,130], mama:[76,130], nonkel:[136,130], tante:[164,130],
+      broer:[33,193], zus:[58,193], ik:[83,193], neef:[139,193], nicht:[166,193]
+    };
+
+    // Familielijnen eerst, zodat de kaarten er rustig bovenop liggen.
+    doc.setDrawColor(33,116,95); doc.setLineWidth(1.4);
+    doc.line(105,91,105,105); doc.line(62,105,150,105); doc.line(62,105,62,116); doc.line(150,105,150,116);
+    doc.line(62,144,62,158); doc.line(33,158,83,158); doc.line(33,158,33,179); doc.line(58,158,58,179); doc.line(83,158,83,179);
+    doc.line(150,144,150,158); doc.line(139,158,166,158); doc.line(139,158,139,179); doc.line(166,158,166,179);
+
+    const kaart = (id, label, vast) => {
+      const p = pos[id], x = p[0], yy = p[1], w = 22, h = 30;
+      doc.setFillColor(id === 'ik' ? 255 : 255, id === 'ik' ? 248 : 255, id === 'ik' ? 214 : 255);
+      doc.setDrawColor(id === 'ik' ? 242 : 218, id === 'ik' ? 186 : 225, id === 'ik' ? 46 : 220);
+      doc.setLineWidth(.7); doc.roundedRect(x-w/2,yy-h/2,w,h,2.5,2.5,'FD');
+      if (id === 'ik') plaatsEmoji(doc,'🙋',x,yy-3,14);
+      else plaatsItemBeeld(doc,vind(id),x,yy-3,15);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+      if (vast || opgelost) {
+        doc.setTextColor(opgelost && !vast ? KLEUR_OPL_R : 45, opgelost && !vast ? KLEUR_OPL_G : 42, opgelost && !vast ? KLEUR_OPL_B : 50);
+        doc.text(label,x,yy+12,{align:'center'});
+      } else {
+        doc.setDrawColor(130,130,130); doc.setLineWidth(.35); doc.line(x-8,yy+11,x+8,yy+11);
+      }
+    };
+    kaart('opa','opa',true); kaart('oma','oma',true);
+    kaart('papa','papa',true); kaart('mama','mama',true);
+    kaart('nonkel','nonkel',false); kaart('tante','tante',false);
+    kaart('broer','broer',false); kaart('zus','zus',false); kaart('ik','ik',true);
+    kaart('neef','neef',false); kaart('nicht','nicht',false);
+
+    doc.setFillColor(255,249,232); doc.setDrawColor(229,173,50); doc.setLineWidth(.6);
+    doc.roundedRect(M,220,IB,36,3,3,'FD');
+    doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(80,70,50);
+    doc.text('WOORDEN',M+5,228);
+    const woorden = schud(targetIds.map(id => (vind(id) || {tekst:'de '+id}).tekst));
+    woorden.forEach((woord,i)=>{
+      const col=i%3,rij=Math.floor(i/3),x=M+8+col*58,yy=238+rij*10;
+      doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(45,42,50); doc.text('• '+woord,x,yy);
+    });
+    tekenVoet(doc);
+  }
+
   function _zinVoorKnipitem(item) {
     // Een knipzin bevat geen aanspreking zoals "Juf," of "Hallo,". Bij echte
     // zinsitems is `tekst` de korte, bruikbare kernzin; `zin` is vaak alleen een
@@ -1946,6 +1999,7 @@ window.PDFEngine = (function() {
     kiesschrijf: tekenKiesEnSchrijf,
     knip: tekenKnipoefening,
     vertelplaatNummers: tekenVertelplaatNummers,
+    familieboom: tekenFamilieboom,
     zinnenKnippen: tekenZinnenKnippen,
     kleurkoppel: tekenKleurKoppel,
     woordzoeker: tekenWoordzoeker,
@@ -2006,6 +2060,11 @@ window.PDFEngine = (function() {
     themaConfigs.forEach(tc => tc.thema.items.forEach(it => allItems.push(it)));
     themaConfigs.forEach(tc => {
       if (tc.oefeningen.includes('zinnenKnippen')) _zinsknipKandidaten(tc.thema).forEach(it => allItems.push(it));
+      if (tc.oefeningen.includes('familieboom')) {
+        ['opa','oma','papa','mama','broer','zus','nonkel','tante','neef','nicht'].forEach(id => {
+          allItems.push((tc.thema.items || []).find(it => it.id === id) || {id,picto:'familie/'+id+'.png'});
+        });
+      }
     });
     try {
       await prefetchPictos(allItems);
@@ -2030,7 +2089,7 @@ window.PDFEngine = (function() {
 
     let eerste = true;
     const add = () => { if (!eerste) doc.addPage(); eerste = false; };
-    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
     if (isMengen) {
       const allItems = [];

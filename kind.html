@@ -6,7 +6,7 @@
   <title>Taalgroei — Nederlands oefenen | Juf Zisa</title>
   <link rel="stylesheet" href="style.css?v=20260831-5">
   <link rel="stylesheet" href="vertelplaat.css?v=20260830-2">
-<link rel="stylesheet" href="vertelplaat-kind.css?v=20260831-6">
+<link rel="stylesheet" href="vertelplaat-kind.css?v=20260831-7">
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -99,6 +99,7 @@
       <button class="vp-stapknop" data-fase="zoekwoord" onclick="Vertelplaat.kiesFase('zoekwoord')"><b>2</b><span>Luister en zoek</span></button>
       <button class="vp-stapknop" data-fase="zoekzin" onclick="Vertelplaat.kiesFase('zoekzin')"><b>3</b><span>Begrijp de zin</span></button>
       <button class="vp-stapknop" data-fase="bouw" onclick="Vertelplaat.kiesFase('bouw')"><b>4</b><span>Bouw een zin</span></button>
+      <button class="vp-stapknop" id="vp-familieboom-knop" data-fase="familieboom" onclick="Vertelplaat.kiesFase('familieboom')" style="display:none"><b>5</b><span>Wie is familie?</span></button>
     </nav>
 
     <section id="vp-stap-ontdek" class="vp-stapvak actief">
@@ -112,6 +113,9 @@
     </section>
     <section id="vp-stap-bouw" class="vp-stapvak">
       <h2>Bouw zelf een korte zin</h2><p>De vertelplaat helpt je. Sleep daarna de woorden in de goede volgorde.</p>
+    </section>
+    <section id="vp-stap-familieboom" class="vp-stapvak">
+      <h2>Wie is wie in de familie?</h2><p>Kijk naar de lijnen. Zo zie je wie de tante, nonkel, neef of nicht is.</p>
     </section>
 
     <div id="vp-opdracht" class="vp-opdracht">
@@ -127,6 +131,8 @@
       <h3 id="vp-gevonden-woord"></h3>
       <button onclick="Vertelplaat.hoorGevonden()">🔊 Hoor het woord</button>
     </div>
+
+    <section id="vp-familieboom" class="vp-familieboom" style="display:none"></section>
 
     <section id="vp-bouwvak" class="vp-zinsbouwer">
       <h2>Maak een eenvoudige zin</h2>
@@ -730,7 +736,7 @@
 <script src="themas/woorden-klas.js?v=20260830-11"></script>
   <script src="themas/woorden-lichaam.js?v=20260830-17"></script>
 <script src="themas/woorden-eten.js?v=20260830-19"></script>
-<script src="themas/woorden-familie.js?v=20260831-1"></script>
+<script src="themas/woorden-familie.js?v=20260831-2"></script>
 <script src="themas/woorden-dieren.js"></script>
 <script src="themas/woorden-cijfers.js"></script>
 <script src="themas/woorden-kleuren.js"></script>
@@ -752,7 +758,7 @@
 <script src="picto.js?v=20260830-2"></script>
 <script src="auth.js"></script>
 <script src="app.js?v=20260831-11"></script>
-<script src="vertelplaat.js?v=20260830-11"></script>
+<script src="vertelplaat.js?v=20260831-12"></script>
 
 </body>
 </html>

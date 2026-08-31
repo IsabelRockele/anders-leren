@@ -4631,7 +4631,7 @@ const WB_NIVEAU_BUNDELS = {
   basis: {
     naam: '🌱 Basis',
     hint: 'Eenvoudige oefeningen om woorden te herkennen.',
-    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'vertelplaatNummers', 'zinnenKnippen', 'kaartjes', 'categoriseerBasis']
+    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'vertelplaatNummers', 'familieboom', 'zinnenKnippen', 'kaartjes', 'categoriseerBasis']
   },
   uitbreiding: {
     naam: '🌿 Uitbreiding',
@@ -4647,7 +4647,7 @@ const WB_NIVEAU_BUNDELS = {
 
 const WB_NIVEAU_VOLGORDE = ['basis', 'uitbreiding', 'verdieping'];
 
-const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
 const WB_OEFENING_LABELS = {
   koppel: '👁️ → 🔗 Koppel beeld en woord',
@@ -4658,6 +4658,7 @@ const WB_OEFENING_LABELS = {
   kiesschrijf: '👁️ → ✗ → ✏️ Kies en schrijf',
   knip: '✂️ → 📋 Knip en plak',
   vertelplaatNummers: '🔢 Vertelplaat: zet het nummer in het rondje',
+  familieboom: '🌳 Familieboom: wie is wie?',
   zinnenKnippen: '✂️ Knip woorden en bouw zinnen bij beelden',
   kleurkoppel: '👁️ → 🎨 Kleur dezelfde paren',
   woordzoeker: '👁️ → 🔍 Woordzoeker',
@@ -5349,8 +5350,9 @@ function rendererMixPaneel() {
     const bundel = WB_NIVEAU_BUNDELS[niveau];
     let oefeningenInGroep = bundel.oefeningen.slice();
     // Een vertelplaat hoort altijd bij één concreet thema, niet bij een mix.
-    oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'vertelplaatNummers');
+    oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'vertelplaatNummers' && k !== 'familieboom');
     werkbladMix.oefeningen.delete('vertelplaatNummers');
+    werkbladMix.oefeningen.delete('familieboom');
     const heeftKorteZinnen = themas.some(t => (t.items || []).some(it => {
       const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
       const n=zin ? zin.split(/\s+/).length : 0;
@@ -5548,6 +5550,10 @@ function rendererThemaPaneel(themaId) {
     if (!(thema.visueleOefening === 'vertelplaat-klas' || (thema.vertelplaat && thema.vertelplaat.beeld))) {
       oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'vertelplaatNummers');
       cfg.oefeningen.delete('vertelplaatNummers');
+    }
+    if (!thema.familieboom) {
+      oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'familieboom');
+      cfg.oefeningen.delete('familieboom');
     }
     const heeftKorteZinnen = (thema.items || []).some(it => {
       const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
@@ -8150,9 +8156,12 @@ function _twbRender() {
   let oefHtml = '';
   WB_NIVEAU_VOLGORDE.forEach(niveau => {
     const bundel = WB_NIVEAU_BUNDELS[niveau];
-    if (!bundel.oefeningen.length) return;
+    const beschikbareOefeningen = bundel.oefeningen.filter(oefKey =>
+      oefKey !== 'familieboom' || !!thema.familieboom
+    );
+    if (!beschikbareOefeningen.length) return;
     oefHtml += `<div class="lk-twb-niveau-kop">${bundel.naam}</div>`;
-    bundel.oefeningen.forEach(oefKey => {
+    beschikbareOefeningen.forEach(oefKey => {
       const aan = _twbModalState.oefeningen.has(oefKey) ? 'checked' : '';
       const label = WB_OEFENING_LABELS[oefKey];
       oefHtml += `

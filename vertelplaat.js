@@ -31,6 +31,7 @@ window.Vertelplaat=(function(){
   let hotspots=standaardHotspots,bouwZinnen=standaardBouwZinnen;
   let fase='ontdek',doel=null,zinIndex=0,gebouwd=[],bronThema=null,pogingen=0,antwoordVergrendeld=false;
   let oefenPool=[],fouteDoelen=new Set(),herhaalronde=false;
+  let familiePool=[],familieDoel=null,familieFouten=new Set();
   const spreek=t=>{if(window.AudioEngine)AudioEngine.spreek(t,{snelheid:.86});};
   const schud=a=>a.map(x=>({x,r:Math.random()})).sort((a,b)=>a.r-b.r).map(o=>o.x);
 
@@ -50,6 +51,8 @@ window.Vertelplaat=(function(){
       plaatBeeld.alt=plaat&&plaat.alt?plaat.alt:'Vertelplaat van een klas met leerlingen en een leerkracht';
     }
     document.querySelector('.vp-stappen').style.display=alleenHulp?'none':'';
+    const familieKnop=document.getElementById('vp-familieboom-knop');
+    if(familieKnop)familieKnop.style.display=(!alleenHulp&&thema&&thema.familieboom)?'flex':'none';
     if(alleenHulp){
       document.querySelectorAll('.vp-stapvak, #vp-opdracht, .vp-plaat-wrap, #vp-gevonden, #vp-bouwvak').forEach(el=>el.style.display='none');
     }else{
@@ -64,7 +67,94 @@ window.Vertelplaat=(function(){
     if(!alleenHulp)kiesFase('ontdek');
   }
   function sluit(){document.getElementById('scherm-vertelplaat').classList.remove('actief');if(bronThema&&typeof kiesThema==='function')kiesThema(bronThema);else document.getElementById('scherm-start').classList.add('actief');}
-  function kiesFase(nieuw){fase=nieuw;document.getElementById('scherm-vertelplaat').classList.toggle('vp-bouw-actief',fase==='bouw');document.querySelectorAll('.vp-stapknop').forEach(b=>b.classList.toggle('actief',b.dataset.fase===fase));document.querySelectorAll('.vp-stapvak').forEach(v=>v.classList.remove('actief'));document.getElementById('vp-stap-'+fase).classList.add('actief');document.getElementById('vp-gevonden').style.display='none';document.getElementById('vp-opdracht').style.display=(fase==='zoekwoord'||fase==='zoekzin')?'grid':'none';document.getElementById('vp-bouwvak').style.display=fase==='bouw'?'block':'none';renderHotspots();if(fase==='zoekwoord'||fase==='zoekzin')startZoekronde();if(fase==='bouw')nieuweBouwzin(true);}
+  function kiesFase(nieuw){
+    fase=nieuw;
+    const isBouw=fase==='bouw',isFamilie=fase==='familieboom';
+    document.getElementById('scherm-vertelplaat').classList.toggle('vp-bouw-actief',isBouw);
+    document.querySelectorAll('.vp-stapknop').forEach(b=>b.classList.toggle('actief',b.dataset.fase===fase));
+    document.querySelectorAll('.vp-stapvak').forEach(v=>v.classList.remove('actief'));
+    const stap=document.getElementById('vp-stap-'+fase);if(stap)stap.classList.add('actief');
+    document.getElementById('vp-gevonden').style.display='none';
+    document.getElementById('vp-opdracht').style.display=(fase==='zoekwoord'||fase==='zoekzin')?'grid':'none';
+    document.getElementById('vp-bouwvak').style.display=isBouw?'block':'none';
+    document.querySelector('.vp-plaat-wrap').style.display=isFamilie?'none':'block';
+    document.getElementById('vp-familieboom').style.display=isFamilie?'block':'none';
+    renderHotspots();
+    if(fase==='zoekwoord'||fase==='zoekzin')startZoekronde();
+    if(isBouw)nieuweBouwzin(true);
+    if(isFamilie)renderFamilieboom();
+  }
+
+  function familieKaart(id,label,extraClass){
+    const item=(bronThema.items||[]).find(x=>x.id===id);
+    if(!item)return '';
+    const bron=item.picto?(item.picto.startsWith('assets/')?item.picto:'picto/'+item.picto):'';
+    return `<button class="fb-persoon ${extraClass||''}" data-familie-id="${id}" onclick="Vertelplaat.kiesFamiliePersoon('${id}')">
+      <img src="${bron}" alt=""><span class="fb-label">${label}</span><i>🔊</i>
+    </button>`;
+  }
+
+  function renderFamilieboom(){
+    const vak=document.getElementById('vp-familieboom');
+    if(!vak||!bronThema||!bronThema.familieboom)return;
+    familieDoel=null;familiePool=[];familieFouten=new Set();
+    vak.classList.remove('aan-het-oefenen');
+    vak.innerHTML=`
+      <div class="fb-uitleg"><strong>Dit is één voorbeeld van een familie.</strong> Volg de lijnen vanaf <b>ik</b>. Tik op iemand om het woord te horen.</div>
+      <div class="fb-boom" style="background-image:url('${bronThema.familieboom.beeld}')">
+        <div class="fb-rij fb-grootouders">${familieKaart('opa','mijn opa')}${familieKaart('oma','mijn oma')}</div>
+        <div class="fb-takken">
+          <div class="fb-gezin fb-eigen-gezin"><div class="fb-rij fb-koppel">${familieKaart('papa','mijn papa')}${familieKaart('mama','mijn mama')}</div><div class="fb-rij fb-kinderen">${familieKaart('broer','mijn broer')}${familieKaart('zus','mijn zus')}<button class="fb-persoon fb-ik" data-familie-id="ik" onclick="Vertelplaat.kiesFamiliePersoon('ik')"><span class="fb-zelfbeeld">🙋</span><span class="fb-label">ik</span><i>🔊</i></button></div></div>
+          <div class="fb-gezin fb-familie-gezin"><div class="fb-rij fb-koppel">${familieKaart('nonkel','mijn nonkel')}${familieKaart('tante','mijn tante')}</div><div class="fb-rij fb-kinderen">${familieKaart('neef','mijn neef')}${familieKaart('nicht','mijn nicht')}</div></div>
+        </div>
+      </div>
+      <div class="fb-oefenvak"><button class="fb-start" onclick="Vertelplaat.startFamilieOefening()">▶ Oefen zonder woordkaartjes</button><div id="fb-opdracht" class="fb-opdracht" style="display:none"></div><div id="fb-feedback" class="vp-feedback"></div></div>`;
+  }
+
+  function kiesFamiliePersoon(id){
+    const kaart=document.querySelector(`[data-familie-id="${id}"]`);
+    if(!kaart)return;
+    const label=kaart.querySelector('.fb-label').textContent;
+    if(!familieDoel){spreek(label);return;}
+    if(id===familieDoel){
+      kaart.classList.add('fb-juist');
+      document.getElementById('fb-feedback').textContent='Goed zo!';
+      spreek('Goed zo!');
+      setTimeout(volgendFamilieDoel,900);
+    }else{
+      familieFouten.add(familieDoel);kaart.classList.add('fb-fout');
+      document.getElementById('fb-feedback').textContent='Nog niet. Volg de familielijnen.';
+      setTimeout(()=>kaart.classList.remove('fb-fout'),500);spreek('Nog niet. Kijk naar de lijnen.');
+    }
+  }
+
+  function startFamilieOefening(){
+    const ids=(bronThema.familieboom.oefenIds||[]).filter(id=>document.querySelector(`[data-familie-id="${id}"]`));
+    familiePool=schud(ids);familieFouten=new Set();
+    document.getElementById('vp-familieboom').classList.add('aan-het-oefenen');
+    document.querySelectorAll('.fb-persoon').forEach(k=>k.classList.remove('fb-juist','fb-fout'));
+    document.querySelector('.fb-start').style.display='none';
+    document.getElementById('fb-opdracht').style.display='flex';
+    volgendFamilieDoel();
+  }
+
+  function volgendFamilieDoel(){
+    document.querySelectorAll('.fb-persoon').forEach(k=>k.classList.remove('fb-juist','fb-fout'));
+    if(familiePool.length===0){
+      if(familieFouten.size){familiePool=schud([...familieFouten]);familieFouten=new Set();}
+      else{
+        familieDoel=null;document.getElementById('fb-opdracht').innerHTML='<strong>Alles gevonden!</strong>';
+        document.getElementById('fb-feedback').textContent='Knap gedaan!';
+        document.getElementById('vp-familieboom').classList.remove('aan-het-oefenen');spreek('Alles gevonden. Knap gedaan!');return;
+      }
+    }
+    familieDoel=familiePool.shift();
+    const kaart=document.querySelector(`[data-familie-id="${familieDoel}"]`);
+    const label=kaart?kaart.querySelector('.fb-label').textContent:'';
+    document.getElementById('fb-opdracht').innerHTML=`<span>Zoek:</span><strong>${label}</strong><button onclick="event.stopPropagation();Vertelplaat.hoorFamilieDoel()">🔊</button>`;
+    document.getElementById('fb-feedback').textContent='';spreek(label);
+  }
+  function hoorFamilieDoel(){if(familieDoel){const k=document.querySelector(`[data-familie-id="${familieDoel}"] .fb-label`);if(k)spreek(k.textContent);}}
   function renderHotspots(gekozenHotspots){
     let zichtbaar=Array.isArray(gekozenHotspots)?gekozenHotspots:[];
     if(!zichtbaar.length){
@@ -154,5 +244,5 @@ window.Vertelplaat=(function(){
   }
   function renderHulpzinnen(){document.getElementById('vp-hulpzinnen').innerHTML=hulpzinnen.map((h,i)=>`<button class="vp-hulpkaart" onclick="Vertelplaat.hoorHulpzin(${i})"><img src="${h.beeld}" alt=""><span><strong>${h.zin}</strong><small>${h.situatie}</small></span><b>🔊</b></button>`).join('');}
   function hoorHulpzin(i){if(hulpzinnen[i])spreek(hulpzinnen[i].zin);}
-  return {openVoorThema,sluit,kiesFase,klikHotspot,hoorGevonden,hoorOpdracht,nieuweBouwzin,voegWoordToe,sleepStart,laatVallen,verwijderWoord,hoorGebouwdeZin,controleer,hoorHulpzin};
+  return {openVoorThema,sluit,kiesFase,klikHotspot,hoorGevonden,hoorOpdracht,nieuweBouwzin,voegWoordToe,sleepStart,laatVallen,verwijderWoord,hoorGebouwdeZin,controleer,hoorHulpzin,kiesFamiliePersoon,startFamilieOefening,hoorFamilieDoel};
 })();

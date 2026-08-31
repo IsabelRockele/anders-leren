@@ -35,18 +35,20 @@
   window.THEMA_WOORDEN_FAMILIE = {
     id:'w-familie',type:'woorden',naam:'Familie & gevoelens',emoji:'👨‍👩‍👧',kleur:'#9D4EDD',
     niveaus:['basis'],categorieen:['familie','gevoelens'],visueleOefening:'vertelplaat-thema',
+    familieboom:{
+      beeld:'assets/familieboom-achtergrond.png',
+      oefenIds:['broer','zus','nonkel','tante','neef','nicht']
+    },
     vertelplaat:{
       titel:'Vertelplaat: samen met de familie',beeld:'vertelplaten/familie-en-gevoelens.png',
       alt:'Een diverse familie samen in de woonkamer met kinderen die verschillende gevoelens tonen',
-      werkbladItems:['mama','papa','oma','opa','baby','tante','nonkel','blij','bang','boos','verdrietig','moe'],
+      werkbladItems:['mama','papa','oma','opa','baby','blij','bang','boos','verdrietig','moe'],
       hotspots:[
         {id:'vp-mama',itemId:'mama',woord:'de mama',x:8,y:25,rol:'wie'},
         {id:'vp-papa',itemId:'papa',woord:'de papa',x:21,y:25,rol:'wie'},
         {id:'vp-baby',itemId:'baby',woord:'de baby',x:13,y:29,rol:'wie'},
         {id:'vp-oma',itemId:'oma',woord:'de oma',x:35,y:35,rol:'wie'},
         {id:'vp-opa',itemId:'opa',woord:'de opa',x:45,y:35,rol:'wie'},
-        {id:'vp-tante',itemId:'tante',woord:'de tante',x:65,y:23,rol:'wie'},
-        {id:'vp-nonkel',itemId:'nonkel',woord:'de nonkel',x:77,y:23,rol:'wie'},
         {id:'vp-boos',itemId:'boos',woord:'boos',x:15,y:61,rol:'hoe'},
         {id:'vp-blij',itemId:'blij',woord:'blij',x:35,y:62,rol:'hoe'},
         {id:'vp-bang',itemId:'bang',woord:'bang',x:56,y:62,rol:'hoe'},
