@@ -50,6 +50,33 @@
   font-size:16px; line-height:1; font-weight:900;
   box-shadow:0 2px 6px rgba(0,0,0,.22);
 }
+/* Ook tijdens 'Ontdek de woorden' blijft het doel zelf zichtbaar. De ring
+   wijst de plaats aan; het kleine plusje staat ernaast in de zinskleur. */
+.vp-hotspot:not(.vp-zoekpunt) {
+  width:28px; height:28px;
+  background:rgba(255,255,255,.12);
+  box-shadow:0 2px 8px rgba(0,0,0,.28), inset 0 0 0 2px rgba(255,255,255,.68);
+}
+.vp-hotspot:not(.vp-zoekpunt) span {
+  position:absolute; left:18px; top:-13px;
+  display:grid; place-items:center;
+  width:21px; height:21px;
+  border:2px solid #fff; border-radius:50%;
+  color:#fff; font-size:17px; line-height:1; font-weight:900;
+  box-shadow:0 2px 6px rgba(0,0,0,.24);
+}
+.vp-hotspot.vp-wie { border-color:#c9a900; }
+.vp-hotspot.vp-wie span { background:#c9a900; color:#302700; }
+.vp-hotspot.vp-doet { border-color:#d73939; }
+.vp-hotspot.vp-doet span { background:#d73939; }
+.vp-hotspot.vp-waar { border-color:#7040b2; }
+.vp-hotspot.vp-waar span { background:#7040b2; }
+.vp-hotspot.vp-wanneer { border-color:#d97012; }
+.vp-hotspot.vp-wanneer span { background:#d97012; }
+.vp-hotspot.vp-wat { border-color:#70432e; }
+.vp-hotspot.vp-wat span { background:#70432e; }
+.vp-hotspot.vp-hoe { border-color:#27843e; }
+.vp-hotspot.vp-hoe span { background:#27843e; }
 .vp-hotspot.vp-juist { background:#1f9d62; border-color:#eafff4; transform:translate(-50%,-50%) scale(1.25); }
 .vp-hotspot.vp-fout { background:#df5b57; animation:vp-schud .35s ease; }
 .vp-hotspot.vp-hint { background:#f5a623; animation:vp-hint 1s ease-in-out infinite; }
