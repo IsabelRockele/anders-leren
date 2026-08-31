@@ -1,50 +1,76 @@
-// =================================================================
-//  Thema: Thuis (woorden) — herwerkt
-//  Alles op niveau 'basis'. Categorieën:
-//    kamers, meubels, toestellen, andere
-// =================================================================
+// Thema Thuis: begrijpen, luisteren, aanwijzen en zinnen bouwen.
 window.THEMA_WOORDEN_THUIS = {
-  id: 'w-thuis',
-  type: 'woorden',
-  naam: 'Thuis',
-  emoji: '🏠',
-  kleur: '#8338EC',
-  niveaus: ['basis'],
-  categorieen: ['kamers', 'meubels', 'toestellen', 'andere'],
-  items: [
-    // ========== KAMERS ==========
-    { id: 'slaapkamer', niveau: 'basis', categorie: 'kamers', tekst: 'de slaapkamer', kort: 'slaapkamer', beeld: '🛏️', zin: "'s Avonds ga ik naar mijn slaapkamer." },
-    { id: 'badkamer',   niveau: 'basis', categorie: 'kamers', tekst: 'de badkamer',   kort: 'badkamer',   beeld: '🛁', zin: 'Ik was mij in de badkamer.' },
-    { id: 'keuken',     niveau: 'basis', categorie: 'kamers', tekst: 'de keuken',     kort: 'keuken',     beeld: '🍳', zin: 'Mama kookt in de keuken.' },
-    { id: 'woonkamer',  niveau: 'basis', categorie: 'kamers', tekst: 'de woonkamer',  kort: 'woonkamer',  beeld: '🛋️', zin: "'s Avonds zitten wij samen in de woonkamer." },
-    { id: 'zolder',     niveau: 'basis', categorie: 'kamers', tekst: 'de zolder',     kort: 'zolder',     beeld: '🏠', zin: 'Op zolder staan oude dozen.' },
-    { id: 'kelder',     niveau: 'basis', categorie: 'kamers', tekst: 'de kelder',     kort: 'kelder',     beeld: '🏠', zin: 'In de kelder is het koud en donker.' },
-    { id: 'toilet',     niveau: 'basis', categorie: 'kamers', tekst: 'het toilet',    kort: 'toilet',     beeld: '🚽', zin: 'Het toilet is naast de badkamer.' },
-
-    // ========== MEUBELS ==========
-    { id: 'kast',     niveau: 'basis', categorie: 'meubels', tekst: 'de kast',     kort: 'kast',     beeld: '🗄️', zin: 'Mijn kleren zitten in de kast.' },
-    { id: 'zetel',    niveau: 'basis', categorie: 'meubels', tekst: 'de zetel',    kort: 'zetel',    beeld: '🛋️', zin: 'Ik zit op de zetel.' },
-    { id: 'stoel',    niveau: 'basis', categorie: 'meubels', tekst: 'de stoel',    kort: 'stoel',    beeld: '🪑', zin: 'Ga op je stoel zitten.' },
-    { id: 'tafel',    niveau: 'basis', categorie: 'meubels', tekst: 'de tafel',    kort: 'tafel',    beeld: '🪑', zin: 'Wij eten aan de tafel.' },
-    { id: 'bed',      niveau: 'basis', categorie: 'meubels', tekst: 'het bed',     kort: 'bed',      beeld: '🛏️', zin: "'s Avonds slaap ik in mijn bed." },
-     { id: 'douche',      niveau: 'basis', categorie: 'andere', tekst: 'de douche',      kort: 'douche',      beeld: '🚿', zin: 'Ik neem een douche.' },
-    { id: 'bad',         niveau: 'basis', categorie: 'andere', tekst: 'het bad',        kort: 'bad',         beeld: '🛁', zin: 'Het bad zit vol warm water.' },
-    { id: 'lamp',     niveau: 'basis', categorie: 'meubels', tekst: 'de lamp',     kort: 'lamp',     beeld: '💡', zin: 'Doe de lamp aan.' },
-    { id: 'wastafel', niveau: 'basis', categorie: 'meubels', tekst: 'de wastafel', kort: 'wastafel', beeld: '🚰', zin: 'Ik was mijn handen aan de wastafel.' },
-
-    // ========== TOESTELLEN ==========
-    { id: 'koelkast',  niveau: 'basis', categorie: 'toestellen', tekst: 'de koelkast',  kort: 'koelkast',  beeld: '🧊', zin: 'De melk zit in de koelkast.' },
-    { id: 'fornuis',   niveau: 'basis', categorie: 'toestellen', tekst: 'het fornuis',  kort: 'fornuis',   beeld: '🍳', zin: 'Mama kookt op het fornuis.' },
-    { id: 'televisie', niveau: 'basis', categorie: 'toestellen', tekst: 'de televisie', kort: 'televisie', beeld: '📺', zin: 'Ik kijk televisie.' },
-    { id: 'computer',  niveau: 'basis', categorie: 'toestellen', tekst: 'de computer',  kort: 'computer',  beeld: '💻', zin: 'Ik werk op de computer.' },
-    { id: 'tablet',    niveau: 'basis', categorie: 'toestellen', tekst: 'de tablet',    kort: 'tablet',    beeld: '📱', zin: 'Op mijn tablet leer ik Nederlands.' },
-    { id: 'gsm',       niveau: 'basis', categorie: 'toestellen', tekst: 'de gsm',       kort: 'gsm',       beeld: '📱', zin: 'Mama belt met haar gsm.' },
-
-    // ========== ANDERE ==========
-    { id: 'tapijt',      niveau: 'basis', categorie: 'andere', tekst: 'het tapijt',     kort: 'tapijt',      beeld: '🟫', zin: 'Het tapijt ligt op de grond.' },
-    { id: 'spiegel',     niveau: 'basis', categorie: 'andere', tekst: 'de spiegel',     kort: 'spiegel',     beeld: '🪞', zin: 'Ik kijk in de spiegel.' },
-    { id: 'deur',        niveau: 'basis', categorie: 'andere', tekst: 'de deur',        kort: 'deur',        beeld: '🚪', zin: 'Doe de deur open.' },
-    { id: 'raam',        niveau: 'basis', categorie: 'andere', tekst: 'het raam',       kort: 'raam',        beeld: '🪟', zin: 'Door het raam zie ik de tuin.' },
-    { id: 'brievenbus',  niveau: 'basis', categorie: 'andere', tekst: 'de brievenbus',  kort: 'brievenbus',  beeld: '📮', zin: 'De post zit in de brievenbus.' },
+  id:'w-thuis', type:'woorden', naam:'Thuis', emoji:'🏠', kleur:'#8338EC',
+  visueleOefening:'vertelplaat-thema',
+  vertelplaat:{
+    titel:'Vertelplaat: bij mij thuis', beeld:'vertelplaten/thuis.png',
+    alt:'Een open huis met zolder, slaapkamer, badkamer, keuken, woonkamer en kelder',
+    werkbladItems:['slaapkamer','badkamer','keuken','woonkamer','zolder','kelder','koelkast','fornuis','zetel','televisie','bed','kast','bad','douche','toilet','deur','raam','brievenbus'],
+    hotspots:[
+      {id:'vp-zolder',woord:'de zolder',x:50,y:14,rol:'waar'},
+      {id:'vp-slaapkamer',woord:'de slaapkamer',x:28,y:37,rol:'waar'},
+      {id:'vp-bed',woord:'het bed',x:19,y:41,rol:'wat'},
+      {id:'vp-kast',woord:'de kast',x:39,y:36,rol:'wat'},
+      {id:'vp-badkamer',woord:'de badkamer',x:70,y:37,rol:'waar'},
+      {id:'vp-douche',woord:'de douche',x:53,y:35,rol:'wat'},
+      {id:'vp-bad',woord:'het bad',x:64,y:42,rol:'wat'},
+      {id:'vp-wastafel',woord:'de wastafel',x:76,y:39,rol:'wat'},
+      {id:'vp-toilet',woord:'het toilet',x:85,y:43,rol:'wat'},
+      {id:'vp-keuken',woord:'de keuken',x:28,y:66,rol:'waar'},
+      {id:'vp-koelkast',woord:'de koelkast',x:12,y:65,rol:'wat'},
+      {id:'vp-fornuis',woord:'het fornuis',x:31,y:64,rol:'wat'},
+      {id:'vp-tafel',woord:'de tafel',x:34,y:72,rol:'wat'},
+      {id:'vp-stoel',woord:'de stoel',x:23,y:74,rol:'wat'},
+      {id:'vp-deur',woord:'de deur',x:52,y:65,rol:'wat'},
+      {id:'vp-woonkamer',woord:'de woonkamer',x:76,y:66,rol:'waar'},
+      {id:'vp-televisie',woord:'de televisie',x:65,y:63,rol:'wat'},
+      {id:'vp-zetel',woord:'de zetel',x:82,y:69,rol:'wat'},
+      {id:'vp-lamp',woord:'de lamp',x:72,y:57,rol:'wat'},
+      {id:'vp-tapijt',woord:'het tapijt',x:68,y:73,rol:'wat'},
+      {id:'vp-kelder',woord:'de kelder',x:26,y:90,rol:'waar'},
+      {id:'vp-raam',woord:'het raam',x:36,y:58,rol:'wat'},
+      {id:'vp-brievenbus',woord:'de brievenbus',x:94,y:81,rol:'wat'},
+      {id:'vp-zin-koelkast',woord:'melk nemen',x:14,y:63,rol:'doet',zin:'Mama neemt melk uit de koelkast.'},
+      {id:'vp-zin-lezen',woord:'samen lezen',x:82,y:66,rol:'doet',zin:'Papa leest met zijn dochter in de zetel.'},
+      {id:'vp-zin-spelen',woord:'spelen',x:31,y:42,rol:'doet',zin:'De jongen speelt in zijn slaapkamer.'},
+      {id:'vp-zin-koken',woord:'koken',x:30,y:62,rol:'doet',zin:'Mama kookt in de keuken.'}
+    ],
+    bouwZinnen:[
+      [{tekst:'Mama',rol:'wie'},{tekst:'neemt',rol:'doet'},{tekst:'melk',rol:'wat'},{tekst:'uit de koelkast',rol:'waar'}],
+      [{tekst:'Papa',rol:'wie'},{tekst:'leest',rol:'doet'},{tekst:'met zijn dochter',rol:'hoe'},{tekst:'in de zetel',rol:'waar'}],
+      [{tekst:'De jongen',rol:'wie'},{tekst:'speelt',rol:'doet'},{tekst:'in zijn slaapkamer',rol:'waar'}],
+      [{tekst:'Mama',rol:'wie'},{tekst:'kookt',rol:'doet'},{tekst:'in de keuken',rol:'waar'}],
+      [{tekst:'De dozen',rol:'wie'},{tekst:'staan',rol:'doet'},{tekst:'op de zolder',rol:'waar'}]
+    ]
+  },
+  niveaus:['basis'], categorieen:['kamers','meubels','toestellen','andere'],
+  items:[
+    {id:'slaapkamer',niveau:'basis',categorie:'kamers',tekst:'de slaapkamer',kort:'slaapkamer',beeld:'🛏️',picto:'thuis/slaapkamer.png',zin:"'s Avonds ga ik naar mijn slaapkamer.",zinsdelen:[{tekst:"'s Avonds",rol:'wanneer'},{tekst:'ik',rol:'wie'},{tekst:'ga',rol:'doet'},{tekst:'naar mijn slaapkamer',rol:'waar'}]},
+    {id:'badkamer',niveau:'basis',categorie:'kamers',tekst:'de badkamer',kort:'badkamer',beeld:'🛁',picto:'thuis/badkamer.png',zin:'Ik was mij in de badkamer.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'was',rol:'doet'},{tekst:'mij',rol:'wat'},{tekst:'in de badkamer',rol:'waar'}]},
+    {id:'keuken',niveau:'basis',categorie:'kamers',tekst:'de keuken',kort:'keuken',beeld:'🍳',picto:'thuis/keuken.png',zinPicto:'assets/zinsbeelden/thuis/mama-kookt-in-de-keuken.png',zin:'Mama kookt in de keuken.',zinsdelen:[{tekst:'Mama',rol:'wie'},{tekst:'kookt',rol:'doet'},{tekst:'in de keuken',rol:'waar'}]},
+    {id:'woonkamer',niveau:'basis',categorie:'kamers',tekst:'de woonkamer',kort:'woonkamer',beeld:'🛋️',picto:'thuis/woonkamer.png',zin:'Wij zitten samen in de woonkamer.',zinsdelen:[{tekst:'Wij',rol:'wie'},{tekst:'zitten',rol:'doet'},{tekst:'samen',rol:'hoe'},{tekst:'in de woonkamer',rol:'waar'}]},
+    {id:'zolder',niveau:'basis',categorie:'kamers',tekst:'de zolder',kort:'zolder',beeld:'🏠',picto:'thuis/zolder.png',zin:'De dozen staan op de zolder.',zinsdelen:[{tekst:'De dozen',rol:'wie'},{tekst:'staan',rol:'doet'},{tekst:'op de zolder',rol:'waar'}]},
+    {id:'kelder',niveau:'basis',categorie:'kamers',tekst:'de kelder',kort:'kelder',beeld:'🏠',picto:'thuis/kelder.png',zin:'De kelder is onder het huis.',zinsdelen:[{tekst:'De kelder',rol:'wie'},{tekst:'is',rol:'doet'},{tekst:'onder het huis',rol:'waar'}]},
+    {id:'toilet',niveau:'basis',categorie:'kamers',tekst:'het toilet',kort:'toilet',beeld:'🚽',picto:'thuis/toilet.png',zin:'Het toilet is naast de badkamer.',zinsdelen:[{tekst:'Het toilet',rol:'wie'},{tekst:'is',rol:'doet'},{tekst:'naast de badkamer',rol:'waar'}]},
+    {id:'kast',niveau:'basis',categorie:'meubels',tekst:'de kast',kort:'kast',beeld:'🗄️',picto:'thuis/kast.png',zin:'Mijn kleren liggen in de kast.',zinsdelen:[{tekst:'Mijn kleren',rol:'wie'},{tekst:'liggen',rol:'doet'},{tekst:'in de kast',rol:'waar'}]},
+    {id:'zetel',niveau:'basis',categorie:'meubels',tekst:'de zetel',kort:'zetel',beeld:'🛋️',picto:'thuis/zetel.png',zinPicto:'assets/zinsbeelden/thuis/papa-zit-in-de-zetel.png',zin:'Papa zit in de zetel.',zinsdelen:[{tekst:'Papa',rol:'wie'},{tekst:'zit',rol:'doet'},{tekst:'in de zetel',rol:'waar'}]},
+    {id:'stoel',niveau:'basis',categorie:'meubels',tekst:'de stoel',kort:'stoel',beeld:'🪑',picto:'thuis/stoel.png',zin:'Ik zit op de stoel.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'zit',rol:'doet'},{tekst:'op de stoel',rol:'waar'}]},
+    {id:'tafel',niveau:'basis',categorie:'meubels',tekst:'de tafel',kort:'tafel',beeld:'🪑',picto:'thuis/tafel.png',zin:'Wij eten aan de tafel.',zinsdelen:[{tekst:'Wij',rol:'wie'},{tekst:'eten',rol:'doet'},{tekst:'aan de tafel',rol:'waar'}]},
+    {id:'bed',niveau:'basis',categorie:'meubels',tekst:'het bed',kort:'bed',beeld:'🛏️',picto:'thuis/bed.png',zinPicto:'assets/zinsbeelden/thuis/ik-slaap-in-mijn-bed.png',zin:'Ik slaap in mijn bed.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'slaap',rol:'doet'},{tekst:'in mijn bed',rol:'waar'}]},
+    {id:'lamp',niveau:'basis',categorie:'meubels',tekst:'de lamp',kort:'lamp',beeld:'💡',picto:'thuis/lamp.png',zin:'Mama doet de lamp aan.',zinsdelen:[{tekst:'Mama',rol:'wie'},{tekst:'doet aan',rol:'doet'},{tekst:'de lamp',rol:'wat'}]},
+    {id:'wastafel',niveau:'basis',categorie:'meubels',tekst:'de wastafel',kort:'wastafel',beeld:'🚰',picto:'thuis/wastafel.png',zinPicto:'assets/zinsbeelden/thuis/ik-was-mijn-handen.png',zin:'Ik was mijn handen aan de wastafel.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'was',rol:'doet'},{tekst:'mijn handen',rol:'wat'},{tekst:'aan de wastafel',rol:'waar'}]},
+    {id:'koelkast',niveau:'basis',categorie:'toestellen',tekst:'de koelkast',kort:'koelkast',beeld:'🧊',picto:'thuis/koelkast.png',zinPicto:'assets/zinsbeelden/thuis/mama-neemt-melk.png',zin:'Mama neemt melk uit de koelkast.',zinsdelen:[{tekst:'Mama',rol:'wie'},{tekst:'neemt',rol:'doet'},{tekst:'melk',rol:'wat'},{tekst:'uit de koelkast',rol:'waar'}]},
+    {id:'fornuis',niveau:'basis',categorie:'toestellen',tekst:'het fornuis',kort:'fornuis',beeld:'🍳',picto:'thuis/fornuis.png',zin:'Mama kookt op het fornuis.',zinsdelen:[{tekst:'Mama',rol:'wie'},{tekst:'kookt',rol:'doet'},{tekst:'op het fornuis',rol:'waar'}]},
+    {id:'televisie',niveau:'basis',categorie:'toestellen',tekst:'de televisie',kort:'televisie',beeld:'📺',picto:'thuis/televisie.png',zin:'Wij kijken naar de televisie.',zinsdelen:[{tekst:'Wij',rol:'wie'},{tekst:'kijken',rol:'doet'},{tekst:'naar de televisie',rol:'wat'}]},
+    {id:'computer',niveau:'basis',categorie:'toestellen',tekst:'de computer',kort:'computer',beeld:'💻',picto:'thuis/computer.png',zin:'Papa werkt op de computer.',zinsdelen:[{tekst:'Papa',rol:'wie'},{tekst:'werkt',rol:'doet'},{tekst:'op de computer',rol:'waar'}]},
+    {id:'tablet',niveau:'basis',categorie:'toestellen',tekst:'de tablet',kort:'tablet',beeld:'📱',picto:'thuis/tablet.png',zin:'Ik oefen op de tablet.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'oefen',rol:'doet'},{tekst:'op de tablet',rol:'waar'}]},
+    {id:'gsm',niveau:'basis',categorie:'toestellen',tekst:'de gsm',kort:'gsm',beeld:'📱',picto:'thuis/gsm.png',zin:'Mama belt met haar gsm.',zinsdelen:[{tekst:'Mama',rol:'wie'},{tekst:'belt',rol:'doet'},{tekst:'met haar gsm',rol:'wat'}]},
+    {id:'douche',niveau:'basis',categorie:'andere',tekst:'de douche',kort:'douche',beeld:'🚿',picto:'thuis/douche.png',zin:'Ik was mij in de douche.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'was',rol:'doet'},{tekst:'mij',rol:'wat'},{tekst:'in de douche',rol:'waar'}]},
+    {id:'bad',niveau:'basis',categorie:'andere',tekst:'het bad',kort:'bad',beeld:'🛁',picto:'thuis/bad.png',zin:'Het bad is vol warm water.',zinsdelen:[{tekst:'Het bad',rol:'wie'},{tekst:'is',rol:'doet'},{tekst:'vol warm water',rol:'hoe'}]},
+    {id:'tapijt',niveau:'basis',categorie:'andere',tekst:'het tapijt',kort:'tapijt',beeld:'🟫',picto:'thuis/tapijt.png',zin:'Het tapijt ligt op de vloer.',zinsdelen:[{tekst:'Het tapijt',rol:'wie'},{tekst:'ligt',rol:'doet'},{tekst:'op de vloer',rol:'waar'}]},
+    {id:'spiegel',niveau:'basis',categorie:'andere',tekst:'de spiegel',kort:'spiegel',beeld:'🪞',picto:'thuis/spiegel.png',zin:'Ik kijk in de spiegel.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'kijk',rol:'doet'},{tekst:'in de spiegel',rol:'waar'}]},
+    {id:'deur',niveau:'basis',categorie:'andere',tekst:'de deur',kort:'deur',beeld:'🚪',picto:'thuis/deur.png',zin:'Papa opent de deur.',zinsdelen:[{tekst:'Papa',rol:'wie'},{tekst:'opent',rol:'doet'},{tekst:'de deur',rol:'wat'}]},
+    {id:'raam',niveau:'basis',categorie:'andere',tekst:'het raam',kort:'raam',beeld:'🪟',picto:'thuis/raam.png',zin:'Ik kijk door het raam.',zinsdelen:[{tekst:'Ik',rol:'wie'},{tekst:'kijk',rol:'doet'},{tekst:'door het raam',rol:'waar'}]},
+    {id:'brievenbus',niveau:'basis',categorie:'andere',tekst:'de brievenbus',kort:'brievenbus',beeld:'📮',picto:'thuis/brievenbus.png',zin:'De post zit in de brievenbus.',zinsdelen:[{tekst:'De post',rol:'wie'},{tekst:'zit',rol:'doet'},{tekst:'in de brievenbus',rol:'waar'}]}
   ]
 };
