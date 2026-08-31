@@ -79,8 +79,10 @@ function lkPreviewTaak(code, naam, conceptSleutel) {
   }
 
   // Bouw URL met code + preview-flag
+  const basisUrl = lkKindAppUrl(code);
+  const scheiding = basisUrl.includes('?') ? '&' : '?';
   const conceptDeel = conceptSleutel ? `&previewConcept=${encodeURIComponent(conceptSleutel)}` : '';
-  const url = lkKindAppUrl(code) + '&preview=1' + conceptDeel;
+  const url = basisUrl + scheiding + 'preview=1' + conceptDeel;
   const naamWeergave = naam || code;
 
   // Verwijder bestaande popup als die er nog is
@@ -124,11 +126,7 @@ function lkTestHuidigeTaakkeuzes() {
     return;
   }
 
-  const code = _taakModalKindCode || _taakModalDoelCodes[0];
-  if (!code) {
-    alert('Kies eerst een leerling om de testweergave te openen.');
-    return;
-  }
+  const code = _taakModalKindCode || _taakModalDoelCodes[0] || '';
 
   const concept = {
     themaId: _taakModalThemaId,
@@ -153,8 +151,8 @@ function lkTestHuidigeTaakkeuzes() {
 
   const sleutel = 'taalgroei-preview-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
   sessionStorage.setItem(sleutel, JSON.stringify(concept));
-  const kind = lkKinderen.find(k => k.code === code);
-  const naam = kind ? lkVolledigeNaam(kind) : code;
+  const kind = code ? lkKinderen.find(k => k.code === code) : null;
+  const naam = kind ? lkVolledigeNaam(kind) : 'vrije leerkrachttest';
   lkPreviewTaak(code, naam, sleutel);
 }
 
@@ -3378,6 +3376,7 @@ let _taakModalDoelCodes = [];
 let _taakModalGroepsnaam = '';
 let _taakModalDoel = '';
 let _taakModalVrijHerhalen = false;
+let _taakModalAlleenTesten = false;
 
 function _taakVeiligeTekst(waarde) {
   return String(waarde || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -3442,6 +3441,7 @@ function _taakModalWoordKleur(woordId) {
 }
 
 async function lkBeheerTaak(code, naam, doelCodes, groepsnaam) {
+  _taakModalAlleenTesten = false;
   _taakModalKindCode = code;
   _taakModalNaam = naam || code;
   _taakModalDoelCodes = Array.isArray(doelCodes) && doelCodes.length ? [...new Set(doelCodes)] : [code];
@@ -3503,6 +3503,30 @@ async function lkBeheerTaak(code, naam, doelCodes, groepsnaam) {
   rendererTaakModal(huidigeTaak);
 }
 
+// Open dezelfde taakbouwer als voor een leerling, maar volledig los van een
+// leerlinglijst. De leerkracht kan zo eerst thema's en oefenroutes verkennen.
+function lkOpenVrijeOefentest() {
+  _taakModalAlleenTesten = true;
+  _taakModalKindCode = null;
+  _taakModalNaam = 'vrije leerkrachttest';
+  _taakModalDoelCodes = [];
+  _taakModalGroepsnaam = '';
+  _taakModalDoel = '';
+  _taakModalVrijHerhalen = false;
+  _taakModalOpenSectie = 'woorden';
+  _taakModalHuidigeTaak = null;
+  _taakModalGeschiedenis = [];
+  _taakModalThemaId = ALLE_THEMAS_LK[0] && ALLE_THEMAS_LK[0].id;
+  _taakModalWoordIds = new Set();
+  _taakModalVaardigheden = new Set(['luisteren']);
+  _taakModalOefenvormenLuisteren = new Set(['klikspel']);
+  _taakModalOefenvormenLezen = new Set(['woord-beeld']);
+  _taakModalOefenvormenSchrijven = new Set(['overtypen']);
+  _taakModalToetsen = new Set(['luisteren']);
+  _taakModalZinscontext = false;
+  rendererTaakModal(null);
+}
+
 function rendererTaakModal(huidigeTaak) {
   // Verwijder evt bestaande modal
   const oud = document.getElementById('lk-taak-modal-bg');
@@ -3560,9 +3584,9 @@ function rendererTaakModal(huidigeTaak) {
 
   let html = `
     <div class="lk-cat-modal lk-taak-modal-doos" onclick="event.stopPropagation()">
-      <h2>📋 ${_taakModalDoelCodes.length > 1 ? `Nieuwe taak voor groep ${_taakModalGroepsnaam || ''}` : `Nieuwe taak voor ${_taakModalNaam}`}</h2>
+      <h2>${_taakModalAlleenTesten ? '👩‍🏫 Oefeningen zelf uitproberen' : `📋 ${_taakModalDoelCodes.length > 1 ? `Nieuwe taak voor groep ${_taakModalGroepsnaam || ''}` : `Nieuwe taak voor ${_taakModalNaam}`}`}</h2>
       <p class="modal-uitleg">
-        ${_taakModalDoelCodes.length > 1 ? `<strong>${_taakModalDoelCodes.length} leerlingen krijgen dezelfde taak.</strong> Bestaande taken blijven behouden; deze taak wordt actief of sluit achteraan aan.` : 'Stel een taak samen in 3 stappen.'}
+        ${_taakModalAlleenTesten ? '<strong>Hier wordt niets aan een leerling gekoppeld.</strong> Kies wat je wilt bekijken en start daarna de veilige test.' : (_taakModalDoelCodes.length > 1 ? `<strong>${_taakModalDoelCodes.length} leerlingen krijgen dezelfde taak.</strong> Bestaande taken blijven behouden; deze taak wordt actief of sluit achteraan aan.` : 'Stel een taak samen in 3 stappen.')}
         Klik op een sectie om hem open of dicht te klappen.
         Open één sectie tegelijk om overzichtelijk te werken.
       </p>
@@ -3872,7 +3896,7 @@ function rendererTaakModal(huidigeTaak) {
         <span></span>
         <button class="lk-knop-mini" onclick="lkSluitTaakModal()">Annuleren</button>
         <button class="lk-knop-mini" onclick="lkTestHuidigeTaakkeuzes()" title="Doorloop deze keuzes zonder ze te bewaren">👁️ Test deze fases</button>
-          <button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarTaak()">➕ Taak klaarzetten</button>
+          ${_taakModalAlleenTesten ? '' : '<button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarTaak()">➕ Taak klaarzetten</button>'}
       </div>
     </div>
   `;

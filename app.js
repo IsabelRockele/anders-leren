@@ -2362,6 +2362,26 @@ async function init() {
     Voortgang.zetPreviewModus(true);
   }
 
+  // Vrije leerkrachttest: een concepttaak kan zonder leerlingcode worden
+  // doorlopen. Er wordt niets gelezen of geschreven bij een leerling.
+  const __previewConceptSleutel = __urlParams.get('previewConcept');
+  if (__isPreview && __previewConceptSleutel && !__urlParams.get('code')) {
+    try {
+      const conceptJson = sessionStorage.getItem(__previewConceptSleutel);
+      if (!conceptJson) throw new Error('Testconcept niet gevonden');
+      await Voortgang.zetTaak(JSON.parse(conceptJson));
+      sessionStorage.removeItem(__previewConceptSleutel);
+      const welk = document.getElementById('welkom-naam');
+      if (welk) welk.textContent = 'leerkracht!';
+      _toonPreviewBanner();
+      rendererStart();
+      toonScherm('scherm-start');
+      return;
+    } catch (e) {
+      console.warn('De vrije leerkrachttest kon niet starten:', e);
+    }
+  }
+
   // In preview-modus: skip auto-login zodat we gegarandeerd inloggen met de
   // code uit de URL (en dus de juiste leerling tonen aan de leerkracht).
   if (!__isPreview) {
