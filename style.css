@@ -4423,6 +4423,14 @@ h1, h2, h3 {
   opacity: 0.9;
 }
 
+.taak-route {
+  margin-top: 6px;
+  color: rgba(255,255,255,.96);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
 .taak-pijl {
   font-size: 40px;
   flex-shrink: 0;

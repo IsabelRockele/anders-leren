@@ -183,12 +183,22 @@ function rendererTaakZone() {
   const themaNaamEl = document.getElementById('taak-thema-naam');
   const aantalEl = document.getElementById('taak-aantal');
   const statusEl = document.getElementById('taak-status');
+  const routeEl = document.getElementById('taak-route');
   const knop = zone.querySelector('.taak-knop-groot');
 
   if (themaNaamEl) themaNaamEl.textContent = `${thema.emoji} ${thema.naam}`;
   if (aantalEl) {
     const n = taak.woordIds.length;
     aantalEl.textContent = n === 1 ? '1 woord' : `${n} woorden`;
+  }
+  if (routeEl) {
+    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
+    const stappen = ['Kijken'];
+    (taak.vaardigheden || []).forEach(v => {
+      (taak['oefenvormen_' + v] || []).forEach(vorm => stappen.push(namen[vorm] || vorm));
+      if ((taak.toetsen || []).includes(v)) stappen.push('Toets ' + v);
+    });
+    routeEl.textContent = stappen.join(' → ');
   }
   zone.style.display = '';
 
@@ -328,11 +338,18 @@ window.taakPreviewVolgendeOefenvorm = function() {
   }
   const taak = Voortgang.getTaak();
   if (!taak) return;
+  if (!taakModus || !Array.isArray(taakItems) || taakItems.length === 0) {
+    startTaak();
+    return;
+  }
 
   // Bepaal huidige doel-fase (negeer 'intro:'-prefix)
   let huidigeFase = taakHuidigeFase || taak.huidigeFase || 'leren';
   if (typeof huidigeFase === 'string' && huidigeFase.startsWith('intro:')) {
     huidigeFase = huidigeFase.replace('intro:', '');
+    // Oefenvorm-intro's gebruiken bv. "luisteren-oef:verbinden". Voor de
+    // router blijft dit dezelfde basisfase "luisteren-oef".
+    if (huidigeFase.includes(':')) huidigeFase = huidigeFase.split(':')[0];
   }
 
   // Welke vaardigheid hoort bij deze fase?
@@ -2386,6 +2403,7 @@ async function init() {
       _toonPreviewBanner();
       rendererStart();
       toonScherm('scherm-start');
+      setTimeout(() => startTaak(), 0);
       return;
     } catch (e) {
       console.warn('De vrije leerkrachttest kon niet starten:', e);
@@ -2487,6 +2505,9 @@ async function naDuoLogin() {
 
   rendererStart();
   toonScherm('scherm-start');
+  if (Voortgang.isPreviewModus && Voortgang.isPreviewModus() && Voortgang.getTaak()) {
+    setTimeout(() => startTaak(), 0);
+  }
 }
 
 function _toonPreviewBanner() {

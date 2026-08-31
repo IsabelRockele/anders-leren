@@ -20,6 +20,21 @@ function lkBekijkKindApp(code) {
   window.open(lkKindAppUrl(code), '_blank', 'noopener');
 }
 
+function lkPreviewRouteTekst(taak) {
+  if (!taak) return 'De gekozen taak wordt automatisch stap voor stap doorlopen.';
+  const namen = {
+    klikspel:'Klikspel', verbinden:'Verbinden', verslepen:'Verslepen',
+    'woord-beeld':'Woord → beeld', overtypen:'Overtypen'
+  };
+  const stappen = ['Woorden bekijken'];
+  (taak.vaardigheden || []).forEach(v => {
+    const vormen = taak['oefenvormen_' + v] || [];
+    vormen.forEach(vorm => stappen.push(namen[vorm] || vorm));
+    if ((taak.toetsen || []).includes(v)) stappen.push('Mini-toets ' + v);
+  });
+  return stappen.join(' → ');
+}
+
 // Preview-modus: open de kind-app in een grote popup binnen het leerkracht-scherm.
 // Voortgang wordt NIET aangetast (preview=1 schakelt schrijfacties uit).
 function lkPreviewTaak(code, naam, conceptSleutel) {
@@ -84,6 +99,11 @@ function lkPreviewTaak(code, naam, conceptSleutel) {
   const conceptDeel = conceptSleutel ? `&previewConcept=${encodeURIComponent(conceptSleutel)}` : '';
   const url = basisUrl + scheiding + 'preview=1' + conceptDeel;
   const naamWeergave = naam || code;
+  let routeTekst = 'De gekozen taak wordt automatisch stap voor stap doorlopen.';
+  if (conceptSleutel) {
+    try { routeTekst = lkPreviewRouteTekst(JSON.parse(sessionStorage.getItem(conceptSleutel) || 'null')); }
+    catch (e) { /* algemene uitleg volstaat */ }
+  }
 
   // Verwijder bestaande popup als die er nog is
   const oud = document.getElementById('lk-preview-bg');
@@ -104,8 +124,8 @@ function lkPreviewTaak(code, naam, conceptSleutel) {
         <button class="lk-preview-sluit" onclick="lkSluitPreview()">✕ Sluiten</button>
       </div>
       <div class="lk-preview-skipbalk">
-        <span class="lk-preview-skipbalk-uitleg">Snel doorbladeren?</span>
-        <button class="lk-preview-skipknop" onclick="lkPreviewSkip()">⏭️ Volgende oefenvorm</button>
+        <span class="lk-preview-skipbalk-uitleg"><strong>Deze taak:</strong> ${routeTekst}</span>
+        <button class="lk-preview-skipknop" onclick="lkPreviewSkip()">⏭️ Volgende stap in deze taak</button>
       </div>
       <iframe class="lk-preview-iframe" id="lk-preview-iframe" src="${url}" title="Preview voor leerkracht"></iframe>
     </div>
@@ -3741,6 +3761,7 @@ function rendererTaakModal(huidigeTaak) {
         <span class="lk-sectie-pijl">${sectie2Open ? '▾' : '▸'}</span>
       </button>
       <div class="lk-sectie-inhoud" ${sectie2Open ? '' : 'hidden'}>
+        <p class="lk-taak-tip" style="margin-top:0"><strong>Zo krijgt het kind dit:</strong> één duidelijke taak onder “Mijn taak”. Na het bekijken van de woorden volgen de aangevinkte oefenvormen automatisch. Het kind hoeft geen thema of oefening opnieuw te kiezen.</p>
         <div class="lk-oefenroutes">
           <div class="lk-oefenroutes-kop">
             <strong>Kies eerst een passende oefenroute</strong>
@@ -3902,7 +3923,7 @@ function rendererTaakModal(huidigeTaak) {
       <div class="lk-cat-modal-knoppen">
         <span></span>
         <button class="lk-knop-mini" onclick="lkSluitTaakModal()">Annuleren</button>
-        <button class="lk-knop-mini" onclick="lkTestHuidigeTaakkeuzes()" title="Doorloop deze keuzes zonder ze te bewaren">👁️ Test deze fases</button>
+        <button class="lk-knop-mini" onclick="lkTestHuidigeTaakkeuzes()" title="Doorloop deze keuzes zonder ze te bewaren">👁️ Test deze taak als kind</button>
           ${_taakModalAlleenTesten ? '' : '<button class="lk-knop-mini" style="background:var(--kleur-zisa,#ffd166)" onclick="lkBewaarTaak()">➕ Taak klaarzetten</button>'}
       </div>
     </div>
