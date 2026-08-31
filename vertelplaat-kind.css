@@ -35,7 +35,21 @@
 .vp-opdracht.vp-ronde-klaar { background:#e8f8ed; border-color:#62b77b; }
 .vp-opdracht.vp-ronde-klaar button { display:none; }
 @keyframes vp-opdracht-flits { 0%,35%{transform:scale(1.025);background:#fff0a8;box-shadow:0 0 0 8px rgba(246,190,44,.2)} 100%{transform:scale(1);background:#e9f8f2;box-shadow:none} }
-.vp-zoekpunt { background:#247b67; }
+.vp-zoekpunt {
+  width:30px; height:30px;
+  background:rgba(255,255,255,.12);
+  border-color:#087c6b;
+  box-shadow:0 2px 8px rgba(0,0,0,.28), inset 0 0 0 2px rgba(255,255,255,.72);
+}
+.vp-zoekpunt span {
+  position:absolute; left:20px; top:-13px;
+  display:grid; place-items:center;
+  width:22px; height:22px;
+  border:2px solid #087c6b; border-radius:50%;
+  background:#fff; color:#087c6b;
+  font-size:16px; line-height:1; font-weight:900;
+  box-shadow:0 2px 6px rgba(0,0,0,.22);
+}
 .vp-hotspot.vp-juist { background:#1f9d62; border-color:#eafff4; transform:translate(-50%,-50%) scale(1.25); }
 .vp-hotspot.vp-fout { background:#df5b57; animation:vp-schud .35s ease; }
 .vp-hotspot.vp-hint { background:#f5a623; animation:vp-hint 1s ease-in-out infinite; }

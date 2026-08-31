@@ -1778,7 +1778,16 @@ window.PDFEngine = (function() {
 
     bruikbaar.forEach(item => {
       const [px,py] = posities[item.id];
-      const cx=plaatX + plaatW * px / 100, cy=plaatY + plaatH * py / 100;
+      const doelX=plaatX + plaatW * px / 100, doelY=plaatY + plaatH * py / 100;
+      // Zet het invulrondje naast het voorwerp en wijs het met een lijntje aan.
+      // Zo blijft het eigenlijke beeld zichtbaar en weet het kind toch exact
+      // bij welke plaats het rondje hoort.
+      const dx = px > 76 ? -8 : 8;
+      const dy = py < 20 ? 7 : -7;
+      const cx=Math.max(plaatX+5,Math.min(plaatX+plaatW-5,doelX+dx));
+      const cy=Math.max(plaatY+5,Math.min(plaatY+plaatH-5,doelY+dy));
+      doc.setDrawColor(25,116,98); doc.setLineWidth(.65);
+      doc.line(doelX,doelY,cx,cy);
       doc.setFillColor(255,255,255); doc.setDrawColor(25,116,98); doc.setLineWidth(1);
       doc.circle(cx,cy,4.2,'FD');
       if (opgelost) {

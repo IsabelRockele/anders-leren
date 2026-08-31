@@ -3377,6 +3377,7 @@ let _taakModalGroepsnaam = '';
 let _taakModalDoel = '';
 let _taakModalVrijHerhalen = false;
 let _taakModalAlleenTesten = false;
+let _taakModalScrollTop = 0;
 
 function _taakVeiligeTekst(waarde) {
   return String(waarde || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -3441,6 +3442,7 @@ function _taakModalWoordKleur(woordId) {
 }
 
 async function lkBeheerTaak(code, naam, doelCodes, groepsnaam) {
+  _taakModalScrollTop = 0;
   _taakModalAlleenTesten = false;
   _taakModalKindCode = code;
   _taakModalNaam = naam || code;
@@ -3506,6 +3508,7 @@ async function lkBeheerTaak(code, naam, doelCodes, groepsnaam) {
 // Open dezelfde taakbouwer als voor een leerling, maar volledig los van een
 // leerlinglijst. De leerkracht kan zo eerst thema's en oefenroutes verkennen.
 function lkOpenVrijeOefentest() {
+  _taakModalScrollTop = 0;
   _taakModalAlleenTesten = true;
   _taakModalKindCode = null;
   _taakModalNaam = 'vrije leerkrachttest';
@@ -3530,6 +3533,10 @@ function lkOpenVrijeOefentest() {
 function rendererTaakModal(huidigeTaak) {
   // Verwijder evt bestaande modal
   const oud = document.getElementById('lk-taak-modal-bg');
+  if (oud) {
+    const oudeDoos = oud.querySelector('.lk-taak-modal-doos');
+    if (oudeDoos) _taakModalScrollTop = oudeDoos.scrollTop;
+  }
   if (oud) oud.remove();
 
   const bg = document.createElement('div');
@@ -3903,6 +3910,8 @@ function rendererTaakModal(huidigeTaak) {
 
   bg.innerHTML = html;
   document.body.appendChild(bg);
+  const nieuweDoos = bg.querySelector('.lk-taak-modal-doos');
+  if (nieuweDoos && _taakModalScrollTop > 0) nieuweDoos.scrollTop = _taakModalScrollTop;
 }
 
 function lkTaakKiesThema(themaId) {
