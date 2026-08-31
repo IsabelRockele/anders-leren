@@ -24,12 +24,12 @@ const THEMAS_WOORDEN = _veiligThemas([
   ['THEMA_WOORDEN_LICHAAM', 'woorden-lichaam.js'],
   ['THEMA_WOORDEN_ETEN', 'woorden-eten.js'],
   ['THEMA_WOORDEN_FAMILIE', 'woorden-familie.js'],
+  ['THEMA_WOORDEN_THUIS', 'woorden-thuis.js'],
   ['THEMA_WOORDEN_DIEREN', 'woorden-dieren.js'],
   ['THEMA_WOORDEN_CIJFERS', 'woorden-cijfers.js'],
   ['THEMA_WOORDEN_KLEUREN', 'woorden-kleuren.js'],
   ['THEMA_WOORDEN_VORMEN', 'woorden-vormen.js'],
   ['THEMA_WOORDEN_DOEN', 'woorden-doen.js'],
-  ['THEMA_WOORDEN_THUIS', 'woorden-thuis.js'],
 ]);
 
 const THEMAS_ZINNEN = _veiligThemas([
