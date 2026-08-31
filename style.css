@@ -3078,6 +3078,36 @@ h1, h2, h3 {
   max-width: 880px;
 }
 
+.lk-taak-modal-kop {
+  position: sticky;
+  top: -22px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -22px -22px 12px;
+  padding: 18px 22px 12px;
+  background: #fff;
+  border-bottom: 1px solid #eee7d8;
+}
+
+.lk-taak-modal-kop h2 { margin: 0; }
+
+.lk-taak-modal-sluiten {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1.5px solid #d9d2c5;
+  border-radius: 10px;
+  background: #fff;
+  color: #2d2a32;
+  font: 700 15px 'Fredoka', sans-serif;
+  cursor: pointer;
+}
+
+.lk-taak-modal-sluiten:hover { background: #fff4d6; border-color: #e89f0f; }
+
 /* Collapsible secties in taak-modal */
 .lk-sectie {
   border: 1.5px solid #e5dfd0;
@@ -8741,9 +8771,14 @@ h1, h2, h3 {
   #scherm-taak-leren .kaart-beeld .picto-img{height:clamp(145px,26vh,220px)}
   #scherm-taak-leren .kaart-woord{font-size:34px;margin-bottom:6px}
   #scherm-taak-leren .audio-knoppen{margin-bottom:9px}
-  #scherm-taak-verbinden .verbinden-wrap{margin:2px auto 5px;padding:7px}
-  #scherm-taak-verbinden .verbinden-kaart{min-height:66px;padding:6px 10px}
-  #scherm-taak-verbinden .verbinden-pic .picto-img{height:55px;max-width:82px}
+  #scherm-taak-verbinden .oefen-main{padding-top:3px}
+  #scherm-taak-verbinden .taak-oef-vraag{margin:2px 0 5px;font-size:16px;line-height:1.2}
+  #scherm-taak-verbinden .verbinden-wrap{margin:0 auto 3px;padding:5px 7px;max-width:700px}
+  #scherm-taak-verbinden .verbinden-kolom-woorden,
+  #scherm-taak-verbinden .verbinden-kolom-beelden{gap:5px}
+  #scherm-taak-verbinden .verbinden-kaart{min-height:52px;height:52px;padding:3px 10px}
+  #scherm-taak-verbinden .verbinden-pic .picto-img{height:45px;max-width:76px}
+  #scherm-taak-verbinden .verbinden-pic .picto-emoji{font-size:43px}
   #scherm-taak-verslepen .verslepen-rij{margin:5px auto}
   #scherm-taak-verslepen .verslepen-beeld .picto-img{height:clamp(110px,20vh,165px)}
   #scherm-taak-verslepen .audio-knoppen{margin-bottom:7px}

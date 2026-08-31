@@ -3611,7 +3611,10 @@ function rendererTaakModal(huidigeTaak) {
 
   let html = `
     <div class="lk-cat-modal lk-taak-modal-doos" onclick="event.stopPropagation()">
-      <h2>${_taakModalAlleenTesten ? '👩‍🏫 Oefeningen zelf uitproberen' : `📋 ${_taakModalDoelCodes.length > 1 ? `Nieuwe taak voor groep ${_taakModalGroepsnaam || ''}` : `Nieuwe taak voor ${_taakModalNaam}`}`}</h2>
+      <div class="lk-taak-modal-kop">
+        <h2>${_taakModalAlleenTesten ? '👩‍🏫 Oefeningen zelf uitproberen' : `📋 ${_taakModalDoelCodes.length > 1 ? `Nieuwe taak voor groep ${_taakModalGroepsnaam || ''}` : `Nieuwe taak voor ${_taakModalNaam}`}`}</h2>
+        <button type="button" class="lk-taak-modal-sluiten" onclick="lkSluitTaakModal()" aria-label="Venster sluiten">✕ Sluiten</button>
+      </div>
       <p class="modal-uitleg">
         ${_taakModalAlleenTesten ? '<strong>Hier wordt niets aan een leerling gekoppeld.</strong> Kies wat je wilt bekijken en start daarna de veilige test.' : (_taakModalDoelCodes.length > 1 ? `<strong>${_taakModalDoelCodes.length} leerlingen krijgen dezelfde taak.</strong> Bestaande taken blijven behouden; deze taak wordt actief of sluit achteraan aan.` : 'Stel een taak samen in 3 stappen.')}
         Klik op een sectie om hem open of dicht te klappen.
