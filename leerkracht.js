@@ -199,6 +199,7 @@ function lkSluitPreview() {
 // Lijst van alle verwachte thema-globals
 const VERWACHTE_THEMAS_LK = [
   ['THEMA_STARTPAKKET', 'startpakket.js'],
+  ['THEMA_KLANKEN_LEZEN', 'klanken-lezen.js'],
   ['THEMA_WOORDEN_KLAS', 'woorden-klas.js'],
   ['THEMA_WOORDEN_LICHAAM', 'woorden-lichaam.js'],
   ['THEMA_WOORDEN_ETEN', 'woorden-eten.js'],
@@ -3656,6 +3657,7 @@ function rendererTaakModal(huidigeTaak) {
   // Voorbereiding voor secties: bepaal wat zinnen-thema is, en welke vaardigheden aan staan
   const _modalThema = _taakModalThemaId ? ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId) : null;
   const _modalIsZinnen = _modalThema && _modalThema.type === 'zinnen';
+  const _modalIsKlanken = !!(_modalThema && _modalThema.klankLeerlijn);
   if (_modalIsZinnen && _taakModalVaardigheden.has('schrijven')) {
     _taakModalVaardigheden.delete('schrijven');
   }
@@ -3879,9 +3881,10 @@ function rendererTaakModal(huidigeTaak) {
 
   if (luisterenAan) {
     html += _oefenBlok('luisteren', '👂 Oefenvormen voor luisteren', [
-      { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: true },
-      { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: true },
-      { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: true },
+      { key: 'klank-uitluisteren', icoon: '🔤', naam: 'Klank uitluisteren', beschikbaar: !!(_modalThema && _modalThema.klankLeerlijn), reden:'alleen bij Klanken & lezen' },
+      { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: !_modalIsKlanken, reden:'bij klanken oefenen we zonder geschreven woorden' },
+      { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: !_modalIsKlanken, reden:'bij klanken oefenen we zonder geschreven woorden' },
+      { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: !_modalIsKlanken, reden:'bij klanken oefenen we zonder geschreven woorden' },
       { key: 'instructie-handelen', icoon: '🧭', naam: 'Begrijp de opdracht', beschikbaar: kanInstructieHandelen, reden:'alleen bij Leren en opdrachten' },
       { key: 'instructie-uitvoeren', icoon: '☝️', naam: 'Doe de opdracht op het scherm', beschikbaar: kanInstructieUitvoeren, reden:'kies alleen Werken op papier' },
       { key: 'dier-jong', icoon: '🐮', naam: 'Dier en jong', beschikbaar: kanDierJongKoppelen, reden:'kies eerst dat leeronderdeel' },
@@ -3979,6 +3982,12 @@ function lkTaakKiesThema(themaId) {
   _taakModalThemaId = themaId;
   // Bij thema-wissel: huidige selectie behouden NIET, want IDs verschillen per thema
   _taakModalWoordIds = new Set();
+  const gekozenThema = ALLE_THEMAS_LK.find(t => t.id === themaId);
+  if (gekozenThema && gekozenThema.klankLeerlijn) {
+    _taakModalVaardigheden = new Set(['luisteren']);
+    _taakModalOefenvormenLuisteren = new Set(['klank-uitluisteren']);
+    _taakModalToetsen = new Set(['luisteren']);
+  }
   // We hebben de huidige taak niet nodig om opnieuw te tekenen; tweede arg null
   rendererTaakModal(null);
 }
