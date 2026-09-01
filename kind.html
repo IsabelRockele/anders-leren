@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Taalgroei — Nederlands oefenen | Juf Zisa</title>
-  <link rel="stylesheet" href="style.css?v=20260901-9">
+  <link rel="stylesheet" href="style.css?v=20260901-10">
   <link rel="stylesheet" href="vertelplaat.css?v=20260830-2">
 <link rel="stylesheet" href="vertelplaat-kind.css?v=20260831-8">
 
@@ -671,8 +671,13 @@
   <main class="oefen-main klank-main">
     <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-klank-ronde">Ronde 1 van 3</span></div>
     <div class="taak-oef-balk-wrap"><div class="taak-oef-balk-vul" id="taak-klank-balk"></div></div>
-    <div class="klank-opdracht"><button class="klank-doel" onclick="taakKlankHoor()"><span>🔊</span><strong id="taak-klank-label">/m/</strong></button><p id="taak-klank-vraag"></p></div>
-    <div id="taak-klank-opties" class="klank-opties"></div>
+    <div class="klank-opdracht"><div class="klank-doel"><strong id="taak-klank-label">/m/</strong></div><p id="taak-klank-vraag">Waar hoor je deze klank?</p></div>
+    <div class="klank-woordkaart"><div id="taak-klank-beeld" class="klank-woordbeeld"></div><button class="audio-knop hoor" onclick="taakKlankHoor()">🔊 Hoor het woord</button></div>
+    <div class="klank-posities" aria-label="Kies de plaats van de klank">
+      <button class="klank-positieknop" onclick="taakKlankKies('begin',this)"><span class="klank-vakjes"><i class="actief"></i><i></i><i></i></span><strong>vooraan</strong></button>
+      <button class="klank-positieknop" onclick="taakKlankKies('midden',this)"><span class="klank-vakjes"><i></i><i class="actief"></i><i></i></span><strong>midden</strong></button>
+      <button class="klank-positieknop" onclick="taakKlankKies('eind',this)"><span class="klank-vakjes"><i></i><i></i><i class="actief"></i></span><strong>achteraan</strong></button>
+    </div>
     <div id="taak-klank-feedback" class="geboorte-feedback" aria-live="polite"></div>
   </main>
 </div>
@@ -846,7 +851,7 @@
   <script src="themas/woorden-lichaam.js?v=20260830-17"></script>
 <script src="themas/woorden-eten.js?v=20260830-19"></script>
 <script src="themas/woorden-familie.js?v=20260831-2"></script>
-<script src="themas/klanken-lezen.js?v=20260901-3"></script>
+<script src="themas/klanken-lezen.js?v=20260901-4"></script>
 <script src="themas/woorden-dieren.js?v=20260901-3"></script>
 <script src="themas/woorden-cijfers.js"></script>
 <script src="themas/woorden-kleuren.js"></script>
@@ -868,7 +873,7 @@
 <script src="woordenbeheer.js"></script>
 <script src="picto.js?v=20260830-2"></script>
 <script src="auth.js"></script>
-<script src="app.js?v=20260901-9"></script>
+<script src="app.js?v=20260901-10"></script>
 <script src="vertelplaat.js?v=20260831-12"></script>
 
 </body>
