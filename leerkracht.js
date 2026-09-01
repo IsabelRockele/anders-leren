@@ -209,6 +209,7 @@ const VERWACHTE_THEMAS_LK = [
   ['THEMA_WOORDEN_KLEUREN', 'woorden-kleuren.js'],
   ['THEMA_WOORDEN_VORMEN', 'woorden-vormen.js'],
   ['THEMA_WOORDEN_DOEN', 'woorden-doen.js'],
+  ['THEMA_WOORDEN_INSTRUCTIES', 'woorden-instructies.js'],
   ['THEMA_ZINNEN_SCHOOL', 'zinnen-school.js'],
   ['THEMA_ZINNEN_BELEEFD', 'zinnen-beleefd.js'],
   ['THEMA_ZINNEN_GEVOEL', 'zinnen-gevoel.js'],
@@ -3674,6 +3675,7 @@ function rendererTaakModal(huidigeTaak) {
   const onderdelenPlaat = _modalThema && _modalThema.onderdelenPlaten
     ? Object.values(_modalThema.onderdelenPlaten).find(p => _taakModalWoordIds.size >= 4 && [..._taakModalWoordIds].every(id => p.itemIds.includes(id))) : null;
   const kanOnderdelenAanwijzen = !!onderdelenPlaat;
+  const kanInstructieHandelen = !!(_modalThema && _modalThema.id === 'w-instructies' && _taakModalWoordIds.size >= 4);
 
   // Bouw samenvattingen voor in de gesloten sectie-koppen
   const sectieWoordenSamenvatting = `${_taakModalWoordIds.size} woord${_taakModalWoordIds.size === 1 ? '' : 'en'} gekozen`;
@@ -3873,6 +3875,7 @@ function rendererTaakModal(huidigeTaak) {
       { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: true },
       { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: true },
       { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: true },
+      { key: 'instructie-handelen', icoon: '🧭', naam: 'Luister en voer uit', beschikbaar: kanInstructieHandelen, reden:'alleen bij Leren en opdrachten' },
       { key: 'dier-jong', icoon: '🐮', naam: 'Dier en jong', beschikbaar: kanDierJongKoppelen, reden:'kies eerst dat leeronderdeel' },
       { key: 'geboorte-sorteren', icoon: '🥚', naam: 'Uit een ei of uit de buik', beschikbaar: kanGeboorteSorteren, reden:'kies eerst dat leeronderdeel' },
       { key: 'onderdelen-aanwijzen', icoon: '👉', naam: 'Onderdelen aanwijzen', beschikbaar: kanOnderdelenAanwijzen, reden:'kies boom- of paddenstoeldelen' }
@@ -4696,12 +4699,12 @@ const WB_NIVEAU_BUNDELS = {
   basis: {
     naam: '🌱 Basis',
     hint: 'Eenvoudige oefeningen om woorden te herkennen.',
-    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'vertelplaatNummers', 'familieboom', 'zinnenKnippen', 'kaartjes', 'categoriseerBasis']
+    oefeningen: ['koppel', 'omcirkel', 'kleurkoppel', 'knip', 'vertelplaatNummers', 'familieboom', 'instructieHulpkaart', 'zinnenKnippen', 'kaartjes', 'categoriseerBasis']
   },
   uitbreiding: {
     naam: '🌿 Uitbreiding',
     hint: 'Schrijven met hulp: voorbeeld of woordkeuze.',
-    oefeningen: ['overschrijf', 'kiesschrijf', 'letter', 'dierJongWerkblad', 'geboorteWerkblad', 'onderdelenWerkblad', 'categoriseerUitbreiding']
+    oefeningen: ['overschrijf', 'kiesschrijf', 'letter', 'dierJongWerkblad', 'geboorteWerkblad', 'onderdelenWerkblad', 'instructieWerkblad', 'categoriseerUitbreiding']
   },
   verdieping: {
     naam: '🌳 Verdieping',
@@ -4712,7 +4715,7 @@ const WB_NIVEAU_BUNDELS = {
 
 const WB_NIVEAU_VOLGORDE = ['basis', 'uitbreiding', 'verdieping'];
 
-const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad','instructieWerkblad','instructieHulpkaart','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
 const WB_OEFENING_LABELS = {
   koppel: '👁️ → 🔗 Koppel beeld en woord',
@@ -4727,6 +4730,8 @@ const WB_OEFENING_LABELS = {
   dierJongWerkblad: '🐣 Verbind elk dier met zijn jong',
   geboorteWerkblad: '🥚 Sorteer: uit een ei of uit de buik',
   onderdelenWerkblad: '👉 Delen van boom en paddenstoel',
+  instructieWerkblad: '🧭 Begrijp het opdrachtwoord',
+  instructieHulpkaart: '📌 Hulpkaarten instructie- en rekentaal',
   zinnenKnippen: '✂️ Knip woorden en bouw zinnen bij beelden',
   kleurkoppel: '👁️ → 🎨 Kleur dezelfde paren',
   woordzoeker: '👁️ → 🔍 Woordzoeker',
@@ -5418,12 +5423,14 @@ function rendererMixPaneel() {
     const bundel = WB_NIVEAU_BUNDELS[niveau];
     let oefeningenInGroep = bundel.oefeningen.slice();
     // Een vertelplaat hoort altijd bij één concreet thema, niet bij een mix.
-    oefeningenInGroep = oefeningenInGroep.filter(k => !['vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad'].includes(k));
+    oefeningenInGroep = oefeningenInGroep.filter(k => !['vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad','instructieWerkblad','instructieHulpkaart'].includes(k));
     werkbladMix.oefeningen.delete('vertelplaatNummers');
     werkbladMix.oefeningen.delete('familieboom');
     werkbladMix.oefeningen.delete('dierJongWerkblad');
     werkbladMix.oefeningen.delete('geboorteWerkblad');
     werkbladMix.oefeningen.delete('onderdelenWerkblad');
+    werkbladMix.oefeningen.delete('instructieWerkblad');
+    werkbladMix.oefeningen.delete('instructieHulpkaart');
     const heeftKorteZinnen = themas.some(t => (t.items || []).some(it => {
       const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
       const n=zin ? zin.split(/\s+/).length : 0;
@@ -5629,6 +5636,7 @@ function rendererThemaPaneel(themaId) {
     if (!Array.isArray(thema.dierJongParen)) { oefeningenInGroep = oefeningenInGroep.filter(k=>k!=='dierJongWerkblad'); cfg.oefeningen.delete('dierJongWerkblad'); }
     if (!thema.geboorteGroepen) { oefeningenInGroep = oefeningenInGroep.filter(k=>k!=='geboorteWerkblad'); cfg.oefeningen.delete('geboorteWerkblad'); }
     if (!thema.onderdelenPlaten) { oefeningenInGroep = oefeningenInGroep.filter(k=>k!=='onderdelenWerkblad'); cfg.oefeningen.delete('onderdelenWerkblad'); }
+    if (thema.id !== 'w-instructies') { oefeningenInGroep = oefeningenInGroep.filter(k=>!['instructieWerkblad','instructieHulpkaart'].includes(k)); cfg.oefeningen.delete('instructieWerkblad'); cfg.oefeningen.delete('instructieHulpkaart'); }
     const heeftKorteZinnen = (thema.items || []).some(it => {
       const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
       const n=zin ? zin.split(/\s+/).length : 0;
@@ -8235,6 +8243,8 @@ function _twbRender() {
       (oefKey !== 'dierJongWerkblad' || Array.isArray(thema.dierJongParen)) &&
       (oefKey !== 'geboorteWerkblad' || !!thema.geboorteGroepen) &&
       (oefKey !== 'onderdelenWerkblad' || !!thema.onderdelenPlaten)
+      && (oefKey !== 'instructieWerkblad' || thema.id === 'w-instructies')
+      && (oefKey !== 'instructieHulpkaart' || thema.id === 'w-instructies')
     );
     if (!beschikbareOefeningen.length) return;
     oefHtml += `<div class="lk-twb-niveau-kop">${bundel.naam}</div>`;

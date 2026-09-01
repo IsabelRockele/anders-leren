@@ -3082,6 +3082,16 @@ h1, h2, h3 {
 .lk-leeronderdelen-kop{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;color:#195e50}
 .lk-leeronderdelen-kop span{font-size:12px;color:#61736f}
 .lk-leeronderdelen-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+
+/* Leren en opdrachten: volledige opdracht blijft groot zichtbaar, zonder scrollen */
+.instructie-main{gap:10px}
+.instructie-opdrachtkaart{width:min(900px,94%);margin:0 auto;display:flex;align-items:center;justify-content:center;gap:18px;padding:16px 22px;border:3px solid #f2b632;border-radius:20px;background:#fff8dc;box-shadow:0 5px 0 #ead9a7;font-size:clamp(20px,2.4vw,32px);text-align:center}
+.instructie-luisterknop{flex:0 0 auto;width:64px;height:64px;border:0;border-radius:50%;background:#ffb627;font-size:30px;cursor:pointer;box-shadow:0 4px 0 #d98e00}
+.instructie-opties{grid-template-columns:repeat(4,minmax(145px,1fr));max-width:1050px;margin:0 auto}
+.instructie-keuze{min-height:185px;padding:8px}
+.instructie-keuze .picto-img{max-height:125px;object-fit:contain}
+@media(max-width:850px){.instructie-opties{grid-template-columns:repeat(2,minmax(130px,1fr))}.instructie-keuze{min-height:145px}.instructie-keuze .picto-img{max-height:92px}.instructie-opdrachtkaart{padding:10px 14px}.instructie-luisterknop{width:52px;height:52px;font-size:25px}}
+@media(max-height:760px){.instructie-main{padding-top:6px}.instructie-opdrachtkaart{padding:8px 12px}.instructie-keuze{min-height:128px}.instructie-keuze .picto-img{max-height:78px}}
 .lk-leeronderdeel{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:3px 8px;min-height:70px;padding:9px;text-align:left;border:1.5px solid #cee5df;border-radius:11px;background:#fff;color:#2d2a32;cursor:pointer;font-family:'Fredoka',sans-serif}
 .lk-leeronderdeel>span{grid-row:1/3;font-size:25px}.lk-leeronderdeel b{font-size:14px}.lk-leeronderdeel small{font-size:11px;color:#6c7471;line-height:1.2}
 .lk-leeronderdeel:hover{border-color:#16866f;background:#eaf8f4}

@@ -30,6 +30,7 @@ const THEMAS_WOORDEN = _veiligThemas([
   ['THEMA_WOORDEN_KLEUREN', 'woorden-kleuren.js'],
   ['THEMA_WOORDEN_VORMEN', 'woorden-vormen.js'],
   ['THEMA_WOORDEN_DOEN', 'woorden-doen.js'],
+  ['THEMA_WOORDEN_INSTRUCTIES', 'woorden-instructies.js'],
 ]);
 
 const THEMAS_ZINNEN = _veiligThemas([
@@ -192,7 +193,7 @@ function rendererTaakZone() {
     aantalEl.textContent = n === 1 ? '1 woord' : `${n} woorden`;
   }
   if (routeEl) {
-    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','dier-jong':'Dier en jong','geboorte-sorteren':'Ei of buik','onderdelen-aanwijzen':'Onderdelen aanwijzen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
+    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','instructie-handelen':'Luister en voer uit','dier-jong':'Dier en jong','geboorte-sorteren':'Ei of buik','onderdelen-aanwijzen':'Onderdelen aanwijzen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
     const stappen = ['Kijken'];
     (taak.vaardigheden || []).forEach(v => {
       (taak['oefenvormen_' + v] || []).forEach(vorm => stappen.push(namen[vorm] || vorm));
@@ -481,6 +482,13 @@ const TAAK_INTRO_CONFIG = {
     titel: 'Wijs het onderdeel aan',
     uitleg: 'Hoor en lees het woord. Klik op de juiste plaats op de grote afbeelding.',
     bouwDemo: _bouwDemoOnderdelen
+  },
+  'luisteren-oef:instructie-handelen': {
+    icoon: '🧭',
+    kop: '👂 Mijn taak — voer uit',
+    titel: 'Luister en kies de handeling',
+    uitleg: 'Luister naar de volledige opdracht. Kies het beeld dat toont wat je moet doen.',
+    bouwDemo: _bouwDemoLuisterenOef
   },
   'luisteren-toets': {
     icoon: '🎯',
@@ -1026,11 +1034,45 @@ function taakStartLuisterenOefenen() {
     taakStartDierJong();
   } else if (oefenvorm === 'onderdelen-aanwijzen') {
     taakStartOnderdelenAanwijzen();
+  } else if (oefenvorm === 'instructie-handelen') {
+    taakStartInstructieHandelen();
   } else {
     // Default = klikspel
     taakRendererLuisterenOefenen();
     toonScherm('scherm-taak-oefenen');
   }
+}
+
+// =================================================================
+//  INSTRUCTIETAAL — luister naar een volledige opdracht en kies de handeling
+// =================================================================
+function taakStartInstructieHandelen() {
+  if (!taakOefItem || !huidigThema || huidigThema.id !== 'w-instructies') { taakRendererLuisterenOefenen(); toonScherm('scherm-taak-oefenen'); return; }
+  const zelfdeGroep = taakItems.filter(it => it.categorie === taakOefItem.categorie && it.id !== taakOefItem.id);
+  const aanvullend = taakItems.filter(it => it.id !== taakOefItem.id && !zelfdeGroep.some(x=>x.id===it.id));
+  const opties = [taakOefItem, ...zelfdeGroep.sort(()=>Math.random()-.5).slice(0,3)];
+  while (opties.length < 4 && aanvullend.length) opties.push(aanvullend.shift());
+  opties.sort(()=>Math.random()-.5);
+  const v=_voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-instructie-klaar').textContent=v.klaar;
+  document.getElementById('taak-instructie-totaal').textContent=v.totaal;
+  document.getElementById('taak-instructie-balk').style.width=(v.totaal?v.klaar/v.totaal*100:0)+'%';
+  _updateRondeBadge('taak-instructie-ronde','luisteren');
+  document.getElementById('taak-instructie-zin').textContent=taakOefItem.zin || taakOefItem.tekst;
+  document.getElementById('taak-instructie-feedback').textContent='';
+  const vak=document.getElementById('taak-instructie-opties');vak.innerHTML='';
+  opties.forEach(it=>{const b=document.createElement('button');b.className='dierjong-keuze instructie-keuze';b.innerHTML=Picto.html(it,{grootte:120})+`<strong>${it.tekst}</strong>`;b.onclick=()=>taakInstructieKies(it,b);vak.appendChild(b);});
+  toonScherm('scherm-taak-instructie');
+  setTimeout(()=>{if(taakModus)taakInstructieHoor();},180);
+}
+
+function taakInstructieHoor(){if(taakOefItem)AudioEngine.spreek(taakOefItem.zin||taakOefItem.tekst);}
+
+async function taakInstructieKies(gekozen,knop){
+  if(!taakOefItem)return;const juist=gekozen.id===taakOefItem.id;const feedback=document.getElementById('taak-instructie-feedback');
+  document.querySelectorAll('.instructie-keuze').forEach(b=>b.disabled=true);
+  if(juist){knop.classList.add('juist');feedback.textContent='Goed zo! Jij begrijpt de opdracht.';await _registreerAntwoord(taakOefItem.id,'luisteren',true);setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},850);}
+  else{knop.classList.add('fout');feedback.textContent='Luister nog eens en probeer opnieuw.';await Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');setTimeout(()=>{document.querySelectorAll('.instructie-keuze').forEach(b=>{b.disabled=false;b.classList.remove('fout')});feedback.textContent='';taakInstructieHoor();},900);}
 }
 
 // Bepaal welke oefenvorm we in de huidige ronde gebruiken voor een vaardigheid.

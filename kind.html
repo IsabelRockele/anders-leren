@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Taalgroei — Nederlands oefenen | Juf Zisa</title>
-  <link rel="stylesheet" href="style.css?v=20260901-2">
+  <link rel="stylesheet" href="style.css?v=20260901-3">
   <link rel="stylesheet" href="vertelplaat.css?v=20260830-2">
 <link rel="stylesheet" href="vertelplaat-kind.css?v=20260831-8">
 
@@ -546,6 +546,26 @@
 </div>
 
 <!-- ============ SCHERM: DIER EN JONG ============ -->
+<!-- ============ SCHERM: INSTRUCTIETAAL — LUISTER EN KIES HANDELING ============ -->
+<div id="scherm-taak-instructie" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>🧭 Luister en voer uit</h1>
+    <span class="teller"><span id="taak-instructie-klaar">0</span>/<span id="taak-instructie-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main instructie-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-instructie-ronde">Ronde 1 van 3</span></div>
+    <div class="taak-oef-balk-wrap"><div class="taak-oef-balk-vul" id="taak-instructie-balk" style="width:0%"></div></div>
+    <div class="instructie-opdrachtkaart">
+      <button class="instructie-luisterknop" onclick="taakInstructieHoor()" aria-label="Hoor de opdracht opnieuw">🔊</button>
+      <strong id="taak-instructie-zin">Luister naar de opdracht.</strong>
+    </div>
+    <p class="taak-oef-vraag">Welk beeld toont wat je moet doen?</p>
+    <div class="dierjong-opties instructie-opties" id="taak-instructie-opties"></div>
+    <div class="taak-schrijven-feedback" id="taak-instructie-feedback"></div>
+  </main>
+</div>
+
 <div id="scherm-taak-onderdelen" class="scherm">
   <header class="modus-header taak-header">
     <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
@@ -803,6 +823,7 @@
 <script src="themas/woorden-kleuren.js"></script>
 <script src="themas/woorden-vormen.js"></script>
 <script src="themas/woorden-doen.js"></script>
+<script src="themas/woorden-instructies.js?v=20260901-1"></script>
 <script src="themas/woorden-thuis.js?v=20260831-1"></script>
 <script src="themas/zinnen-school.js?v=20260830-1"></script>
 <script src="themas/zinnen-beleefd.js"></script>
@@ -818,7 +839,7 @@
 <script src="woordenbeheer.js"></script>
 <script src="picto.js?v=20260830-2"></script>
 <script src="auth.js"></script>
-<script src="app.js?v=20260901-2"></script>
+<script src="app.js?v=20260901-3"></script>
 <script src="vertelplaat.js?v=20260831-12"></script>
 
 </body>

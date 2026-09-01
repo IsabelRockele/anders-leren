@@ -2017,6 +2017,21 @@ window.PDFEngine = (function() {
   //  opties.verdeling: 'mengen' (alle items door elkaar — alleen zinvol als alle thema's dezelfde oefeningen hebben)
   //                    of 'per-thema' (default — elk thema apart)
   // ---------------------------------------------------------------
+  function tekenInstructieWerkblad(doc,thema,opgelost){
+    let y=tekenKop(doc,thema,opgelost?'Oplossing: begrijp de opdracht':'Oefening: begrijp de opdracht');
+    y=tekenPictoInstructie(doc,y,['👁️','✏️'],'Bekijk elk beeld. Schrijf het juiste opdrachtwoord op de lijn.');
+    const kandidaten=schud((thema.items||[]).filter(it=>['luisteren','papier','plaats','volgorde'].includes(it.categorie))).slice(0,8);
+    const bank=kandidaten.map(it=>it.tekst).sort(()=>Math.random()-.5).join('  •  ');
+    doc.setFillColor(255,248,224);doc.setDrawColor(230,175,55);doc.roundedRect(M,y,IB,22,3,3,'FD');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(65,58,48);doc.text(doc.splitTextToSize(bank,IB-10),M+5,y+7);y+=30;
+    kandidaten.forEach((it,i)=>{const col=i%2,rij=Math.floor(i/2),x=M+col*(IB/2),yy=y+rij*48;plaatsItemBeeld(doc,it,x+22,yy+15,32);doc.setDrawColor(120,120,120);doc.line(x+43,yy+20,x+IB/2-8,yy+20);if(opgelost){doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(KLEUR_OPL_R,KLEUR_OPL_G,KLEUR_OPL_B);doc.text(it.tekst,x+45,yy+17);}});
+    tekenVoet(doc);
+  }
+
+  function tekenInstructieHulpkaart(doc,thema){
+    const groepen=[['Opdrachten op papier',['papier']],['Plaats en volgorde',['plaats','volgorde']],['Rekentaal',['rekentaal','vergelijken']]];
+    groepen.forEach((groep,pagina)=>{if(pagina)doc.addPage();let y=tekenKop(doc,thema,'Hulpkaart: '+groep[0]);const items=(thema.items||[]).filter(it=>groep[1].includes(it.categorie));items.forEach((it,i)=>{const col=i%3,rij=Math.floor(i/3),w=IB/3,x=M+col*w,yy=y+rij*35;plaatsItemBeeld(doc,it,x+18,yy+13,25);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(45,42,50);const regels=doc.splitTextToSize(it.tekst,w-37);doc.text(regels,x+34,yy+11);});tekenVoet(doc);});
+  }
+
   const OEFENING_FUNCTIES = {
     koppel: tekenKoppel,
     overschrijf: tekenOverschrijf,
@@ -2030,6 +2045,8 @@ window.PDFEngine = (function() {
     dierJongWerkblad: tekenDierJongWerkblad,
     geboorteWerkblad: tekenGeboorteWerkblad,
     onderdelenWerkblad: tekenOnderdelenWerkblad,
+    instructieWerkblad: tekenInstructieWerkblad,
+    instructieHulpkaart: tekenInstructieHulpkaart,
     zinnenKnippen: tekenZinnenKnippen,
     kleurkoppel: tekenKleurKoppel,
     woordzoeker: tekenWoordzoeker,
@@ -2121,7 +2138,7 @@ window.PDFEngine = (function() {
 
     let eerste = true;
     const add = () => { if (!eerste) doc.addPage(); eerste = false; };
-    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad','instructieWerkblad','instructieHulpkaart','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
     if (isMengen) {
       const allItems = [];
