@@ -8855,4 +8855,5 @@ h1, h2, h3 {
 .klank-beeldkaart.juist{border-color:#2f9e59;background:#eaf8ef}.klank-beeldkaart.fout{border-color:#e5484d;background:#fff0f0}
 .klank-picto .picto-img{width:100%;height:175px;object-fit:contain}
 .klank-hoor{position:absolute;right:9px;bottom:9px;width:48px;height:48px;display:grid;place-items:center;border-radius:50%;background:#ffba24;border:2px solid #fff;box-shadow:0 2px 8px #0002;font-size:23px}
+.lk-leeronderdeel-groep{margin:14px 0 18px;padding:13px;border:1px solid #d9e8e4;border-radius:16px;background:#fbfefd}.lk-leeronderdeel-groep h4{font-size:18px;color:#126655;margin:0}.lk-leeronderdeel-groep>p{margin:2px 0 10px;color:#66736f;font-size:14px}
 @media(max-width:800px){.klank-opties{grid-template-columns:repeat(2,1fr)}.klank-beeldkaart{min-height:170px}.klank-picto .picto-img{height:120px}}

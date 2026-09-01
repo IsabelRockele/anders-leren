@@ -1347,8 +1347,10 @@ function taakOefHoor() {
 
 function taakStartKlankUitluisteren() {
   if (!taakOefItem || !huidigThema || !huidigThema.klankLeerlijn) { taakRendererLuisterenOefenen(); toonScherm('scherm-taak-oefenen'); return; }
-  const alle=(verrijkThema(huidigThema).items||[]);
-  const afleiders=alle.filter(it=>it.id!==taakOefItem.id&&it.klank!==taakOefItem.klank).sort(()=>Math.random()-.5).slice(0,3);
+  const thema=verrijkThema(huidigThema),alle=(thema.items||[]),contrasten=(thema.klankContrasten&&thema.klankContrasten[taakOefItem.klank])||[];
+  const gerichte=alle.filter(it=>it.id!==taakOefItem.id&&contrasten.includes(it.klank)).sort(()=>Math.random()-.5);
+  const overige=alle.filter(it=>it.id!==taakOefItem.id&&it.klank!==taakOefItem.klank&&!contrasten.includes(it.klank)).sort(()=>Math.random()-.5);
+  const afleiders=[...gerichte,...overige].slice(0,3);
   const opties=[taakOefItem,...afleiders].sort(()=>Math.random()-.5),v=_voortgangVoorVaardigheid('luisteren');
   document.getElementById('taak-klank-klaar').textContent=v.klaar;document.getElementById('taak-klank-totaal').textContent=v.totaal;
   document.getElementById('taak-klank-balk').style.width=(v.totaal?v.klaar/v.totaal*100:0)+'%';_updateRondeBadge('taak-klank-ronde','luisteren');
@@ -1359,7 +1361,7 @@ function taakStartKlankUitluisteren() {
   opties.forEach(it=>{const kaart=document.createElement('button');kaart.className='klank-beeldkaart';kaart.dataset.id=it.id;kaart.innerHTML=`<span class="klank-picto">${Picto.html(it,{grootte:150})}</span><span class="klank-hoor" role="button" aria-label="Hoor dit woord">🔊</span>`;kaart.onclick=()=>taakKlankKies(it,kaart);kaart.querySelector('.klank-hoor').onclick=e=>{e.stopPropagation();AudioEngine.spreek(it.tekst);};vak.appendChild(kaart);});
   toonScherm('scherm-taak-klank');setTimeout(()=>{if(taakModus)taakKlankHoor();},180);
 }
-function taakKlankHoor(){if(taakOefItem)AudioEngine.spreek(taakOefItem.klankAudio||taakOefItem.klank);}
+function taakKlankHoor(){if(taakOefItem){const v=taakOefItem.klankVoorbeeld;AudioEngine.spreek(v?`Luister: ${v}. Zoek hetzelfde klankje.`:(taakOefItem.klankAudio||taakOefItem.klank),{snelheid:.82});}}
 async function taakKlankKies(gekozen,knop){
   if(!taakOefItem)return;const juist=gekozen.id===taakOefItem.id,feedback=document.getElementById('taak-klank-feedback');document.querySelectorAll('.klank-beeldkaart').forEach(b=>b.disabled=true);
   if(juist){knop.classList.add('juist');feedback.textContent=`Goed zo! Zeg “${taakOefItem.tekst}” nu zelf na.`;AudioEngine.spreek(taakOefItem.tekst);await _registreerAntwoord(taakOefItem.id,'luisteren',true);setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},1400);}

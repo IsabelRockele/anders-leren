@@ -3733,16 +3733,18 @@ function rendererTaakModal(huidigeTaak) {
            </div>`
         : '';
 
+      const renderLeeronderdeel = o => {
+        const ids=lkTaakLeeronderdeelIds(verrijkt,o);const gekozen=ids.filter(id=>_taakModalWoordIds.has(id)).length;
+        const status=gekozen===ids.length&&ids.length?'aan':(gekozen?'deels':'');const teken=status==='aan'?'✓':(status==='deels'?'−':'+');
+        return `<button type="button" class="lk-leeronderdeel ${status}" aria-pressed="${status==='aan'}" onclick="lkTaakKiesLeeronderdeel('${o.id}')"><span>${o.icoon||'📚'}</span><b>${o.naam}</b><small>${o.uitleg||''}</small><i>${teken}</i></button>`;
+      };
+      const onderdeelKaarten = Array.isArray(verrijkt.leeronderdeelGroepen)
+        ? verrijkt.leeronderdeelGroepen.map(g=>`<section class="lk-leeronderdeel-groep"><h4>${g.naam}</h4><p>${g.uitleg||''}</p><div class="lk-leeronderdelen-grid">${verrijkt.leeronderdelen.filter(o=>o.groep===g.id).map(renderLeeronderdeel).join('')}</div></section>`).join('')
+        : `<div class="lk-leeronderdelen-grid">${(verrijkt.leeronderdelen||[]).map(renderLeeronderdeel).join('')}</div>`;
       const onderdelenHtml = Array.isArray(verrijkt.leeronderdelen) && verrijkt.leeronderdelen.length
         ? `<div class="lk-leeronderdelen">
              <div class="lk-leeronderdelen-kop"><strong>Kies één of meer leeronderdelen</strong><span>Klik opnieuw om uit te zetten. Losse woorden kan je daarna nog aanpassen.</span></div>
-             <div class="lk-leeronderdelen-grid">
-               ${verrijkt.leeronderdelen.map(o => {
-                 const ids=lkTaakLeeronderdeelIds(verrijkt,o);const gekozen=ids.filter(id=>_taakModalWoordIds.has(id)).length;
-                 const status=gekozen===ids.length&&ids.length?'aan':(gekozen?'deels':'');const teken=status==='aan'?'✓':(status==='deels'?'−':'+');
-                 return `<button type="button" class="lk-leeronderdeel ${status}" aria-pressed="${status==='aan'}" onclick="lkTaakKiesLeeronderdeel('${o.id}')"><span>${o.icoon||'📚'}</span><b>${o.naam}</b><small>${o.uitleg||''}</small><i>${teken}</i></button>`;
-               }).join('')}
-             </div>
+             ${onderdeelKaarten}
              ${verrijkt.id==='w-instructies'?'<div class="lk-leeronderdeel-uitleg"><b>Begrijpen:</b> kies de juiste handeling. <b>Digitaal doen:</b> voer de opdracht echt uit op het scherm. <b>Op papier:</b> oefen dezelfde instructies verder op een werkblad.</div>':''}
            </div>`
         : '';
