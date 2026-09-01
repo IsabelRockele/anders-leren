@@ -324,7 +324,8 @@ window.PDFEngine = (function() {
     const kB = IB * 0.38;
     const xL = M;
     const xR = M + IB - kB;
-    const rH = 28;
+    const kaartH = 30;
+    const rH = 34;
 
     items.forEach((_, i) => {
       const yR = y + i * rH;
@@ -333,25 +334,25 @@ window.PDFEngine = (function() {
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.5);
-      doc.roundedRect(xL, yR, kB, 22, 3, 3, 'FD');
-      plaatsItemBeeld(doc, links[i], xL + kB / 2, yR + 11, 16);
+      doc.roundedRect(xL, yR, kB, kaartH, 3, 3, 'FD');
+      plaatsItemBeeld(doc, links[i], xL + kB / 2, yR + kaartH / 2, 27);
 
       // Verbindingspunten
       doc.setFillColor(45, 42, 50);
-      doc.circle(xL + kB + 2, yR + 11, 1, 'F');
+      doc.circle(xL + kB + 2, yR + kaartH / 2, 1, 'F');
 
       // Woord rechts
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(220, 210, 190);
-      doc.roundedRect(xR, yR, kB, 22, 3, 3, 'FD');
+      doc.roundedRect(xR, yR, kB, kaartH, 3, 3, 'FD');
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(45, 42, 50);
-      doc.text(rechts[i].tekst, xR + kB / 2, yR + 14, { align: 'center' });
+      doc.text(rechts[i].tekst, xR + kB / 2, yR + 18, { align: 'center' });
       doc.setFont('helvetica', 'normal');
 
       doc.setFillColor(45, 42, 50);
-      doc.circle(xR - 2, yR + 11, 1, 'F');
+      doc.circle(xR - 2, yR + kaartH / 2, 1, 'F');
     });
 
     // OPLOSSING: trek groene lijnen tussen juiste paren
@@ -359,12 +360,12 @@ window.PDFEngine = (function() {
       doc.setDrawColor(KLEUR_OPL_R, KLEUR_OPL_G, KLEUR_OPL_B);
       doc.setLineWidth(0.7);
       items.forEach((_, i) => {
-        const yLinks = y + i * rH + 11;
+        const yLinks = y + i * rH + kaartH / 2;
         // Vind de positie van het juiste woord rechts
         const linksItem = links[i];
         const rechtsIdx = rechts.findIndex(r => r.id === linksItem.id);
         if (rechtsIdx !== -1) {
-          const yRechts = y + rechtsIdx * rH + 11;
+          const yRechts = y + rechtsIdx * rH + kaartH / 2;
           doc.line(xL + kB + 2, yLinks, xR - 2, yRechts);
         }
       });
@@ -396,7 +397,7 @@ window.PDFEngine = (function() {
       doc.setDrawColor(220, 210, 190);
       doc.setLineWidth(0.4);
       doc.roundedRect(x, yR, 18, 18, 2, 2, 'FD');
-      plaatsItemBeeld(doc, w, x + 9, yR + 9, 13);
+      plaatsItemBeeld(doc, w, x + 9, yR + 9, 16);
 
       // Voorbeeldwoord lichtgrijs
       doc.setFontSize(13);
@@ -1316,6 +1317,7 @@ window.PDFEngine = (function() {
     dieren:      { label: 'dieren',      emoji: '🐶' },
     natuur:      { label: 'natuur',      emoji: '🌳' },
     weer:        { label: 'weer',        emoji: '☀️' },
+    'jonge-dieren': { label: 'jong van een dier', emoji: '🐣' },
     // Cijfers
     getallen:    { label: 'getallen',    emoji: '🔢' },
     hoeveelheid: { label: 'hoeveelheid', emoji: '➕' },
@@ -1774,18 +1776,27 @@ window.PDFEngine = (function() {
     const genummerd = schud(bruikbaar).map((item, i) => ({ item, nummer:i + 1 }));
     const nummerPerId = Object.fromEntries(genummerd.map(x => [x.item.id, x.nummer]));
     const plaatX=M, plaatY=y+3, plaatW=IB, plaatH=120;
-    doc.addImage(_losseAfbeeldingCache[plaatPad], 'PNG', plaatX, plaatY, plaatW, plaatH);
+    // Behoud altijd de oorspronkelijke beeldverhouding. Een brede vertelplaat
+    // mag niet hoger worden uitgerekt om toevallig het hele vaste vak te vullen.
+    let beeldX=plaatX,beeldY=plaatY,beeldW=plaatW,beeldH=plaatH;
+    try{
+      const info=doc.getImageProperties(_losseAfbeeldingCache[plaatPad]),verhouding=info.width/info.height,vakVerhouding=plaatW/plaatH;
+      if(verhouding>vakVerhouding){beeldH=plaatW/verhouding;beeldY=plaatY+(plaatH-beeldH)/2;}
+      else{beeldW=plaatH*verhouding;beeldX=plaatX+(plaatW-beeldW)/2;}
+    }catch(e){console.warn('Beeldverhouding kon niet worden gelezen voor',plaatPad,e);}
+    doc.addImage(_losseAfbeeldingCache[plaatPad], 'PNG', beeldX, beeldY, beeldW, beeldH);
 
     bruikbaar.forEach(item => {
       const [px,py] = posities[item.id];
-      const doelX=plaatX + plaatW * px / 100, doelY=plaatY + plaatH * py / 100;
+      const doelX=beeldX + beeldW * px / 100, doelY=beeldY + beeldH * py / 100;
       // Zet het invulrondje naast het voorwerp en wijs het met een lijntje aan.
       // Zo blijft het eigenlijke beeld zichtbaar en weet het kind toch exact
       // bij welke plaats het rondje hoort.
       const dx = px > 76 ? -8 : 8;
       const dy = py < 20 ? 7 : -7;
-      const cx=Math.max(plaatX+5,Math.min(plaatX+plaatW-5,doelX+dx));
-      const cy=Math.max(plaatY+5,Math.min(plaatY+plaatH-5,doelY+dy));
+      const extraOmhoog=['hond','kat','vogel'].includes(item.id)?-5:0;
+      const cx=Math.max(beeldX+5,Math.min(beeldX+beeldW-5,doelX+dx));
+      const cy=Math.max(beeldY+5,Math.min(beeldY+beeldH-5,doelY+dy+extraOmhoog));
       doc.setDrawColor(25,116,98); doc.setLineWidth(.65);
       doc.line(doelX,doelY,cx,cy);
       doc.setFillColor(255,255,255); doc.setDrawColor(25,116,98); doc.setLineWidth(1);
