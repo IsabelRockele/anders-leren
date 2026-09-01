@@ -3167,6 +3167,7 @@ function rendererVrijModal() {
 
   const groepen = [
     { titel: 'Startpakket — voor wie net begint', emoji: '🌱', themas: ALLE_THEMAS_LK.filter(t => t.categorie === 'startpakket') },
+    { titel: 'Klanken & lezen', emoji: '🔤', themas: ALLE_THEMAS_LK.filter(t => t.type === 'klanken') },
     { titel: 'Woorden-thema\u2019s', emoji: '📚', themas: ALLE_THEMAS_LK.filter(t => t.type === 'woorden') },
     { titel: 'Zinnen-thema\u2019s', emoji: '💬', themas: ALLE_THEMAS_LK.filter(t => t.type === 'zinnen') }
   ];
@@ -3550,6 +3551,11 @@ function lkOpenVrijeOefentest() {
   _taakModalToetsen = new Set(['luisteren']);
   _taakModalZinscontext = false;
   rendererTaakModal(null);
+}
+
+function lkOpenKlankenOefentest() {
+  lkOpenVrijeOefentest();
+  lkTaakKiesThema('klanken-lezen');
 }
 
 function rendererTaakModal(huidigeTaak) {

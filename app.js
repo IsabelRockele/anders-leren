@@ -18,9 +18,13 @@ const THEMAS_STARTPAKKET = _veiligThemas([
   ['THEMA_STARTPAKKET', 'startpakket.js'],
 ]);
 
+// Aparte leerlijn voor technisch lezen — niet mengen met woordenschatthema's.
+const THEMAS_KLANKEN = _veiligThemas([
+  ['THEMA_KLANKEN_LEZEN', 'klanken-lezen.js'],
+]);
+
 // Leerlijn-thema's — in volgorde van eenvoud
 const THEMAS_WOORDEN = _veiligThemas([
-  ['THEMA_KLANKEN_LEZEN', 'klanken-lezen.js'],
   ['THEMA_WOORDEN_KLAS', 'woorden-klas.js'],
   ['THEMA_WOORDEN_LICHAAM', 'woorden-lichaam.js'],
   ['THEMA_WOORDEN_ETEN', 'woorden-eten.js'],
@@ -42,7 +46,7 @@ const THEMAS_ZINNEN = _veiligThemas([
   ['THEMA_ZINNEN_TIJD', 'zinnen-tijd.js'],
 ]);
 
-const ALLE_THEMAS = [...THEMAS_STARTPAKKET, ...THEMAS_WOORDEN, ...THEMAS_ZINNEN];
+const ALLE_THEMAS = [...THEMAS_STARTPAKKET, ...THEMAS_KLANKEN, ...THEMAS_WOORDEN, ...THEMAS_ZINNEN];
 
 // State
 let huidigThema = null;

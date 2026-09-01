@@ -24,7 +24,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="style.css?v=20260901-8">
+  <link rel="stylesheet" href="style.css?v=20260901-9">
   <link rel="stylesheet" href="taalondersteuning.css?v=1">
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -62,6 +62,7 @@
 
       <div class="lk-nav-groep">2 · AANBIEDEN</div>
       <button class="lk-tab"        data-tab="taken"      onclick="lkKiesTab('taken')">      <span class="lk-nav-icoon">▶️</span> <span class="lk-nav-tekst">Online oefenen</span></button>
+      <button class="lk-tab"        data-tab="klanken"    onclick="lkKiesTab('klanken')">    <span class="lk-nav-icoon">🔤</span> <span class="lk-nav-tekst">Klanken &amp; lezen</span></button>
       <button class="lk-tab"        data-tab="werkbladen" onclick="lkKiesTab('werkbladen')"> <span class="lk-nav-icoon">📝</span> <span class="lk-nav-tekst">Oefenen op papier</span></button>
       <button class="lk-tab"        data-tab="woorden"    onclick="lkKiesTab('woorden')">    <span class="lk-nav-icoon">🗂️</span> <span class="lk-nav-tekst">Woordenbibliotheek</span></button>
 
@@ -272,6 +273,28 @@
     <div class="lk-vak">
       <h2>👥 Groepen in dit schooljaar</h2>
       <div id="tg-groepen" class="tg-groepen"><p class="tg-leeg">Bezig met laden…</p></div>
+    </div>
+  </div>
+
+  <!-- ============ TAB: TAKEN ============ -->
+  <div id="lk-tab-klanken" class="lk-tab-inhoud">
+    <div class="lk-vak klanken-start">
+      <h2>🔤 Klanken &amp; lezen</h2>
+      <p>Dit is een <strong>aparte leerlijn voor leren lezen</strong>. Ze staat niet tussen de woordenschatthema’s.</p>
+      <div class="klanken-overzicht">
+        <article><span>🔸</span><h3>Korte klanken</h3><p>a · e · i · o · u</p></article>
+        <article><span>➖</span><h3>Lange klanken</h3><p>aa · ee · oo · uu</p></article>
+        <article><span>🔗</span><h3>Tweetekenklanken</h3><p>oe · eu · ui · ie · ei/ij · au/ou</p></article>
+        <article><span>🔤</span><h3>Medeklinkers</h3><p>m · s · v · l · r · b · k · p</p></article>
+      </div>
+      <div class="klanken-kindroute">
+        <h3>Wat krijgt het kind?</h3>
+        <ol><li>Het hoort een voorbeeldwoord met de gekozen klank.</li><li>Het ziet vier grote afbeeldingen zonder geschreven woorden.</li><li>Bij iedere afbeelding kan het het woord horen.</li><li>Het kiest het juiste beeld en zegt het woord na.</li><li>Na een fout krijgt het minder keuzes en komt de klank later terug.</li></ol>
+      </div>
+      <div class="klanken-acties">
+        <button class="lk-knop-mini klanken-hoofdknop" onclick="lkOpenKlankenOefentest()">👩‍🏫 Klankoefeningen zelf uitproberen</button>
+        <button class="lk-knop-mini" onclick="lkKiesTab('taken')">👥 Voor een kind klaarzetten</button>
+      </div>
     </div>
   </div>
 
@@ -518,7 +541,7 @@
   <script src="themas/woorden-lichaam.js?v=20260830-17"></script>
 <script src="themas/woorden-eten.js?v=20260830-19"></script>
 <script src="themas/woorden-familie.js?v=20260831-2"></script>
-<script src="themas/klanken-lezen.js?v=20260901-2"></script>
+<script src="themas/klanken-lezen.js?v=20260901-3"></script>
 <script src="themas/woorden-dieren.js?v=20260901-4"></script>
 <script src="themas/woorden-cijfers.js"></script>
 <script src="themas/woorden-kleuren.js"></script>
@@ -548,7 +571,7 @@
 <script src="afbeelding-upload.js"></script>
 <script src="pdf-engine.js?v=20260901-4"></script>
 <script src="rapport-engine.js"></script>
-<script src="leerkracht.js?v=20260901-8"></script>
+<script src="leerkracht.js?v=20260901-9"></script>
 <script src="centrale-klaslijsten.js?v=20260830-2"></script>
 <script src="taalondersteuning.js?v=6"></script>
 
