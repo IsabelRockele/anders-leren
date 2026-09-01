@@ -1278,14 +1278,7 @@ function taakRendererLuisterenOefenen() {
   _updateRondeBadge('taak-oef-ronde', 'luisteren');
 
   // Bouw 4 woord-knoppen: het juiste + 3 afleiders uit het thema
-  const verrijkt = verrijkThema(huidigThema);
-  const beschikbAfl = verrijkt.items.filter(x => x.id !== taakOefItem.id);
-  const afl = [];
-  while (afl.length < 3 && beschikbAfl.length > 0) {
-    const idx = Math.floor(Math.random() * beschikbAfl.length);
-    afl.push(beschikbAfl[idx]);
-    beschikbAfl.splice(idx, 1);
-  }
+  const afl = _taakAfleidersBinnenLeeronderdeel(taakOefItem, 3);
   const opties = [taakOefItem, ...afl].sort(() => Math.random() - 0.5);
 
   const div = document.getElementById('taak-oef-opties');
@@ -1351,15 +1344,36 @@ function taakStartLuisterenToets() {
 // Gebruik eerst afleiders uit de gekozen taak. Alleen bij minder dan vier
 // taakwoorden vullen we aan met beelden uit hetzelfde thema.
 function _taakToetsBeeldOpties(item) {
-  const kandidaten = [];
-  const gezien = new Set([item.id]);
-  [...taakItems, ...verrijkThema(huidigThema).items].forEach(opt => {
-    if (!opt || gezien.has(opt.id) || _zijnVisueelVerwarrend(item, opt)) return;
-    gezien.add(opt.id);
-    kandidaten.push(opt);
-  });
-  return [item, ...kandidaten.sort(() => Math.random() - .5).slice(0, 3)]
+  return [item, ..._taakAfleidersBinnenLeeronderdeel(item, 3, true)]
     .sort(() => Math.random() - .5);
+}
+
+// Houd antwoordkeuzes inhoudelijk bij elkaar. Een boomdeel krijgt dus eerst
+// andere boomdelen als afleider, nooit willekeurig een dier of paddenstoeldeel.
+function _taakAfleidersBinnenLeeronderdeel(item, aantal, vermijdVisueleVerwarring) {
+  const thema = verrijkThema(huidigThema);
+  const alles = thema.items || [];
+  const onderdeel = Array.isArray(thema.leeronderdelen) ? thema.leeronderdelen.find(o => {
+    if (Array.isArray(o.itemIds) && o.itemIds.includes(item.id)) return true;
+    return Array.isArray(o.categorieen) && o.categorieen.includes(item.categorie);
+  }) : null;
+  const toegestaan = onderdeel
+    ? new Set(Array.isArray(onderdeel.itemIds) ? onderdeel.itemIds : alles.filter(x => onderdeel.categorieen.includes(x.categorie)).map(x=>x.id))
+    : null;
+  const gezien = new Set([item.id]);
+  const kandidaten = [];
+  const voegToe = lijst => lijst.forEach(opt => {
+    if (!opt || gezien.has(opt.id)) return;
+    if (vermijdVisueleVerwarring && _zijnVisueelVerwarrend(item,opt)) return;
+    gezien.add(opt.id);kandidaten.push(opt);
+  });
+  if (toegestaan) voegToe(alles.filter(x=>toegestaan.has(x.id)));
+  voegToe(alles.filter(x=>x.categorie===item.categorie));
+  voegToe((taakItems||[]));
+  // Alleen wanneer een heel klein leeronderdeel onvoldoende alternatieven heeft,
+  // vullen we aan uit het thema. Daardoor blijft elke oefening uitvoerbaar.
+  if (kandidaten.length<aantal) voegToe(alles);
+  return kandidaten.sort(()=>Math.random()-.5).slice(0,aantal);
 }
 
 // Sommige verwantschappen zijn op een los portret niet eerlijk uit elkaar te
@@ -1506,10 +1520,24 @@ function taakStartLuisterenVerbinden() {
     toonScherm('scherm-taak-oefenen');
     return;
   }
-  // Verdeel in groepjes (max 5 per scherm) en zet als queue
-  // Schud eerst zodat de groepjes elke ronde anders zijn
-  const geschud = [...kandidaten].sort(() => Math.random() - 0.5);
-  _verbindenGroepjesQueue = _verbindenVeiligeGroepjes(geschud, 5);
+  // Verdeel eerst per leeronderdeel. Boomdelen, paddenstoeldelen en dieren
+  // verschijnen daardoor nooit door elkaar in één verbindscherm.
+  const thema = verrijkThema(huidigThema);
+  const perContext = new Map();
+  kandidaten.forEach(item => {
+    const onderdeel = Array.isArray(thema.leeronderdelen) ? thema.leeronderdelen.find(o =>
+      (Array.isArray(o.itemIds) && o.itemIds.includes(item.id)) ||
+      (Array.isArray(o.categorieen) && o.categorieen.includes(item.categorie))
+    ) : null;
+    const sleutelContext = onderdeel ? onderdeel.id : (item.categorie || '_algemeen');
+    if (!perContext.has(sleutelContext)) perContext.set(sleutelContext, []);
+    perContext.get(sleutelContext).push(item);
+  });
+  _verbindenGroepjesQueue = [];
+  [...perContext.values()].sort(()=>Math.random()-.5).forEach(groep => {
+    const geschud = [...groep].sort(()=>Math.random()-.5);
+    _verbindenGroepjesQueue.push(..._verbindenVeiligeGroepjes(geschud,5));
+  });
   _toonVolgendVerbindenGroepje();
 }
 
@@ -1522,6 +1550,12 @@ function _toonVolgendVerbindenGroepje() {
     return;
   }
   const groep = _verbindenGroepjesQueue.shift();
+  if (groep.length < 2) {
+    taakOefItem = groep[0];
+    taakRendererLuisterenOefenen();
+    toonScherm('scherm-taak-oefenen');
+    return;
+  }
   _verbindenItems = groep;
   _verbindenBeelden = [...groep].sort(() => Math.random() - 0.5);
   _verbindenGekozenWoord = null;
@@ -1756,14 +1790,7 @@ function taakStartLuisterenVerslepen() {
   _verslepenItem = item;
 
   // 3 afleiders + juist woord
-  const verrijkt = verrijkThema(huidigThema);
-  const beschikbAfl = verrijkt.items.filter(x => x.id !== item.id);
-  const afl = [];
-  while (afl.length < 3 && beschikbAfl.length > 0) {
-    const idx = Math.floor(Math.random() * beschikbAfl.length);
-    afl.push(beschikbAfl[idx]);
-    beschikbAfl.splice(idx, 1);
-  }
+  const afl = _taakAfleidersBinnenLeeronderdeel(item,3);
   _verslepenOpties = [item, ...afl].sort(() => Math.random() - 0.5);
   _verslepenAfHandeling = false;
 
@@ -2085,16 +2112,7 @@ function taakRendererLezenOefenen() {
   _updateRondeBadge('taak-lezen-oef-ronde', 'lezen');
 
   // Bouw 4 BEELD-knoppen: het juiste + 3 afleiders
-  const verrijkt = verrijkThema(huidigThema);
-  const beschikbAfl = verrijkt.items.filter(x =>
-    x.id !== taakOefItem.id && !_zijnVisueelVerwarrend(taakOefItem, x)
-  );
-  const afl = [];
-  while (afl.length < 3 && beschikbAfl.length > 0) {
-    const idx = Math.floor(Math.random() * beschikbAfl.length);
-    afl.push(beschikbAfl[idx]);
-    beschikbAfl.splice(idx, 1);
-  }
+  const afl = _taakAfleidersBinnenLeeronderdeel(taakOefItem,3,true);
   const opties = [taakOefItem, ...afl].sort(() => Math.random() - 0.5);
 
   const div = document.getElementById('taak-lezen-oef-opties');

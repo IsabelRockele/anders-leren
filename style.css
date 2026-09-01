@@ -5178,6 +5178,7 @@ h1, h2, h3 {
 .verbinden-beeld {
   justify-content: flex-start;
   gap: 12px;
+  overflow: hidden;
 }
 
 .verbinden-tekst {
@@ -5192,7 +5193,7 @@ h1, h2, h3 {
 }
 
 .verbinden-pic .picto-emoji { font-size: 82px; }
-.verbinden-pic .picto-img   { height: 82px; width: auto; max-width: 120px; object-fit: contain; }
+.verbinden-pic .picto-img   { height: 76px !important; width: 100% !important; max-width: 112px; object-fit: contain; display:block; }
 
 /* Knoppunten waar lijnen aan vastzitten */
 .verbinden-knoppunt {
@@ -5234,7 +5235,7 @@ h1, h2, h3 {
   .verbinden-kolommen { gap: 30px; }
   .verbinden-kaart { font-size: 14px; padding: 8px 10px; min-height: 74px; }
   .verbinden-pic .picto-emoji { font-size: 62px; }
-  .verbinden-pic .picto-img   { height: 62px; max-width: 90px; }
+  .verbinden-pic .picto-img   { height: 58px !important; max-width: 82px; }
 }
 
 /* =================================================================
@@ -8802,8 +8803,8 @@ h1, h2, h3 {
   #scherm-taak-verbinden .verbinden-wrap{margin:0 auto 3px;padding:5px 7px;max-width:700px}
   #scherm-taak-verbinden .verbinden-kolom-woorden,
   #scherm-taak-verbinden .verbinden-kolom-beelden{gap:5px}
-  #scherm-taak-verbinden .verbinden-kaart{min-height:52px;height:52px;padding:3px 10px}
-  #scherm-taak-verbinden .verbinden-pic .picto-img{height:45px;max-width:76px}
+  #scherm-taak-verbinden .verbinden-kaart{min-height:58px;height:58px;padding:4px 10px}
+  #scherm-taak-verbinden .verbinden-pic .picto-img{height:48px !important;max-width:76px;width:100% !important;object-fit:contain}
   #scherm-taak-verbinden .verbinden-pic .picto-emoji{font-size:43px}
   #scherm-taak-verslepen .verslepen-rij{margin:5px auto}
   #scherm-taak-verslepen .verslepen-beeld .picto-img{height:clamp(110px,20vh,165px)}
