@@ -192,7 +192,7 @@ function rendererTaakZone() {
     aantalEl.textContent = n === 1 ? '1 woord' : `${n} woorden`;
   }
   if (routeEl) {
-    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
+    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','dier-jong':'Dier en jong','geboorte-sorteren':'Ei of buik','onderdelen-aanwijzen':'Onderdelen aanwijzen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
     const stappen = ['Kijken'];
     (taak.vaardigheden || []).forEach(v => {
       (taak['oefenvormen_' + v] || []).forEach(vorm => stappen.push(namen[vorm] || vorm));
@@ -461,6 +461,27 @@ const TAAK_INTRO_CONFIG = {
     uitleg: 'Sleep het juiste woord naar het lege vak naast het beeld.',
     bouwDemo: _bouwDemoLuisterenVerslepen
   },
+  'luisteren-oef:geboorte-sorteren': {
+    icoon: '🥚',
+    kop: '👂 Mijn taak — sorteren',
+    titel: 'Uit een ei of uit de buik?',
+    uitleg: 'Kijk naar het dier. Kies: komt het uit een ei of uit de buik van de mama?',
+    bouwDemo: _bouwDemoGeboorteSorteren
+  },
+  'luisteren-oef:dier-jong': {
+    icoon: '🐣',
+    kop: '👂 Mijn taak — dier en jong',
+    titel: 'Welk jong hoort erbij?',
+    uitleg: 'Kijk naar het grote dier. Klik op het juiste jonge dier.',
+    bouwDemo: _bouwDemoDierJong
+  },
+  'luisteren-oef:onderdelen-aanwijzen': {
+    icoon: '👉',
+    kop: '👂 Mijn taak — onderdelen',
+    titel: 'Wijs het onderdeel aan',
+    uitleg: 'Hoor en lees het woord. Klik op de juiste plaats op de grote afbeelding.',
+    bouwDemo: _bouwDemoOnderdelen
+  },
   'luisteren-toets': {
     icoon: '🎯',
     kop: '🎯 Mijn taak — luistertoets',
@@ -622,6 +643,18 @@ function _bouwDemoLuisterenOef(container) {
     _bouwDemoLuisterenVerslepen(container);
     return;
   }
+  if (oefenvorm === 'geboorte-sorteren') {
+    _bouwDemoGeboorteSorteren(container);
+    return;
+  }
+  if (oefenvorm === 'dier-jong') {
+    _bouwDemoDierJong(container);
+    return;
+  }
+  if (oefenvorm === 'onderdelen-aanwijzen') {
+    _bouwDemoOnderdelen(container);
+    return;
+  }
   // Default = klikspel
   const item = _demoVoorbeelditem();
   const afl = _demoExtraItems(item, 3);
@@ -647,6 +680,22 @@ function _bouwDemoLuisterenOef(container) {
     </div>
   `;
   container.innerHTML = html;
+}
+
+function _bouwDemoGeboorteSorteren(container) {
+  const item = (taakItems || []).find(it => huidigThema && huidigThema.geboorteGroepen && huidigThema.geboorteGroepen['uit-een-ei'].includes(it.id)) || _demoVoorbeelditem();
+  container.innerHTML = `<div class="demo-blok demo-geboorte"><div class="demo-label">Voorbeeld — sorteren:</div><div class="demo-geboorte-item">${Picto.html(item,{grootte:88})}<strong>${item.tekst}</strong></div><div class="demo-geboorte-keuzes"><div class="demo-knop demo-juist">🥚 uit een ei</div><div class="demo-knop">🐾 uit de buik</div></div></div>`;
+}
+
+function _bouwDemoDierJong(container) {
+  const paar = huidigThema && Array.isArray(huidigThema.dierJongParen) ? huidigThema.dierJongParen[0] : null;
+  const groot = paar && taakItems.find(it=>it.id===paar[0]) || _demoVoorbeelditem();
+  const jong = paar && taakItems.find(it=>it.id===paar[1]) || _demoVoorbeelditem();
+  container.innerHTML = `<div class="demo-blok demo-geboorte"><div class="demo-label">Voorbeeld — dier en jong:</div><div class="demo-geboorte-item">${Picto.html(groot,{grootte:78})}<span>→</span>${Picto.html(jong,{grootte:78})}</div><div class="demo-pijl">Kies het juiste jong</div></div>`;
+}
+
+function _bouwDemoOnderdelen(container) {
+  container.innerHTML = `<div class="demo-blok demo-geboorte"><div class="demo-label">Voorbeeld — onderdeel aanwijzen:</div><div class="demo-geboorte-item"><span style="font-size:74px">🌳</span><strong>de wortels</strong></div><div class="demo-pijl">👉 Klik op de wortels</div></div>`;
 }
 
 // Demo voor verbinden: 3 paren, 1 ervan al getekend met groene lijn
@@ -971,6 +1020,12 @@ function taakStartLuisterenOefenen() {
     taakStartLuisterenVerbinden();
   } else if (oefenvorm === 'verslepen') {
     taakStartLuisterenVerslepen();
+  } else if (oefenvorm === 'geboorte-sorteren') {
+    taakStartGeboorteSorteren();
+  } else if (oefenvorm === 'dier-jong') {
+    taakStartDierJong();
+  } else if (oefenvorm === 'onderdelen-aanwijzen') {
+    taakStartOnderdelenAanwijzen();
   } else {
     // Default = klikspel
     taakRendererLuisterenOefenen();
@@ -1016,6 +1071,13 @@ function _drempelVoor(vaardigheid, woordData) {
 //   - luisteren / lezen: altijd 3
 //   - schrijven: 2 standaard, 3 als er minstens één woord ooit fout is geweest
 function _maxRondesVoor(vaardigheid) {
+  if (vaardigheid === 'luisteren') {
+    const taak = Voortgang.getTaak();
+    const vormen = taak && Array.isArray(taak.oefenvormen_luisteren) ? taak.oefenvormen_luisteren.length : 0;
+    // Minstens drie oefenrondes, maar elke aangevinkte oefenvorm moet ook
+    // werkelijk één volledige ronde aan bod komen.
+    return Math.max(3, vormen);
+  }
   if (vaardigheid !== 'schrijven') return 3;
   const taak = Voortgang.getTaak();
   if (!taak || !taakItems) return 2;
@@ -1804,6 +1866,135 @@ async function _verslepenEinde(e) {
       woordEl.style.transform = '';
       _verslepenAfHandeling = false;
     }, 1200);
+  }
+}
+
+// =================================================================
+//  VERDIEPING DIEREN — sorteer: uit een ei of uit de buik
+// =================================================================
+let _onderdelenPlaat = null;
+
+function taakStartOnderdelenAanwijzen() {
+  if(!taakOefItem||!huidigThema||!huidigThema.onderdelenPlaten){taakStartLuisterenOefenen();return;}
+  _onderdelenPlaat=Object.values(huidigThema.onderdelenPlaten).find(p=>p.itemIds.includes(taakOefItem.id));
+  if(!_onderdelenPlaat){taakStartLuisterenOefenen();return;}
+  const v=_voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-onderdelen-klaar').textContent=v.klaar;
+  document.getElementById('taak-onderdelen-totaal').textContent=v.totaal;
+  document.getElementById('taak-onderdelen-balk').style.width=(v.totaal?v.klaar/v.totaal*100:0)+'%';
+  _updateRondeBadge('taak-onderdelen-ronde','luisteren');
+  document.getElementById('taak-onderdelen-doel').innerHTML=`<strong>${taakOefItem.tekst}</strong><button class="audio-knop hoor" onclick="taakOnderdelenHoor()"><span class="audio-icoon">🔊</span><span>Hoor het woord</span></button>`;
+  const plaat=document.getElementById('taak-onderdelen-plaat');
+  plaat.innerHTML=`<img src="${_onderdelenPlaat.beeld}" alt="Zoek het aangeduide onderdeel">`;
+  Object.entries(_onderdelenPlaat.hotspots||{}).forEach(([id,pos])=>{const b=document.createElement('button');b.className='onderdeel-hotspot';b.style.left=pos[0]+'%';b.style.top=pos[1]+'%';b.setAttribute('aria-label','Kies deze plaats');b.textContent='+';b.onclick=()=>taakOnderdeelKies(id,b);plaat.appendChild(b);});
+  document.getElementById('taak-onderdelen-feedback').textContent='';
+  toonScherm('scherm-taak-onderdelen');
+  setTimeout(()=>{if(taakModus)taakOnderdelenHoor();},180);
+}
+
+function taakOnderdelenHoor(){if(taakOefItem)AudioEngine.spreek(taakOefItem.tekst);}
+
+async function taakOnderdeelKies(id,knop){
+  if(!taakOefItem)return;
+  const feedback=document.getElementById('taak-onderdelen-feedback');
+  if(id===taakOefItem.id){
+    document.querySelectorAll('.onderdeel-hotspot').forEach(b=>b.disabled=true);knop.classList.add('juist');knop.textContent='✓';feedback.textContent='Goed zo!';
+    await _registreerAntwoord(taakOefItem.id,'luisteren',true);
+    setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},800);
+  }else{
+    knop.classList.add('fout');feedback.textContent='Kijk nog eens goed.';await Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');
+    setTimeout(()=>{knop.classList.remove('fout');feedback.textContent='';},750);
+  }
+}
+
+let _dierJongPaar = null;
+
+function taakStartDierJong() {
+  if (!taakOefItem || !huidigThema || !Array.isArray(huidigThema.dierJongParen)) { taakStartLuisterenOefenen(); return; }
+  _dierJongPaar = huidigThema.dierJongParen.find(p=>p.includes(taakOefItem.id));
+  if (!_dierJongPaar) { taakStartLuisterenOefenen(); return; }
+  const groot = taakItems.find(it=>it.id===_dierJongPaar[0]);
+  const juistJong = taakItems.find(it=>it.id===_dierJongPaar[1]);
+  if (!groot || !juistJong) { taakStartLuisterenOefenen(); return; }
+  const alleJongen = huidigThema.dierJongParen.map(p=>taakItems.find(it=>it.id===p[1])).filter(Boolean);
+  const opties = [juistJong,...alleJongen.filter(it=>it.id!==juistJong.id).sort(()=>Math.random()-.5).slice(0,3)].sort(()=>Math.random()-.5);
+  const v=_voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-dierjong-klaar').textContent=v.klaar;
+  document.getElementById('taak-dierjong-totaal').textContent=v.totaal;
+  document.getElementById('taak-dierjong-balk').style.width=(v.totaal?v.klaar/v.totaal*100:0)+'%';
+  _updateRondeBadge('taak-dierjong-ronde','luisteren');
+  document.getElementById('taak-dierjong-groot').innerHTML=Picto.html(groot,{grootte:150})+`<strong>${groot.tekst}</strong>`;
+  document.getElementById('taak-dierjong-feedback').textContent='';
+  const vak=document.getElementById('taak-dierjong-opties');vak.innerHTML='';
+  opties.forEach(it=>{const b=document.createElement('button');b.className='dierjong-keuze';b.innerHTML=Picto.html(it,{grootte:100})+`<strong>${it.tekst}</strong>`;b.onclick=()=>taakDierJongKies(it,b);vak.appendChild(b);});
+  toonScherm('scherm-taak-dierjong');
+  setTimeout(()=>{if(taakModus)AudioEngine.spreek(`Welk jong hoort bij ${groot.tekst}?`);},180);
+}
+
+async function taakDierJongKies(gekozen,knop) {
+  if(!_dierJongPaar)return;
+  const juist=gekozen.id===_dierJongPaar[1];
+  const feedback=document.getElementById('taak-dierjong-feedback');
+  document.querySelectorAll('.dierjong-keuze').forEach(b=>b.disabled=true);
+  if(juist){
+    knop.classList.add('juist');feedback.textContent='Goed zo!';
+    const taak=Voortgang.getTaak();
+    const behandeld=new Set((taak.rondeStatus&&taak.rondeStatus.luisteren&&taak.rondeStatus.luisteren.behandeldDezeRonde)||[]);
+    for(const id of _dierJongPaar){if(!behandeld.has(id))await _registreerAntwoord(id,'luisteren',true);}
+    setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},800);
+  }else{
+    knop.classList.add('fout');feedback.textContent='Dat is een ander jong. Probeer opnieuw.';
+    await Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');
+    setTimeout(()=>{document.querySelectorAll('.dierjong-keuze').forEach(b=>{b.disabled=false;b.classList.remove('fout')});feedback.textContent='';},950);
+  }
+}
+
+function taakStartGeboorteSorteren() {
+  if (!taakOefItem || !huidigThema || !huidigThema.geboorteGroepen) {
+    taakStartLuisterenOefenen();
+    return;
+  }
+  const groepen = huidigThema.geboorteGroepen;
+  const bestaat = Object.values(groepen).some(ids => ids.includes(taakOefItem.id));
+  if (!bestaat) {
+    _registreerAntwoord(taakOefItem.id,'luisteren',true).then(()=>taakStartLuisterenOefenen());
+    return;
+  }
+  const v = _voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-geboorte-klaar').textContent = v.klaar;
+  document.getElementById('taak-geboorte-totaal').textContent = v.totaal;
+  document.getElementById('taak-geboorte-balk').style.width = (v.totaal ? v.klaar / v.totaal * 100 : 0) + '%';
+  _updateRondeBadge('taak-geboorte-ronde','luisteren');
+  document.getElementById('taak-geboorte-beeld').innerHTML = Picto.html(taakOefItem,{grootte:150});
+  document.getElementById('taak-geboorte-woord').textContent = taakOefItem.tekst;
+  document.getElementById('taak-geboorte-feedback').textContent = '';
+  document.querySelectorAll('.geboorte-keuze').forEach(k=>{k.disabled=false;k.classList.remove('juist','fout');});
+  toonScherm('scherm-taak-geboorte');
+  setTimeout(()=>{if(taakModus)taakGeboorteHoor();},180);
+}
+
+function taakGeboorteHoor() {
+  if (taakOefItem) AudioEngine.spreek(taakOefItem.tekst);
+}
+
+async function taakGeboorteKies(groep, knop) {
+  if (!taakOefItem || !huidigThema || !huidigThema.geboorteGroepen) return;
+  const juist = (huidigThema.geboorteGroepen[groep] || []).includes(taakOefItem.id);
+  const feedback = document.getElementById('taak-geboorte-feedback');
+  document.querySelectorAll('.geboorte-keuze').forEach(k=>k.disabled=true);
+  if (juist) {
+    knop.classList.add('juist');
+    feedback.textContent = 'Goed zo!';
+    await _registreerAntwoord(taakOefItem.id,'luisteren',true);
+    setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},750);
+  } else {
+    knop.classList.add('fout');
+    feedback.textContent = 'Kijk nog eens goed.';
+    await Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');
+    setTimeout(()=>{
+      document.querySelectorAll('.geboorte-keuze').forEach(k=>{k.disabled=false;k.classList.remove('fout');});
+      feedback.textContent='';
+    },900);
   }
 }
 

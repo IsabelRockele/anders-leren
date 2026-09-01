@@ -3078,6 +3078,14 @@ h1, h2, h3 {
   max-width: 880px;
 }
 
+.lk-leeronderdelen{margin:0 0 14px;padding:12px;border:1.5px solid #b9dfd6;border-radius:14px;background:#f2fbf8}
+.lk-leeronderdelen-kop{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;color:#195e50}
+.lk-leeronderdelen-kop span{font-size:12px;color:#61736f}
+.lk-leeronderdelen-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.lk-leeronderdeel{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:3px 8px;min-height:70px;padding:9px;text-align:left;border:1.5px solid #cee5df;border-radius:11px;background:#fff;color:#2d2a32;cursor:pointer;font-family:'Fredoka',sans-serif}
+.lk-leeronderdeel>span{grid-row:1/3;font-size:25px}.lk-leeronderdeel b{font-size:14px}.lk-leeronderdeel small{font-size:11px;color:#6c7471;line-height:1.2}
+.lk-leeronderdeel:hover{border-color:#16866f;background:#eaf8f4}
+
 .lk-taak-modal-kop {
   position: sticky;
   top: -22px;
@@ -5203,6 +5211,14 @@ h1, h2, h3 {
   justify-content: center;
   margin-top: 12px;
 }
+
+.geboorte-main{max-width:900px}
+.geboorte-vraagkaart{display:grid;grid-template-columns:minmax(180px,1fr) minmax(220px,1fr);grid-template-rows:1fr auto;align-items:center;gap:8px 24px;margin:8px auto 10px;padding:14px 22px;max-width:700px;border:2px solid #e6ddc9;border-radius:20px;background:#fff}
+.geboorte-beeld{grid-row:1/3;display:grid;place-items:center;min-height:190px}.geboorte-beeld .picto-img{height:180px;max-width:230px;object-fit:contain}.geboorte-vraagkaart>strong{font:700 30px 'Fredoka',sans-serif;text-align:center}
+.geboorte-vraagkaart .audio-knop{justify-self:center}.geboorte-keuzes{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:760px;margin:8px auto}.geboorte-keuze{display:flex;align-items:center;justify-content:center;gap:14px;min-height:100px;padding:14px;border:3px solid #ddd4c2;border-radius:18px;background:#fff;font:700 21px 'Fredoka',sans-serif;cursor:pointer}.geboorte-keuze span{font-size:48px}.geboorte-keuze:hover{border-color:#ffb72b;background:#fff8e5}.geboorte-keuze.juist{border-color:#37a86b;background:#e5f8ec}.geboorte-keuze.fout{border-color:#df5353;background:#fff0f0}.geboorte-feedback{min-height:28px;text-align:center;font:700 20px 'Fredoka',sans-serif;color:#19664d}
+.dierjong-main{max-width:1000px}.dierjong-groot{display:flex;align-items:center;justify-content:center;gap:20px;min-height:190px;margin:4px auto 10px;padding:12px;border:2px solid #dfd7c7;border-radius:18px;background:#fff}.dierjong-groot .picto-img{height:170px;max-width:230px;object-fit:contain}.dierjong-groot strong{font:700 28px 'Fredoka',sans-serif}.dierjong-opties{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.dierjong-keuze{display:grid;place-items:center;gap:4px;min-height:145px;padding:8px;border:2.5px solid #ddd4c2;border-radius:16px;background:#fff;font:700 17px 'Fredoka',sans-serif;cursor:pointer}.dierjong-keuze .picto-img{height:100px;max-width:130px;object-fit:contain}.dierjong-keuze:hover{border-color:#ffb72b;background:#fff8e5}.dierjong-keuze.juist{border-color:#37a86b;background:#e5f8ec}.dierjong-keuze.fout{border-color:#df5353;background:#fff0f0}
+.onderdelen-main{max-width:900px}.onderdelen-doel{display:flex;align-items:center;justify-content:center;gap:18px;margin:3px auto 7px;padding:8px 16px;border:2px solid #f0c65e;border-radius:15px;background:#fff8df}.onderdelen-doel>strong{font:700 25px 'Fredoka',sans-serif}.onderdelen-plaat{position:relative;width:min(100%,760px);height:min(60vh,500px);margin:auto;border:2px solid #ded6c7;border-radius:18px;background:#fff;overflow:hidden}.onderdelen-plaat>img{width:100%;height:100%;object-fit:contain}.onderdeel-hotspot{position:absolute;transform:translate(-50%,-50%);display:grid;place-items:center;width:36px;height:36px;padding:0;border:3px solid #16866f;border-radius:50%;background:rgba(255,255,255,.62);color:#126b59;font:700 22px 'Fredoka',sans-serif;box-shadow:0 2px 8px #0004;cursor:pointer}.onderdeel-hotspot:hover{transform:translate(-50%,-50%) scale(1.12);background:rgba(234,248,244,.8)}.onderdeel-hotspot.juist{background:#39aa6d;color:#fff;border-color:#fff}.onderdeel-hotspot.fout{background:#db4f4f;color:#fff;border-color:#fff}
+.demo-geboorte-item{display:flex;align-items:center;justify-content:center;gap:18px;margin:12px}.demo-geboorte-item .picto-img{height:100px}.demo-geboorte-item strong{font-size:22px}.demo-geboorte-keuzes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 @media (max-width: 600px) {
   .verbinden-kolommen { gap: 30px; }
@@ -8782,6 +8798,20 @@ h1, h2, h3 {
   #scherm-taak-verslepen .verslepen-rij{margin:5px auto}
   #scherm-taak-verslepen .verslepen-beeld .picto-img{height:clamp(110px,20vh,165px)}
   #scherm-taak-verslepen .audio-knoppen{margin-bottom:7px}
+  #scherm-taak-dierjong .taak-oef-vraag,#scherm-taak-geboorte .taak-oef-vraag{margin:3px 0 5px}
+  #scherm-taak-dierjong .dierjong-groot{min-height:125px;margin:2px auto 6px;padding:6px}
+  #scherm-taak-dierjong .dierjong-groot .picto-img{height:115px}
+  #scherm-taak-dierjong .dierjong-opties{gap:8px}
+  #scherm-taak-dierjong .dierjong-keuze{min-height:112px;padding:5px}
+  #scherm-taak-dierjong .dierjong-keuze .picto-img{height:76px}
+  #scherm-taak-geboorte .geboorte-vraagkaart{min-height:0;margin:2px auto 5px;padding:7px 16px}
+  #scherm-taak-geboorte .geboorte-beeld{min-height:125px}
+  #scherm-taak-geboorte .geboorte-beeld .picto-img{height:120px}
+  #scherm-taak-geboorte .geboorte-keuzes{margin:4px auto;gap:10px}
+  #scherm-taak-geboorte .geboorte-keuze{min-height:72px;padding:7px;font-size:18px}
+  #scherm-taak-geboorte .geboorte-keuze span{font-size:34px}
+  #scherm-taak-onderdelen .onderdelen-doel{margin:2px auto 5px;padding:5px 12px}
+  #scherm-taak-onderdelen .onderdelen-plaat{height:47vh;max-height:390px}
 
   .taak-intro-main{padding:8px 16px;min-height:calc(100vh - 66px)}
   .taak-intro-uitlegblok{grid-template-columns:60px minmax(0,1fr) auto;gap:10px;padding:6px 10px}

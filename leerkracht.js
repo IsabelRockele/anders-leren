@@ -3661,6 +3661,19 @@ function rendererTaakModal(huidigeTaak) {
   const luisterenAan = _taakModalVaardigheden.has('luisteren');
   const lezenAan = _taakModalVaardigheden.has('lezen');
   const schrijvenAan = _taakModalVaardigheden.has('schrijven');
+  const geboorteIds = _modalThema && _modalThema.geboorteGroepen
+    ? new Set(Object.values(_modalThema.geboorteGroepen).flat()) : new Set();
+  const gekozenVoorGeboorte = [..._taakModalWoordIds].filter(id => geboorteIds.has(id));
+  const geboorteGroepenGekozen = _modalThema && _modalThema.geboorteGroepen
+    ? Object.values(_modalThema.geboorteGroepen).filter(ids => ids.some(id => _taakModalWoordIds.has(id))).length : 0;
+  const kanGeboorteSorteren = gekozenVoorGeboorte.length >= 4 && geboorteGroepenGekozen >= 2 && gekozenVoorGeboorte.length === _taakModalWoordIds.size;
+  const dierJongIds = _modalThema && Array.isArray(_modalThema.dierJongParen)
+    ? new Set(_modalThema.dierJongParen.flat()) : new Set();
+  const gekozenDierJong = [..._taakModalWoordIds].filter(id => dierJongIds.has(id));
+  const kanDierJongKoppelen = gekozenDierJong.length >= 4 && gekozenDierJong.length === _taakModalWoordIds.size;
+  const onderdelenPlaat = _modalThema && _modalThema.onderdelenPlaten
+    ? Object.values(_modalThema.onderdelenPlaten).find(p => _taakModalWoordIds.size >= 4 && [..._taakModalWoordIds].every(id => p.itemIds.includes(id))) : null;
+  const kanOnderdelenAanwijzen = !!onderdelenPlaat;
 
   // Bouw samenvattingen voor in de gesloten sectie-koppen
   const sectieWoordenSamenvatting = `${_taakModalWoordIds.size} woord${_taakModalWoordIds.size === 1 ? '' : 'en'} gekozen`;
@@ -3714,7 +3727,17 @@ function rendererTaakModal(huidigeTaak) {
            </div>`
         : '';
 
+      const onderdelenHtml = Array.isArray(verrijkt.leeronderdelen) && verrijkt.leeronderdelen.length
+        ? `<div class="lk-leeronderdelen">
+             <div class="lk-leeronderdelen-kop"><strong>Kies een leeronderdeel</strong><span>Je kan daarna nog losse woorden aan- of uitvinken.</span></div>
+             <div class="lk-leeronderdelen-grid">
+               ${verrijkt.leeronderdelen.map(o => `<button type="button" class="lk-leeronderdeel" onclick="lkTaakKiesLeeronderdeel('${o.id}')"><span>${o.icoon || '📚'}</span><b>${o.naam}</b><small>${o.uitleg || ''}</small></button>`).join('')}
+             </div>
+           </div>`
+        : '';
+
       html += `
+        ${onderdelenHtml}
         <div class="lk-taak-snelacties">
           <button class="lk-knop-mini" onclick="lkTaakAllesAan()">Alle aanvinken</button>
           <button class="lk-knop-mini" onclick="lkTaakNietsAan()">Alles uit</button>
@@ -3834,10 +3857,10 @@ function rendererTaakModal(huidigeTaak) {
           </label>`;
       } else {
         blok += `
-          <label class="lk-taak-vaardigheid uitgeschakeld" title="Komt in volgende update">
+          <label class="lk-taak-vaardigheid uitgeschakeld" title="${ov.reden || 'Komt in volgende update'}">
             <input type="checkbox" disabled>
             <span class="lk-vaardigheid-icoon">${ov.icoon}</span>
-            <span class="lk-vaardigheid-naam">${ov.naam} <small>(binnenkort)</small></span>
+            <span class="lk-vaardigheid-naam">${ov.naam} <small>(${ov.reden || 'binnenkort'})</small></span>
           </label>`;
       }
     });
@@ -3849,7 +3872,10 @@ function rendererTaakModal(huidigeTaak) {
     html += _oefenBlok('luisteren', '👂 Oefenvormen voor luisteren', [
       { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: true },
       { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: true },
-      { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: true }
+      { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: true },
+      { key: 'dier-jong', icoon: '🐮', naam: 'Dier en jong', beschikbaar: kanDierJongKoppelen, reden:'kies eerst dat leeronderdeel' },
+      { key: 'geboorte-sorteren', icoon: '🥚', naam: 'Uit een ei of uit de buik', beschikbaar: kanGeboorteSorteren, reden:'kies eerst dat leeronderdeel' },
+      { key: 'onderdelen-aanwijzen', icoon: '👉', naam: 'Onderdelen aanwijzen', beschikbaar: kanOnderdelenAanwijzen, reden:'kies boom- of paddenstoeldelen' }
     ]);
   }
   if (lezenAan) {
@@ -3943,6 +3969,21 @@ function lkTaakKiesThema(themaId) {
   // Bij thema-wissel: huidige selectie behouden NIET, want IDs verschillen per thema
   _taakModalWoordIds = new Set();
   // We hebben de huidige taak niet nodig om opnieuw te tekenen; tweede arg null
+  rendererTaakModal(null);
+}
+
+function lkTaakKiesLeeronderdeel(onderdeelId) {
+  const thema = ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId);
+  if (!thema || !Array.isArray(thema.leeronderdelen)) return;
+  const onderdeel = thema.leeronderdelen.find(o => o.id === onderdeelId);
+  if (!onderdeel) return;
+  const verrijkt = lkVerrijkThema(thema);
+  const categorieen = new Set(onderdeel.categorieen || []);
+  const vasteIds = new Set(onderdeel.itemIds || []);
+  const ids = (verrijkt.items || [])
+    .filter(it => vasteIds.has(it.id) || categorieen.has(it.categorie))
+    .map(it => it.id);
+  _taakModalWoordIds = new Set(ids);
   rendererTaakModal(null);
 }
 
@@ -4660,7 +4701,7 @@ const WB_NIVEAU_BUNDELS = {
   uitbreiding: {
     naam: '🌿 Uitbreiding',
     hint: 'Schrijven met hulp: voorbeeld of woordkeuze.',
-    oefeningen: ['overschrijf', 'kiesschrijf', 'letter', 'categoriseerUitbreiding']
+    oefeningen: ['overschrijf', 'kiesschrijf', 'letter', 'dierJongWerkblad', 'geboorteWerkblad', 'onderdelenWerkblad', 'categoriseerUitbreiding']
   },
   verdieping: {
     naam: '🌳 Verdieping',
@@ -4671,7 +4712,7 @@ const WB_NIVEAU_BUNDELS = {
 
 const WB_NIVEAU_VOLGORDE = ['basis', 'uitbreiding', 'verdieping'];
 
-const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+const WB_OEFENING_KEYS = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
 const WB_OEFENING_LABELS = {
   koppel: '👁️ → 🔗 Koppel beeld en woord',
@@ -4683,6 +4724,9 @@ const WB_OEFENING_LABELS = {
   knip: '✂️ → 📋 Knip en plak',
   vertelplaatNummers: '🔢 Vertelplaat: zet het nummer in het rondje',
   familieboom: '🌳 Familieboom: wie is wie?',
+  dierJongWerkblad: '🐣 Verbind elk dier met zijn jong',
+  geboorteWerkblad: '🥚 Sorteer: uit een ei of uit de buik',
+  onderdelenWerkblad: '👉 Delen van boom en paddenstoel',
   zinnenKnippen: '✂️ Knip woorden en bouw zinnen bij beelden',
   kleurkoppel: '👁️ → 🎨 Kleur dezelfde paren',
   woordzoeker: '👁️ → 🔍 Woordzoeker',
@@ -5374,9 +5418,12 @@ function rendererMixPaneel() {
     const bundel = WB_NIVEAU_BUNDELS[niveau];
     let oefeningenInGroep = bundel.oefeningen.slice();
     // Een vertelplaat hoort altijd bij één concreet thema, niet bij een mix.
-    oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'vertelplaatNummers' && k !== 'familieboom');
+    oefeningenInGroep = oefeningenInGroep.filter(k => !['vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad'].includes(k));
     werkbladMix.oefeningen.delete('vertelplaatNummers');
     werkbladMix.oefeningen.delete('familieboom');
+    werkbladMix.oefeningen.delete('dierJongWerkblad');
+    werkbladMix.oefeningen.delete('geboorteWerkblad');
+    werkbladMix.oefeningen.delete('onderdelenWerkblad');
     const heeftKorteZinnen = themas.some(t => (t.items || []).some(it => {
       const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
       const n=zin ? zin.split(/\s+/).length : 0;
@@ -5579,6 +5626,9 @@ function rendererThemaPaneel(themaId) {
       oefeningenInGroep = oefeningenInGroep.filter(k => k !== 'familieboom');
       cfg.oefeningen.delete('familieboom');
     }
+    if (!Array.isArray(thema.dierJongParen)) { oefeningenInGroep = oefeningenInGroep.filter(k=>k!=='dierJongWerkblad'); cfg.oefeningen.delete('dierJongWerkblad'); }
+    if (!thema.geboorteGroepen) { oefeningenInGroep = oefeningenInGroep.filter(k=>k!=='geboorteWerkblad'); cfg.oefeningen.delete('geboorteWerkblad'); }
+    if (!thema.onderdelenPlaten) { oefeningenInGroep = oefeningenInGroep.filter(k=>k!=='onderdelenWerkblad'); cfg.oefeningen.delete('onderdelenWerkblad'); }
     const heeftKorteZinnen = (thema.items || []).some(it => {
       const zin=(it.zin || (it.soort && it.soort.indexOf('zin')===0 ? it.tekst : '') || '').trim();
       const n=zin ? zin.split(/\s+/).length : 0;
@@ -8181,7 +8231,10 @@ function _twbRender() {
   WB_NIVEAU_VOLGORDE.forEach(niveau => {
     const bundel = WB_NIVEAU_BUNDELS[niveau];
     const beschikbareOefeningen = bundel.oefeningen.filter(oefKey =>
-      oefKey !== 'familieboom' || !!thema.familieboom
+      (oefKey !== 'familieboom' || !!thema.familieboom) &&
+      (oefKey !== 'dierJongWerkblad' || Array.isArray(thema.dierJongParen)) &&
+      (oefKey !== 'geboorteWerkblad' || !!thema.geboorteGroepen) &&
+      (oefKey !== 'onderdelenWerkblad' || !!thema.onderdelenPlaten)
     );
     if (!beschikbareOefeningen.length) return;
     oefHtml += `<div class="lk-twb-niveau-kop">${bundel.naam}</div>`;

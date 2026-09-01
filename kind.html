@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Taalgroei — Nederlands oefenen | Juf Zisa</title>
-  <link rel="stylesheet" href="style.css?v=20260831-8">
+  <link rel="stylesheet" href="style.css?v=20260901-2">
   <link rel="stylesheet" href="vertelplaat.css?v=20260830-2">
 <link rel="stylesheet" href="vertelplaat-kind.css?v=20260831-8">
 
@@ -545,6 +545,62 @@
   </main>
 </div>
 
+<!-- ============ SCHERM: DIER EN JONG ============ -->
+<div id="scherm-taak-onderdelen" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>👉 Wijs het onderdeel aan</h1>
+    <span class="teller"><span id="taak-onderdelen-klaar">0</span>/<span id="taak-onderdelen-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main onderdelen-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-onderdelen-ronde">Ronde 1 van 3</span></div>
+    <div class="taak-oef-balk-wrap"><div class="taak-oef-balk-vul" id="taak-onderdelen-balk" style="width:0%"></div></div>
+    <div id="taak-onderdelen-doel" class="onderdelen-doel"></div>
+    <div id="taak-onderdelen-plaat" class="onderdelen-plaat"></div>
+    <div id="taak-onderdelen-feedback" class="geboorte-feedback" aria-live="polite"></div>
+  </main>
+</div>
+
+<div id="scherm-taak-dierjong" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>🐣 Dier en jong</h1>
+    <span class="teller"><span id="taak-dierjong-klaar">0</span>/<span id="taak-dierjong-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main dierjong-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-dierjong-ronde">Ronde 1 van 3</span></div>
+    <div class="taak-oef-balk-wrap"><div class="taak-oef-balk-vul" id="taak-dierjong-balk" style="width:0%"></div></div>
+    <p class="taak-oef-vraag">Welk jong hoort bij dit dier?</p>
+    <div id="taak-dierjong-groot" class="dierjong-groot"></div>
+    <div id="taak-dierjong-opties" class="dierjong-opties"></div>
+    <div id="taak-dierjong-feedback" class="geboorte-feedback" aria-live="polite"></div>
+  </main>
+</div>
+
+<!-- ============ SCHERM: DIEREN SORTEREN — EI OF BUIK ============ -->
+<div id="scherm-taak-geboorte" class="scherm">
+  <header class="modus-header taak-header">
+    <button class="terug-knop" onclick="taakFaseTerug()">← Terug</button>
+    <h1>🥚 Uit een ei of uit de buik?</h1>
+    <span class="teller"><span id="taak-geboorte-klaar">0</span>/<span id="taak-geboorte-totaal">5</span> ✓</span>
+  </header>
+  <main class="oefen-main geboorte-main">
+    <div class="taak-ronde-rij"><span class="taak-ronde-badge" id="taak-geboorte-ronde">Ronde 1 van 3</span></div>
+    <div class="taak-oef-balk-wrap"><div class="taak-oef-balk-vul" id="taak-geboorte-balk" style="width:0%"></div></div>
+    <div class="geboorte-vraagkaart">
+      <div id="taak-geboorte-beeld" class="geboorte-beeld"></div>
+      <strong id="taak-geboorte-woord"></strong>
+      <button class="audio-knop hoor" onclick="taakGeboorteHoor()"><span class="audio-icoon">🔊</span><span>Hoor het woord</span></button>
+    </div>
+    <p class="taak-oef-vraag">Waar komt dit dier uit?</p>
+    <div class="geboorte-keuzes">
+      <button class="geboorte-keuze ei" onclick="taakGeboorteKies('uit-een-ei',this)"><span>🥚</span><strong>uit een ei</strong></button>
+      <button class="geboorte-keuze buik" onclick="taakGeboorteKies('uit-de-buik',this)"><span>🐾</span><strong>uit de buik van de mama</strong></button>
+    </div>
+    <div id="taak-geboorte-feedback" class="geboorte-feedback" aria-live="polite"></div>
+  </main>
+</div>
+
 <!-- ============ SCHERM: TAAK FASE 1 — LEREN ============ -->
 <div id="scherm-taak-leren" class="scherm">
   <header class="modus-header taak-header">
@@ -742,7 +798,7 @@
   <script src="themas/woorden-lichaam.js?v=20260830-17"></script>
 <script src="themas/woorden-eten.js?v=20260830-19"></script>
 <script src="themas/woorden-familie.js?v=20260831-2"></script>
-<script src="themas/woorden-dieren.js?v=20260901-1"></script>
+<script src="themas/woorden-dieren.js?v=20260901-2"></script>
 <script src="themas/woorden-cijfers.js"></script>
 <script src="themas/woorden-kleuren.js"></script>
 <script src="themas/woorden-vormen.js"></script>
@@ -762,7 +818,7 @@
 <script src="woordenbeheer.js"></script>
 <script src="picto.js?v=20260830-2"></script>
 <script src="auth.js"></script>
-<script src="app.js?v=20260831-12"></script>
+<script src="app.js?v=20260901-2"></script>
 <script src="vertelplaat.js?v=20260831-12"></script>
 
 </body>

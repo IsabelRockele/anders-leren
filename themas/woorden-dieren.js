@@ -35,15 +35,49 @@
     ['rivier','natuur','de rivier','rivier','🏞️','De rivier stroomt door het bos.',[['De rivier','wie'],['stroomt','doet'],['door het bos','waar']]],
     ['berg','natuur','de berg','berg','⛰️','De berg is hoog.',[['De berg','wie'],['is','doet'],['hoog','hoe']]],
     ['zee','natuur','de zee','zee','🌊','De zee ligt achter de bergen.',[['De zee','wie'],['ligt','doet'],['achter de bergen','waar']]],
-    ['park','natuur','het park','park','🏞️','Wij wandelen in het park.',[['Wij','wie'],['wandelen','doet'],['in het park','waar']]]
+    ['park','natuur','het park','park','🏞️','Wij wandelen in het park.',[['Wij','wie'],['wandelen','doet'],['in het park','waar']]],
+    ['kalf','jonge-dieren','het kalf','kalf','🐄','Het kalf drinkt melk.',[['Het kalf','wie'],['drinkt','doet'],['melk','wat']]],
+    ['veulen','jonge-dieren','het veulen','veulen','🐴','Het veulen loopt bij het paard.',[['Het veulen','wie'],['loopt','doet'],['bij het paard','waar']]],
+    ['geitje','jonge-dieren','het geitje','geitje','🐐','Het geitje staat bij de geit.',[['Het geitje','wie'],['staat','doet'],['bij de geit','waar']]],
+    ['lam','jonge-dieren','het lam','lam','🐑','Het lam loopt bij het schaap.',[['Het lam','wie'],['loopt','doet'],['bij het schaap','waar']]],
+    ['big','jonge-dieren','de big','big','🐷','De big loopt bij het varken.',[['De big','wie'],['loopt','doet'],['bij het varken','waar']]],
+    ['kuiken','jonge-dieren','het kuiken','kuiken','🐤','Het kuiken komt uit een ei.',[['Het kuiken','wie'],['komt','doet'],['uit een ei','waar']]],
+    ['puppy','jonge-dieren','de puppy','puppy','🐶','De puppy speelt bij de hond.',[['De puppy','wie'],['speelt','doet'],['bij de hond','waar']]],
+    ['kitten','jonge-dieren','het kitten','kitten','🐱','Het kitten ligt bij de kat.',[['Het kitten','wie'],['ligt','doet'],['bij de kat','waar']]],
+    ['wortels','boomdelen','de wortels','wortels','🌱','De wortels zitten onder de grond.',[['De wortels','wie'],['zitten','doet'],['onder de grond','waar']]],
+    ['stam','boomdelen','de stam','stam','🌳','De stam draagt de takken.',[['De stam','wie'],['draagt','doet'],['de takken','wat']]],
+    ['schors','boomdelen','de schors','schors','🟫','De schors beschermt de stam.',[['De schors','wie'],['beschermt','doet'],['de stam','wat']]],
+    ['kruin','boomdelen','de kruin','kruin','🌳','De kruin bestaat uit takken en bladeren.',[['De kruin','wie'],['bestaat','doet'],['uit takken en bladeren','wat']]],
+    ['paddenstoel','paddenstoeldelen','de paddenstoel','paddenstoel','🍄','De paddenstoel groeit in het bos.',[['De paddenstoel','wie'],['groeit','doet'],['in het bos','waar']]],
+    ['hoed','paddenstoeldelen','de hoed','hoed','🍄','De hoed zit boven op de paddenstoel.',[['De hoed','wie'],['zit','doet'],['boven op de paddenstoel','waar']]],
+    ['plaatjes','paddenstoeldelen','de plaatjes','plaatjes','🍄','De plaatjes zitten onder de hoed.',[['De plaatjes','wie'],['zitten','doet'],['onder de hoed','waar']]],
+    ['steel','paddenstoeldelen','de steel','steel','🍄','De steel draagt de hoed.',[['De steel','wie'],['draagt','doet'],['de hoed','wat']]],
+    ['zwamvlok','paddenstoeldelen','de zwamvlok','zwamvlok','🍄','De zwamvlok groeit onder de grond.',[['De zwamvlok','wie'],['groeit','doet'],['onder de grond','waar']]]
   ];
+  const uitbreidingCats = new Set(['jonge-dieren','boomdelen','paddenstoeldelen']);
   const items = specs.map(([id,categorie,tekst,kort,beeld,zin,delen]) => ({
-    id,niveau:'basis',categorie,tekst,kort,beeld,picto:`dieren/${id}.png`,zin,
+    id,niveau:uitbreidingCats.has(categorie)?'uitbreiding':'basis',categorie,tekst,kort,beeld,picto:`dieren/${id}.png`,zin,
     zinsdelen:delen.map(([tekst,rol])=>({tekst,rol}))
   }));
   window.THEMA_WOORDEN_DIEREN = {
     id:'w-dieren',type:'woorden',naam:'Dieren & natuur',emoji:'🐾',kleur:'#2A9D8F',
-    niveaus:['basis'],categorieen:['boerderijdieren','huisdieren','waterdieren','dierentuindieren','planten','weer','natuur'],
+    niveaus:['basis','uitbreiding'],categorieen:['boerderijdieren','huisdieren','waterdieren','dierentuindieren','planten','weer','natuur','jonge-dieren','boomdelen','paddenstoeldelen'],
+    leeronderdelen:[
+      {id:'basis',naam:'Basiswoorden',icoon:'🐾',uitleg:'Dieren, planten, weer en landschappen.',categorieen:['boerderijdieren','huisdieren','waterdieren','dierentuindieren','planten','weer','natuur']},
+      {id:'jongen',naam:'Dieren en hun jongen',icoon:'🐣',uitleg:'Leer welk jong bij welk dier hoort.',itemIds:['koe','kalf','paard','veulen','geit','geitje','schaap','lam','varken','big','kip','kuiken','hond','puppy','kat','kitten']},
+      {id:'ei-buik',naam:'Uit een ei of uit de buik?',icoon:'🥚',uitleg:'Luister, kijk en sorteer de dieren.',itemIds:['kip','kuiken','vogel','eend','kikker','vis','koe','kalf','paard','veulen','schaap','lam','varken','big','hond','puppy','kat','kitten']},
+      {id:'boom',naam:'Delen van een boom',icoon:'🌳',uitleg:'Wortels, stam, schors, tak, blad en kruin.',itemIds:['boom','wortels','stam','schors','tak','blad','kruin']},
+      {id:'paddenstoel',naam:'Delen van een paddenstoel',icoon:'🍄',uitleg:'Hoed, plaatjes, steel en zwamvlok.',categorieen:['paddenstoeldelen']}
+    ],
+    dierJongParen:[['koe','kalf'],['paard','veulen'],['geit','geitje'],['schaap','lam'],['varken','big'],['kip','kuiken'],['hond','puppy'],['kat','kitten']],
+    geboorteGroepen:{
+      'uit-een-ei':['kip','kuiken','vogel','eend','kikker','vis'],
+      'uit-de-buik':['koe','kalf','paard','veulen','geit','geitje','schaap','lam','varken','big','hond','puppy','kat','kitten']
+    },
+    onderdelenPlaten:{
+      boom:{beeld:'assets/delen-boom.png',itemIds:['wortels','stam','schors','tak','blad','kruin'],hotspots:{wortels:[50,86],stam:[50,62],schors:[55,60],tak:[32,37],blad:[20,33],kruin:[50,24]}},
+      paddenstoel:{beeld:'assets/delen-paddenstoel.png',itemIds:['hoed','plaatjes','steel','zwamvlok'],hotspots:{hoed:[50,20],plaatjes:[68,36],steel:[50,61],zwamvlok:[50,87]}}
+    },
     visueleOefening:'vertelplaat-thema',
     vertelplaat:{
       titel:'Vertelplaat: dieren in de natuur',beeld:'vertelplaten/dieren-en-natuur.png',

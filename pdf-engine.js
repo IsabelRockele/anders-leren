@@ -1865,6 +1865,33 @@ window.PDFEngine = (function() {
     return (item.knipZin || (item.soort && item.soort.indexOf('zin') === 0 ? item.tekst : '') || item.zin || '').trim();
   }
 
+  function tekenDierJongWerkblad(doc,thema,opgelost){
+    let y=tekenKop(doc,thema,opgelost?'Oplossing: dier en jong':'Oefening: dier en jong');
+    y=tekenPictoInstructie(doc,y,['👁️','🔗','🐣'],'Verbind elk groot dier met het juiste jonge dier.');
+    const vind=id=>(thema.items||[]).find(it=>it.id===id);
+    const paren=(thema.dierJongParen||[]).map(p=>[vind(p[0]),vind(p[1])]).filter(p=>p[0]&&p[1]).slice(0,6);
+    if(paren.length<3){doc.text('Kies minstens drie dieren met hun jongen.',M,y+12);tekenVoet(doc);return;}
+    const rechts=schud(paren.map(p=>p[1]));
+    paren.forEach((p,i)=>{const yy=y+18+i*34;plaatsItemBeeld(doc,p[0],M+18,yy,25);doc.setFontSize(10);doc.setTextColor(45,42,50);doc.text(p[0].tekst,M+34,yy+2);doc.circle(M+73,yy,1.5,'F');});
+    rechts.forEach((jong,i)=>{const yy=y+18+i*34;doc.circle(PB-M-73,yy,1.5,'F');plaatsItemBeeld(doc,jong,PB-M-18,yy,25);doc.setFontSize(10);doc.text(jong.tekst,PB-M-34,yy+2,{align:'right'});if(opgelost){const idx=paren.findIndex(p=>p[1].id===jong.id);doc.setDrawColor(KLEUR_OPL_R,KLEUR_OPL_G,KLEUR_OPL_B);doc.setLineWidth(1);doc.line(M+73,y+18+idx*34,PB-M-73,yy);}});
+    tekenVoet(doc);
+  }
+
+  function tekenGeboorteWerkblad(doc,thema,opgelost){
+    let y=tekenKop(doc,thema,opgelost?'Oplossing: uit een ei of uit de buik':'Oefening: uit een ei of uit de buik');
+    y=tekenPictoInstructie(doc,y,['👁️','🔢','✏️'],'Bekijk de dieren. Schrijf elk nummer in de juiste groep.');
+    const alle=(thema.items||[]);const ei=new Set((thema.geboorteGroepen&&thema.geboorteGroepen['uit-een-ei'])||[]);const buik=new Set((thema.geboorteGroepen&&thema.geboorteGroepen['uit-de-buik'])||[]);
+    const kandidaten=schud(alle.filter(it=>ei.has(it.id)||buik.has(it.id))).slice(0,12);
+    kandidaten.forEach((it,i)=>{const col=i%4,rij=Math.floor(i/4),x=M+22+col*43,yy=y+20+rij*42;plaatsItemBeeld(doc,it,x,yy,27);doc.setFillColor(255,255,255);doc.setDrawColor(25,116,98);doc.circle(x-14,yy-13,4,'FD');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(25,90,75);doc.text(String(i+1),x-14,yy-11.7,{align:'center'});});
+    const boxY=y+143,boxW=(IB-8)/2;[['🥚','UIT EEN EI',ei],['🐾','UIT DE BUIK',buik]].forEach((g,idx)=>{const x=M+idx*(boxW+8);doc.setFillColor(255,249,231);doc.setDrawColor(225,173,54);doc.roundedRect(x,boxY,boxW,54,4,4,'FD');plaatsEmoji(doc,g[0],x+12,boxY+13,11);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(60,55,48);doc.text(g[1],x+23,boxY+15);doc.setFontSize(12);if(opgelost){const nums=kandidaten.map((it,i)=>g[2].has(it.id)?i+1:null).filter(Boolean).join(' · ');doc.setTextColor(KLEUR_OPL_R,KLEUR_OPL_G,KLEUR_OPL_B);doc.text(nums,x+boxW/2,boxY+37,{align:'center'});}else{doc.setDrawColor(130,130,130);doc.line(x+9,boxY+35,x+boxW-9,boxY+35);doc.line(x+9,boxY+45,x+boxW-9,boxY+45);}});
+    tekenVoet(doc);
+  }
+
+  function tekenOnderdelenWerkblad(doc,thema,opgelost){
+    const platen=thema.onderdelenPlaten||{};const entries=Object.entries(platen);
+    entries.forEach(([naam,p],idx)=>{if(idx>0)doc.addPage();const fakeItems=p.itemIds.map(id=>(thema.items||[]).find(it=>it.id===id)).filter(Boolean);const fake={...thema,naam:`${thema.naam} — ${naam}`,items:fakeItems,vertelplaat:{beeld:p.beeld,werkbladItems:p.itemIds,hotspots:Object.entries(p.hotspots||{}).map(([itemId,pos])=>({id:'vp-'+itemId,itemId,x:pos[0],y:pos[1]}))}};tekenVertelplaatNummers(doc,fake,opgelost);});
+  }
+
   const _KLAS_ZINSKNIP = [
     {id:'zk-neemt-boekentas',zin:'De jongen neemt zijn boekentas.',zinPicto:'assets/zinsbeelden/de-jongen-neemt-zijn-boekentas.png',zinsdelen:[{tekst:'De jongen',rol:'wie'},{tekst:'neemt',rol:'doet'},{tekst:'zijn boekentas',rol:'wat'}]},
     {id:'zk-leest-boek',zin:'De jongen leest een boek.',zinPicto:'assets/zinsbeelden/de-jongen-leest-een-boek.png',zinsdelen:[{tekst:'De jongen',rol:'wie'},{tekst:'leest',rol:'doet'},{tekst:'een boek',rol:'wat'}]},
@@ -2000,6 +2027,9 @@ window.PDFEngine = (function() {
     knip: tekenKnipoefening,
     vertelplaatNummers: tekenVertelplaatNummers,
     familieboom: tekenFamilieboom,
+    dierJongWerkblad: tekenDierJongWerkblad,
+    geboorteWerkblad: tekenGeboorteWerkblad,
+    onderdelenWerkblad: tekenOnderdelenWerkblad,
     zinnenKnippen: tekenZinnenKnippen,
     kleurkoppel: tekenKleurKoppel,
     woordzoeker: tekenWoordzoeker,
@@ -2065,6 +2095,7 @@ window.PDFEngine = (function() {
           allItems.push((tc.thema.items || []).find(it => it.id === id) || {id,picto:'familie/'+id+'.png'});
         });
       }
+      if(tc.oefeningen.includes('dierJongWerkblad'))(tc.thema.items||[]).filter(it=>(tc.thema.dierJongParen||[]).flat().includes(it.id)).forEach(it=>allItems.push(it));
     });
     try {
       await prefetchPictos(allItems);
@@ -2074,6 +2105,7 @@ window.PDFEngine = (function() {
     for (const tc of themaConfigs.filter(tc => tc.oefeningen.includes('vertelplaatNummers'))) {
       await _losseAfbeeldingLaden(tc.thema.vertelplaat&&tc.thema.vertelplaat.beeld?tc.thema.vertelplaat.beeld:'vertelplaten/in-de-klas.png');
     }
+    for(const tc of themaConfigs.filter(tc=>tc.oefeningen.includes('onderdelenWerkblad'))){for(const p of Object.values(tc.thema.onderdelenPlaten||{}))await _losseAfbeeldingLaden(p.beeld);}
 
     // Bepaal of we per thema of gemengd werken
     const isMengen = (opties.verdeling === 'mengen') && themaConfigs.length > 1;
@@ -2089,7 +2121,7 @@ window.PDFEngine = (function() {
 
     let eerste = true;
     const add = () => { if (!eerste) doc.addPage(); eerste = false; };
-    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
+    const vol = ['koppel','overschrijf','letter','omcirkel','zelfschrijven','kiesschrijf','knip','vertelplaatNummers','familieboom','dierJongWerkblad','geboorteWerkblad','onderdelenWerkblad','zinnenKnippen','kleurkoppel','woordzoeker','kaartjes','categoriseerBasis','categoriseerUitbreiding','categoriseerVerdieping'];
 
     if (isMengen) {
       const allItems = [];
