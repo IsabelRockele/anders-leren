@@ -198,7 +198,7 @@ function rendererTaakZone() {
     aantalEl.textContent = n === 1 ? '1 woord' : `${n} woorden`;
   }
   if (routeEl) {
-    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','klank-uitluisteren':'Klank uitluisteren','instructie-handelen':'Begrijp de opdracht','instructie-uitvoeren':'Doe de opdracht','dier-jong':'Dier en jong','geboorte-sorteren':'Ei of buik','onderdelen-aanwijzen':'Onderdelen aanwijzen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
+    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','klank-uitluisteren':'Klank uitluisteren','klank-in-woord':'Klank zoeken in woorden','instructie-handelen':'Begrijp de opdracht','instructie-uitvoeren':'Doe de opdracht','dier-jong':'Dier en jong','geboorte-sorteren':'Ei of buik','onderdelen-aanwijzen':'Onderdelen aanwijzen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
     const stappen = ['Kijken'];
     (taak.vaardigheden || []).forEach(v => {
       (taak['oefenvormen_' + v] || []).forEach(vorm => stappen.push(namen[vorm] || vorm));
@@ -456,6 +456,11 @@ const TAAK_INTRO_CONFIG = {
   'luisteren-oef:klank-uitluisteren': {
     icoon: '🔤', kop: '👂 Mijn taak — klanken', titel: 'Luister naar de klank',
     uitleg: 'Hoor het woord. Klik waar je de klank hoort: vooraan, in het midden of achteraan.',
+    bouwDemo: _bouwDemoLuisterenToets
+  },
+  'luisteren-oef:klank-in-woord': {
+    icoon: '🖼️', kop: '👂 Mijn taak — klanken', titel: 'Zoek de klank in woorden',
+    uitleg: 'Beluister de prenten. Klik alle prenten aan waarvan je de klank in het woord hoort.',
     bouwDemo: _bouwDemoLuisterenToets
   },
   'luisteren-oef:verbinden': {
@@ -1055,6 +1060,8 @@ function taakStartLuisterenOefenen() {
     taakStartInstructieUitvoeren();
   } else if (oefenvorm === 'klank-uitluisteren') {
     taakStartKlankUitluisteren();
+  } else if (oefenvorm === 'klank-in-woord') {
+    taakStartKlankInWoord();
   } else {
     // Default = klikspel
     taakRendererLuisterenOefenen();
@@ -1365,6 +1372,83 @@ async function taakKlankKies(positie,knop){
   if(!taakOefItem)return;const juist=positie===taakOefItem.positie,feedback=document.getElementById('taak-klank-feedback');document.querySelectorAll('.klank-positieknop').forEach(b=>b.disabled=true);
   if(juist){knop.classList.add('juist');feedback.textContent=`Goed zo! Zeg “${taakOefItem.tekst}” nu zelf na.`;AudioEngine.spreek(taakOefItem.tekst);await _registreerAntwoord(taakOefItem.id,'luisteren',true);setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},1400);}
   else{knop.classList.add('fout');feedback.textContent='Luister nog eens. Waar hoor je de klank?';await Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');setTimeout(()=>{document.querySelectorAll('.klank-positieknop').forEach(b=>{b.disabled=false;b.classList.remove('fout')});knop.style.display='none';feedback.textContent='';taakKlankHoor();},950);}
+}
+
+let _klankInWoordCorrectIds = new Set();
+
+function _woordBevatDoelklank(item, klank) {
+  const woord = String(item.tekst || '').toLowerCase();
+  if (klank === 'ei') return woord.includes('ei') || woord.includes('ij');
+  if (klank === 'au') return woord.includes('au') || woord.includes('ou');
+  if (['aa','ee','oo','uu','oe','eu','ui','ie'].includes(klank)) return woord.includes(klank);
+  if (['a','e','i','o','u'].includes(klank)) {
+    const zonderLangeOfTweetekenklanken = woord.replace(/aa|ee|oo|uu|oe|eu|ui|ie|ei|ij|au|ou/g, '');
+    return zonderLangeOfTweetekenklanken.includes(klank);
+  }
+  return woord.includes(klank);
+}
+
+function taakStartKlankInWoord() {
+  if (!taakOefItem || !huidigThema || !huidigThema.klankLeerlijn) {
+    taakRendererLuisterenOefenen(); toonScherm('scherm-taak-oefenen'); return;
+  }
+  const v = _voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-klankwoorden-klaar').textContent = v.klaar;
+  document.getElementById('taak-klankwoorden-totaal').textContent = v.totaal;
+  document.getElementById('taak-klankwoorden-balk').style.width = (v.totaal ? v.klaar / v.totaal * 100 : 0) + '%';
+  _updateRondeBadge('taak-klankwoorden-ronde', 'luisteren');
+  document.getElementById('taak-klankwoorden-label').textContent = taakOefItem.klankLabel;
+  document.getElementById('taak-klankwoorden-feedback').textContent = '';
+
+  const alle = huidigThema.items || taakItems;
+  const passend = alle.filter(it => _woordBevatDoelklank(it, taakOefItem.klank));
+  const gekozenPassend = [taakOefItem, ...passend.filter(it => it.id !== taakOefItem.id).sort(() => Math.random() - .5).slice(0, 2)];
+  const contrasten = (huidigThema.klankContrasten && huidigThema.klankContrasten[taakOefItem.klank]) || [];
+  const andere = alle.filter(it => !_woordBevatDoelklank(it, taakOefItem.klank)).sort((a,b) => {
+    const ac = contrasten.includes(a.klank) ? 0 : 1, bc = contrasten.includes(b.klank) ? 0 : 1;
+    return ac - bc || Math.random() - .5;
+  });
+  const uniekeTeksten = new Set();
+  const opties = [...gekozenPassend, ...andere].filter(it => {
+    const sleutel = String(it.tekst || '').toLowerCase();
+    if (uniekeTeksten.has(sleutel)) return false;
+    uniekeTeksten.add(sleutel); return true;
+  }).slice(0, 6).sort(() => Math.random() - .5);
+  _klankInWoordCorrectIds = new Set(opties.filter(it => _woordBevatDoelklank(it, taakOefItem.klank)).map(it => it.id));
+
+  const vak = document.getElementById('taak-klankwoorden-opties');
+  vak.innerHTML = '';
+  opties.forEach(it => {
+    const kaart = document.createElement('button');
+    kaart.type = 'button'; kaart.className = 'klankwoorden-kaart'; kaart.dataset.id = it.id;
+    kaart.setAttribute('aria-pressed', 'false');
+    kaart.innerHTML = `<span class="klankwoorden-picto">${Picto.html(it,{grootte:150})}</span><span class="klankwoorden-keuze">✓</span><span class="klankwoorden-hoor" role="button" aria-label="Hoor het woord">🔊</span>`;
+    kaart.onclick = e => {
+      if (e.target.closest('.klankwoorden-hoor')) { e.stopPropagation(); AudioEngine.spreek(it.tekst,{snelheid:.82}); return; }
+      if (kaart.disabled) return;
+      kaart.classList.toggle('gekozen'); kaart.setAttribute('aria-pressed', kaart.classList.contains('gekozen') ? 'true' : 'false');
+    };
+    vak.appendChild(kaart);
+  });
+  toonScherm('scherm-taak-klank-woorden');
+}
+
+async function taakKlankInWoordControleer() {
+  const kaarten = [...document.querySelectorAll('#taak-klankwoorden-opties .klankwoorden-kaart')];
+  const gekozen = new Set(kaarten.filter(k => k.classList.contains('gekozen')).map(k => k.dataset.id));
+  const feedback = document.getElementById('taak-klankwoorden-feedback');
+  if (!gekozen.size) { feedback.textContent = 'Klik eerst één of meer prenten aan.'; return; }
+  const juist = gekozen.size === _klankInWoordCorrectIds.size && [...gekozen].every(id => _klankInWoordCorrectIds.has(id));
+  kaarten.forEach(k => { k.disabled = true; if (k.classList.contains('gekozen')) k.classList.add(_klankInWoordCorrectIds.has(k.dataset.id) ? 'juist' : 'fout'); });
+  if (juist) {
+    feedback.textContent = 'Goed zo! Je hebt alle woorden met deze klank gevonden.';
+    await _registreerAntwoord(taakOefItem.id, 'luisteren', true);
+    setTimeout(() => { if (taakModus) taakStartLuisterenOefenen(); }, 1400);
+  } else {
+    feedback.textContent = 'Nog niet helemaal. Beluister de prenten nog eens.';
+    await Voortgang.registreerFoutInTaak(taakOefItem.id, 'luisteren');
+    setTimeout(() => kaarten.forEach(k => { k.disabled=false; k.classList.remove('fout','juist'); if (!_klankInWoordCorrectIds.has(k.dataset.id)) { k.classList.remove('gekozen'); k.setAttribute('aria-pressed','false'); } }), 950);
+  }
 }
 
 async function taakKiesOefAntwoord(knop, gekozen) {

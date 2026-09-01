@@ -3890,6 +3890,7 @@ function rendererTaakModal(huidigeTaak) {
   if (luisterenAan) {
     html += _oefenBlok('luisteren', '👂 Oefenvormen voor luisteren', [
       { key: 'klank-uitluisteren', icoon: '🔤', naam: 'Klank uitluisteren', beschikbaar: !!(_modalThema && _modalThema.klankLeerlijn), reden:'alleen bij Klanken & lezen' },
+      { key: 'klank-in-woord', icoon: '🖼️', naam: 'Klank zoeken in woorden', beschikbaar: !!(_modalThema && _modalThema.klankLeerlijn), reden:'alleen bij Klanken & lezen' },
       { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: !_modalIsKlanken, reden:'bij klanken oefenen we zonder geschreven woorden' },
       { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: !_modalIsKlanken, reden:'bij klanken oefenen we zonder geschreven woorden' },
       { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: !_modalIsKlanken, reden:'bij klanken oefenen we zonder geschreven woorden' },
@@ -3993,7 +3994,7 @@ function lkTaakKiesThema(themaId) {
   const gekozenThema = ALLE_THEMAS_LK.find(t => t.id === themaId);
   if (gekozenThema && gekozenThema.klankLeerlijn) {
     _taakModalVaardigheden = new Set(['luisteren']);
-    _taakModalOefenvormenLuisteren = new Set(['klank-uitluisteren']);
+    _taakModalOefenvormenLuisteren = new Set(['klank-uitluisteren', 'klank-in-woord']);
     _taakModalToetsen = new Set(['luisteren']);
   }
   // We hebben de huidige taak niet nodig om opnieuw te tekenen; tweede arg null

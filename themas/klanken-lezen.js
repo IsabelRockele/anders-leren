@@ -35,6 +35,6 @@
     leeronderdeelGroepen:[{id:'kort',naam:'Korte klanken',uitleg:'a, e, i, o en u'},{id:'lang',naam:'Lange klanken',uitleg:'aa, ee, oo en uu'},{id:'tweeteken',naam:'Tweetekenklanken',uitleg:'oe, eu, ui, ie, ei/ij en au/ou'},{id:'medeklinker',naam:'Medeklinkers',uitleg:'Klanken aan het begin van een woord'}],
     leeronderdelen:[...['a','e','i','o','u'].map(k=>onderdeel('kort',k,`Korte klank /${k}/`)),...['aa','ee','oo','uu'].map(k=>onderdeel('lang',k,`Lange klank /${k}/`)),...['oe','eu','ui','ie'].map(k=>onderdeel('tweeteken',k,`Tweetekenklank /${k}/`)),onderdeel('tweeteken','ei','Tweetekenklank /ei/ — ei of ij'),onderdeel('tweeteken','au','Tweetekenklank /au/ — au of ou'),...['m','s','v','l','r','b','k','p'].map(k=>onderdeel('medeklinker',k,`Medeklinker /${k}/`))],
     klankContrasten:{a:['aa'],aa:['a'],e:['ee'],ee:['e'],o:['oo'],oo:['o'],u:['uu'],uu:['u','oe'],oe:['uu'],ui:['eu'],eu:['ui'],i:['ie'],ie:['i']},
-    klankLeerlijn:true,standaardOefenvormen:{luisteren:['klank-uitluisteren']},items
+    klankLeerlijn:true,standaardOefenvormen:{luisteren:['klank-uitluisteren','klank-in-woord']},items
   };
 })();
