@@ -3676,6 +3676,8 @@ function rendererTaakModal(huidigeTaak) {
     ? Object.values(_modalThema.onderdelenPlaten).find(p => _taakModalWoordIds.size >= 4 && [..._taakModalWoordIds].every(id => p.itemIds.includes(id))) : null;
   const kanOnderdelenAanwijzen = !!onderdelenPlaat;
   const kanInstructieHandelen = !!(_modalThema && _modalThema.id === 'w-instructies' && _taakModalWoordIds.size >= 4);
+  const gekozenInstructieItems = _modalThema && _modalThema.id === 'w-instructies' ? (_modalThema.items||[]).filter(it=>_taakModalWoordIds.has(it.id)) : [];
+  const kanInstructieUitvoeren = gekozenInstructieItems.length >= 4 && gekozenInstructieItems.every(it=>it.categorie==='papier');
 
   // Bouw samenvattingen voor in de gesloten sectie-koppen
   const sectieWoordenSamenvatting = `${_taakModalWoordIds.size} woord${_taakModalWoordIds.size === 1 ? '' : 'en'} gekozen`;
@@ -3731,10 +3733,15 @@ function rendererTaakModal(huidigeTaak) {
 
       const onderdelenHtml = Array.isArray(verrijkt.leeronderdelen) && verrijkt.leeronderdelen.length
         ? `<div class="lk-leeronderdelen">
-             <div class="lk-leeronderdelen-kop"><strong>Kies een leeronderdeel</strong><span>Je kan daarna nog losse woorden aan- of uitvinken.</span></div>
+             <div class="lk-leeronderdelen-kop"><strong>Kies één of meer leeronderdelen</strong><span>Klik opnieuw om uit te zetten. Losse woorden kan je daarna nog aanpassen.</span></div>
              <div class="lk-leeronderdelen-grid">
-               ${verrijkt.leeronderdelen.map(o => `<button type="button" class="lk-leeronderdeel" onclick="lkTaakKiesLeeronderdeel('${o.id}')"><span>${o.icoon || '📚'}</span><b>${o.naam}</b><small>${o.uitleg || ''}</small></button>`).join('')}
+               ${verrijkt.leeronderdelen.map(o => {
+                 const ids=lkTaakLeeronderdeelIds(verrijkt,o);const gekozen=ids.filter(id=>_taakModalWoordIds.has(id)).length;
+                 const status=gekozen===ids.length&&ids.length?'aan':(gekozen?'deels':'');const teken=status==='aan'?'✓':(status==='deels'?'−':'+');
+                 return `<button type="button" class="lk-leeronderdeel ${status}" aria-pressed="${status==='aan'}" onclick="lkTaakKiesLeeronderdeel('${o.id}')"><span>${o.icoon||'📚'}</span><b>${o.naam}</b><small>${o.uitleg||''}</small><i>${teken}</i></button>`;
+               }).join('')}
              </div>
+             ${verrijkt.id==='w-instructies'?'<div class="lk-leeronderdeel-uitleg"><b>Begrijpen:</b> kies de juiste handeling. <b>Digitaal doen:</b> voer de opdracht echt uit op het scherm. <b>Op papier:</b> oefen dezelfde instructies verder op een werkblad.</div>':''}
            </div>`
         : '';
 
@@ -3875,7 +3882,8 @@ function rendererTaakModal(huidigeTaak) {
       { key: 'klikspel',  icoon: '🎯', naam: 'Klikspel',  beschikbaar: true },
       { key: 'verbinden', icoon: '🔗', naam: 'Verbinden', beschikbaar: true },
       { key: 'verslepen', icoon: '🤚', naam: 'Verslepen', beschikbaar: true },
-      { key: 'instructie-handelen', icoon: '🧭', naam: 'Luister en voer uit', beschikbaar: kanInstructieHandelen, reden:'alleen bij Leren en opdrachten' },
+      { key: 'instructie-handelen', icoon: '🧭', naam: 'Begrijp de opdracht', beschikbaar: kanInstructieHandelen, reden:'alleen bij Leren en opdrachten' },
+      { key: 'instructie-uitvoeren', icoon: '☝️', naam: 'Doe de opdracht op het scherm', beschikbaar: kanInstructieUitvoeren, reden:'kies alleen Werken op papier' },
       { key: 'dier-jong', icoon: '🐮', naam: 'Dier en jong', beschikbaar: kanDierJongKoppelen, reden:'kies eerst dat leeronderdeel' },
       { key: 'geboorte-sorteren', icoon: '🥚', naam: 'Uit een ei of uit de buik', beschikbaar: kanGeboorteSorteren, reden:'kies eerst dat leeronderdeel' },
       { key: 'onderdelen-aanwijzen', icoon: '👉', naam: 'Onderdelen aanwijzen', beschikbaar: kanOnderdelenAanwijzen, reden:'kies boom- of paddenstoeldelen' }
@@ -3975,18 +3983,20 @@ function lkTaakKiesThema(themaId) {
   rendererTaakModal(null);
 }
 
+function lkTaakLeeronderdeelIds(thema,onderdeel){
+  const categorieen=new Set(onderdeel.categorieen||[]),vasteIds=new Set(onderdeel.itemIds||[]);
+  return (thema.items||[]).filter(it=>vasteIds.has(it.id)||categorieen.has(it.categorie)).map(it=>it.id);
+}
+
 function lkTaakKiesLeeronderdeel(onderdeelId) {
   const thema = ALLE_THEMAS_LK.find(t => t.id === _taakModalThemaId);
   if (!thema || !Array.isArray(thema.leeronderdelen)) return;
   const onderdeel = thema.leeronderdelen.find(o => o.id === onderdeelId);
   if (!onderdeel) return;
   const verrijkt = lkVerrijkThema(thema);
-  const categorieen = new Set(onderdeel.categorieen || []);
-  const vasteIds = new Set(onderdeel.itemIds || []);
-  const ids = (verrijkt.items || [])
-    .filter(it => vasteIds.has(it.id) || categorieen.has(it.categorie))
-    .map(it => it.id);
-  _taakModalWoordIds = new Set(ids);
+  const ids=lkTaakLeeronderdeelIds(verrijkt,onderdeel);
+  const allesAan=ids.length>0&&ids.every(id=>_taakModalWoordIds.has(id));
+  ids.forEach(id=>allesAan?_taakModalWoordIds.delete(id):_taakModalWoordIds.add(id));
   rendererTaakModal(null);
 }
 

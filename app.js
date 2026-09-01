@@ -193,7 +193,7 @@ function rendererTaakZone() {
     aantalEl.textContent = n === 1 ? '1 woord' : `${n} woorden`;
   }
   if (routeEl) {
-    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','instructie-handelen':'Luister en voer uit','dier-jong':'Dier en jong','geboorte-sorteren':'Ei of buik','onderdelen-aanwijzen':'Onderdelen aanwijzen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
+    const namen = {klikspel:'Klikspel',verbinden:'Verbinden',verslepen:'Verslepen','instructie-handelen':'Begrijp de opdracht','instructie-uitvoeren':'Doe de opdracht','dier-jong':'Dier en jong','geboorte-sorteren':'Ei of buik','onderdelen-aanwijzen':'Onderdelen aanwijzen','woord-beeld':'Woord → beeld',overtypen:'Overtypen'};
     const stappen = ['Kijken'];
     (taak.vaardigheden || []).forEach(v => {
       (taak['oefenvormen_' + v] || []).forEach(vorm => stappen.push(namen[vorm] || vorm));
@@ -489,6 +489,10 @@ const TAAK_INTRO_CONFIG = {
     titel: 'Luister en kies de handeling',
     uitleg: 'Luister naar de volledige opdracht. Kies het beeld dat toont wat je moet doen.',
     bouwDemo: _bouwDemoLuisterenOef
+  },
+  'luisteren-oef:instructie-uitvoeren': {
+    icoon: '☝️', kop: '👂 Mijn taak — doe de opdracht', titel: 'Doe wat je hoort',
+    uitleg: 'Luister en voer de opdracht echt uit op het scherm.', bouwDemo: _bouwDemoLuisterenOef
   },
   'luisteren-toets': {
     icoon: '🎯',
@@ -1036,6 +1040,8 @@ function taakStartLuisterenOefenen() {
     taakStartOnderdelenAanwijzen();
   } else if (oefenvorm === 'instructie-handelen') {
     taakStartInstructieHandelen();
+  } else if (oefenvorm === 'instructie-uitvoeren') {
+    taakStartInstructieUitvoeren();
   } else {
     // Default = klikspel
     taakRendererLuisterenOefenen();
@@ -1074,6 +1080,37 @@ async function taakInstructieKies(gekozen,knop){
   if(juist){knop.classList.add('juist');feedback.textContent='Goed zo! Jij begrijpt de opdracht.';await _registreerAntwoord(taakOefItem.id,'luisteren',true);setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},850);}
   else{knop.classList.add('fout');feedback.textContent='Luister nog eens en probeer opnieuw.';await Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');setTimeout(()=>{document.querySelectorAll('.instructie-keuze').forEach(b=>{b.disabled=false;b.classList.remove('fout')});feedback.textContent='';taakInstructieHoor();},900);}
 }
+
+let _instructieDoeBezig=false;
+function taakStartInstructieUitvoeren(){
+  if(!taakOefItem||taakOefItem.categorie!=='papier'){taakStartInstructieHandelen();return;}
+  _instructieDoeBezig=false;const v=_voortgangVoorVaardigheid('luisteren');
+  document.getElementById('taak-doe-klaar').textContent=v.klaar;document.getElementById('taak-doe-totaal').textContent=v.totaal;
+  document.getElementById('taak-doe-balk').style.width=(v.totaal?v.klaar/v.totaal*100:0)+'%';_updateRondeBadge('taak-doe-ronde','luisteren');
+  document.getElementById('taak-doe-zin').textContent=taakOefItem.zin||taakOefItem.tekst;document.getElementById('taak-doe-feedback').textContent='';
+  const vak=document.getElementById('taak-doe-werkvlak'),id=taakOefItem.id;
+  const knop=(inhoud,juist,extra='')=>`<button class="doe-keuze ${extra}" data-juist="${juist}" onclick="taakInstructieDoeKies(this)">${inhoud}</button>`;
+  if(id==='omcirkelen')vak.innerHTML=knop('🍎',1)+knop('☁️',0)+knop('⭐',0);
+  else if(id==='onderstrepen')vak.innerHTML=knop('huis',0,'doe-woord')+knop('boom',1,'doe-woord')+knop('vis',0,'doe-woord');
+  else if(id==='doorstrepen')vak.innerHTML=knop('☀️',0)+knop('☁️',1)+knop('🌳',0);
+  else if(id==='aankruisen')vak.innerHTML=knop('□ ⭐',1,'doe-vak')+knop('□ ⭕',0,'doe-vak')+knop('□ 🔺',0,'doe-vak');
+  else if(id==='kleuren')vak.innerHTML=knop('○',1,'doe-vorm')+knop('□',0,'doe-vorm')+knop('△',0,'doe-vorm');
+  else if(id==='verbinden')vak.innerHTML=knop('🔴 ··· 🔴',1,'doe-paar')+knop('🔵 ··· 🟡',0,'doe-paar')+knop('🟢 ··· 🔺',0,'doe-paar');
+  else if(id==='schrijven'||id==='invullen')vak.innerHTML=`<div class="doe-typvak"><span>${id==='invullen'?'De ____ is groen.':'Schrijf: boom'}</span><input id="taak-doe-input" autocomplete="off" spellcheck="false"><button onclick="taakInstructieDoeTypen()">✓ Klaar</button></div>`;
+  else if(id==='tekenen')vak.innerHTML=`<canvas id="taak-doe-canvas" width="600" height="220" aria-label="Teken hier"></canvas><button class="doe-klaarknop" onclick="taakInstructieTekeningKlaar()">✓ Mijn tekening is klaar</button>`;
+  else if(id==='uitknippen')vak.innerHTML=`<button class="doe-knipkaart" onclick="taakInstructieKnipKlaar(this)">🌳<small>Tik om langs de stippellijn uit te knippen</small></button>`;
+  else if(id==='plakken')vak.innerHTML=`<button class="doe-knipkaart" onclick="this.classList.add('gekozen');document.getElementById('doe-plakvak').classList.add('klaar')">🌳<small>Kies het kaartje</small></button><button id="doe-plakvak" class="doe-plakvak" onclick="taakInstructiePlakKlaar(this)">plak hier</button>`;
+  else vak.innerHTML=knop(Picto.html(taakOefItem,{grootte:130}),1);
+  toonScherm('scherm-taak-doen');setTimeout(()=>{if(taakModus){taakDoeHoor();_initDoeCanvas();}},180);
+}
+function taakDoeHoor(){if(taakOefItem)AudioEngine.spreek(taakOefItem.zin||taakOefItem.tekst);}
+async function _taakDoeGoed(){if(_instructieDoeBezig)return;_instructieDoeBezig=true;document.getElementById('taak-doe-feedback').textContent='Goed gedaan!';await _registreerAntwoord(taakOefItem.id,'luisteren',true);setTimeout(()=>{if(taakModus)taakStartLuisterenOefenen();},850);}
+async function taakInstructieDoeKies(el){if(_instructieDoeBezig)return;if(el.dataset.juist==='1'){el.classList.add('juist',taakOefItem.id);if(taakOefItem.id==='aankruisen')el.innerHTML=el.innerHTML.replace('□','☑');await _taakDoeGoed();}else{el.classList.add('fout');document.getElementById('taak-doe-feedback').textContent='Probeer nog eens.';await Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');setTimeout(()=>{el.classList.remove('fout');document.getElementById('taak-doe-feedback').textContent='';},700);}}
+function taakInstructieDoeTypen(){const el=document.getElementById('taak-doe-input');if(!el)return;if(el.value.trim().toLowerCase()==='boom'){el.classList.add('juist');_taakDoeGoed();}else{el.classList.add('fout');document.getElementById('taak-doe-feedback').textContent='Kijk nog eens en probeer opnieuw.';Voortgang.registreerFoutInTaak(taakOefItem.id,'luisteren');}}
+function taakInstructiePlakKlaar(el){if(!el.classList.contains('klaar')){document.getElementById('taak-doe-feedback').textContent='Kies eerst het kaartje.';return;}el.textContent='🌳';el.classList.add('juist');_taakDoeGoed();}
+function taakInstructieKnipKlaar(el){el.classList.add('uitgeknipt');el.querySelector('small').textContent='Uitgeknipt!';_taakDoeGoed();}
+function _initDoeCanvas(){const c=document.getElementById('taak-doe-canvas');if(!c)return;const ctx=c.getContext('2d');ctx.lineWidth=5;ctx.lineCap='round';ctx.strokeStyle='#167d6b';let teken=false;c.dataset.getekend='';const pos=e=>{const r=c.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return[(p.clientX-r.left)*c.width/r.width,(p.clientY-r.top)*c.height/r.height]};const start=e=>{teken=true;c.dataset.getekend='1';const p=pos(e);ctx.beginPath();ctx.moveTo(...p);e.preventDefault()};const move=e=>{if(!teken)return;ctx.lineTo(...pos(e));ctx.stroke();e.preventDefault()};const stop=()=>teken=false;c.onpointerdown=start;c.onpointermove=move;c.onpointerup=stop;c.onpointerleave=stop;}
+function taakInstructieTekeningKlaar(){const c=document.getElementById('taak-doe-canvas');if(c&&c.dataset.getekend)_taakDoeGoed();else document.getElementById('taak-doe-feedback').textContent='Teken eerst iets in het vak.';}
 
 // Bepaal welke oefenvorm we in de huidige ronde gebruiken voor een vaardigheid.
 // We cyclen door de aangevinkte oefenvormen op basis van de RUWE ronde-waarde

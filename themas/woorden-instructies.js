@@ -44,7 +44,7 @@
       {id:'begrijpen',naam:'Kijk, luister en antwoord',icoon:'👂',uitleg:'Begrijp wat de leerkracht vraagt.',categorieen:['luisteren']},
       {id:'papier',naam:'Werken op papier',icoon:'✏️',uitleg:'Omcirkel, verbind, knip, plak en schrijf.',categorieen:['papier']},
       {id:'plaats',naam:'Plaats en richting',icoon:'🧭',uitleg:'Boven, onder, naast, tussen, links en rechts.',categorieen:['plaats']},
-      {id:'volgorde',naam:'Volgorde en sorteren',icoon:'🔢',uitleg:'Eerst, daarna, als laatste en rangschikken.',categorieen:['volgorde','vergelijken']},
+      {id:'volgorde',naam:'Volgorde en sorteren',icoon:'🔢',uitleg:'Eerst, daarna, als laatste en rangschikken.',categorieen:['volgorde']},
       {id:'rekenen',naam:'Rekentaal',icoon:'🧮',uitleg:'Plus, min, samen, meer, minder en verschil.',categorieen:['rekentaal','vergelijken']}
     ],
     instructieOpdrachten:[
