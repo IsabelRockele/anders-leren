@@ -4783,6 +4783,7 @@ const CATEGORIE_LABELS = {
   waterdieren:      { label: 'in het water',     emoji: '🐟' },
   dierentuindieren: { label: 'dierentuin',       emoji: '🦁' },
   planten:          { label: 'planten',          emoji: '🌿' },
+  'jonge-dieren':   { label: 'jong van een dier',emoji: '🐣' },
   // Cijfers
   getallen:    { label: 'getallen',    emoji: '🔢' },
   hoeveelheid: { label: 'hoeveelheid', emoji: '➕' },

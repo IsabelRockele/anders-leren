@@ -64,7 +64,7 @@
     niveaus:['basis','uitbreiding'],categorieen:['boerderijdieren','huisdieren','waterdieren','dierentuindieren','planten','weer','natuur','jonge-dieren','boomdelen','paddenstoeldelen'],
     leeronderdelen:[
       {id:'basis',naam:'Basiswoorden',icoon:'🐾',uitleg:'Dieren, planten, weer en landschappen.',categorieen:['boerderijdieren','huisdieren','waterdieren','dierentuindieren','planten','weer','natuur']},
-      {id:'jongen',naam:'Dieren en hun jongen',icoon:'🐣',uitleg:'Leer welk jong bij welk dier hoort.',itemIds:['koe','kalf','paard','veulen','geit','geitje','schaap','lam','varken','big','kip','kuiken','hond','puppy','kat','kitten']},
+      {id:'jongen',naam:'Jong van een dier',icoon:'🐣',uitleg:'Leer welk jong bij welk dier hoort.',itemIds:['koe','kalf','paard','veulen','geit','geitje','schaap','lam','varken','big','kip','kuiken','hond','puppy','kat','kitten']},
       {id:'ei-buik',naam:'Uit een ei of uit de buik?',icoon:'🥚',uitleg:'Luister, kijk en sorteer de dieren.',itemIds:['kip','kuiken','vogel','eend','kikker','vis','koe','kalf','paard','veulen','schaap','lam','varken','big','hond','puppy','kat','kitten']},
       {id:'boom',naam:'Delen van een boom',icoon:'🌳',uitleg:'Wortels, stam, schors, tak, blad en kruin.',itemIds:['boom','wortels','stam','schors','tak','blad','kruin']},
       {id:'paddenstoel',naam:'Delen van een paddenstoel',icoon:'🍄',uitleg:'Hoed, plaatjes, steel en zwamvlok.',categorieen:['paddenstoeldelen']}
